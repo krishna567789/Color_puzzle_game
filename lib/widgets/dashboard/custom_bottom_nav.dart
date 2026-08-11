@@ -37,7 +37,8 @@ class CustomBottomNav extends StatelessWidget {
     final color = isSelected ? AppColors.bottomNavSelected : AppColors.bottomNavUnselected;
 
     return GestureDetector(
-      onTap: () => onItemSelected(index),
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => onItemSelected(index),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

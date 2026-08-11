@@ -13,7 +13,13 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  int _selectedIndex = 0;
+  final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(0);
+
+  @override
+  void dispose() {
+    _selectedIndexNotifier.dispose();
+    super.dispose();
+  }
 
   void _navigateToGame() {
     Navigator.push(
@@ -52,8 +58,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             child: ModeCard(
                               title: 'Classic',
                               subtitle: 'Mode',
-                              icon: 'assets/icons/classicMode.png',
-                              iconColor: Colors.blueAccent,
+                              icon: 'assets/icon/classicMode.png',
+
                               onTap: _navigateToGame,
                             ),
                           ),
@@ -62,8 +68,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             child: ModeCard(
                               title: 'Challenge',
                               subtitle: 'Mode',
-                              icon: 'assets/icons/challengeMode.png',
-                              iconColor: AppColors.goldCoin,
+                              icon: 'assets/icon/challengeMode.png',
+
                               onTap: _navigateToGame,
                             ),
                           ),
@@ -72,8 +78,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             child: ModeCard(
                               title: 'Daily',
                               subtitle: 'Challenge',
-                              icon: 'assets/icons/challengeMode.png',
-                              iconColor: Colors.orangeAccent,
+                              icon: 'assets/icon/daily chalenge.png',
+
                               onTap: _navigateToGame,
                             ),
                           ),
@@ -87,8 +93,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             child: ModeCard(
                               title: 'Lucky\nSpin',
                               subtitle: '',
-                              icon: 'assets/icons/challengeMode.png',
-                              iconColor: Colors.purpleAccent,
+                              icon: 'assets/icon/lucky_spin.png',
+
                               onTap: () {},
                             ),
                           ),
@@ -97,8 +103,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             child: ModeCard(
                               title: 'Events\n',
                               subtitle: '',
-                              icon: 'assets/icons/challengeMode.png',
-                              iconColor: Colors.redAccent,
+                              icon: 'assets/icon/challengeMode.png',
+
                               hasBadge: true,
                               onTap: () {},
                             ),
@@ -108,8 +114,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             child: ModeCard(
                               title: 'Shop\n',
                               subtitle: '',
-                              icon: 'assets/icons/challengeMode.png',
-                              iconColor: Colors.lightBlue,
+                              icon: 'assets/icon/challengeMode.png',
+
                               hasBadge: true,
                               onTap: () {},
                             ),
@@ -119,8 +125,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             child: ModeCard(
                               title: 'Awards\n',
                               subtitle: '',
-                              icon:'assets/icons/challengeMode.png',
-                              iconColor: AppColors.goldCoin,
+                              icon: 'assets/icon/challengeMode.png',
+
                               onTap: () {},
                             ),
                           ),
@@ -135,16 +141,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: CustomBottomNav(
-        selectedIndex: _selectedIndex,
-        onItemSelected: (index) {
-          setState(() {
-            _selectedIndex = index;
-            if (index == 2) {
-              // Play button navigates to game
-              _navigateToGame();
-            }
-          });
+      bottomNavigationBar: ValueListenableBuilder<int>(
+        valueListenable: _selectedIndexNotifier,
+        builder: (context, selectedIndex, child) {
+          return CustomBottomNav(
+            selectedIndex: selectedIndex,
+            onItemSelected: (index) {
+              _selectedIndexNotifier.value = index;
+              if (index == 2) {
+                // Play button navigates to game
+                _navigateToGame();
+              }
+            },
+          );
         },
       ),
     );

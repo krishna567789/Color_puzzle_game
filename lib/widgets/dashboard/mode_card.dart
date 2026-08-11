@@ -5,16 +5,15 @@ class ModeCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final String icon;
-  final Color iconColor;
+
   final VoidCallback onTap;
   final bool hasBadge;
 
-  const ModeCard({
+  ModeCard({
     super.key,
     required this.title,
     required this.subtitle,
     required this.icon,
-    required this.iconColor,
     required this.onTap,
     this.hasBadge = false,
   });
@@ -41,21 +40,21 @@ class ModeCard extends StatelessWidget {
               ],
             ),
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 8.0),
+              padding: const EdgeInsets.symmetric(
+                vertical: 5.0,
+                horizontal: 5.0,
+              ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: iconColor.withValues(alpha: 0.1),
-                    ),
-                    child: Image.asset(icon.toString(), color: iconColor),
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(shape: BoxShape.circle),
+                    child: Image.asset(icon.toString()),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 10),
                   Text(
                     title,
                     textAlign: TextAlign.center,
@@ -65,6 +64,7 @@ class ModeCard extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+
                   if (subtitle.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(
@@ -75,7 +75,7 @@ class ModeCard extends StatelessWidget {
                         fontSize: 12,
                       ),
                     ),
-                  ]
+                  ],
                 ],
               ),
             ),
@@ -92,7 +92,7 @@ class ModeCard extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
               ),
-            )
+            ),
         ],
       ),
     );

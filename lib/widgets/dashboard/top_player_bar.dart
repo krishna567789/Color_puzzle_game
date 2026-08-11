@@ -22,44 +22,73 @@ class TopPlayerBar extends StatelessWidget {
                   color: AppColors.primaryButton.withValues(alpha: 0.2),
                   border: Border.all(color: AppColors.primaryButton, width: 2),
                 ),
-                child: const Icon(Icons.person, color: Colors.white, size: 32), // Placeholder for avatar
+                child: const Icon(
+                  Icons.person,
+                  color: Colors.white,
+                  size: 32,
+                ), // Placeholder for avatar
               ),
               const SizedBox(width: 12),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Player', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Player',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      const Icon(Icons.star, color: AppColors.goldCoin, size: 14),
+                      const Icon(
+                        Icons.star,
+                        color: AppColors.goldCoin,
+                        size: 14,
+                      ),
                       const SizedBox(width: 4),
-                      Text('Level 25', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                      Text(
+                        'Level 25',
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      const Icon(Icons.access_time, color: AppColors.goldCoin, size: 14),
+                      const Icon(
+                        Icons.access_time,
+                        color: AppColors.goldCoin,
+                        size: 14,
+                      ),
                       const SizedBox(width: 4),
-                      Text('11:56', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                      Text(
+                        '11:56',
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
                     ],
                   ),
                 ],
               ),
             ],
           ),
-          
+
           // Currency Info
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              _buildCurrencyPill(Icons.monetization_on, AppColors.goldCoin, '12,560'),
+              _buildCurrencyPill(
+                Icons.monetization_on,
+                AppColors.goldCoin,
+                '12,560',
+              ),
               const SizedBox(height: 8),
               _buildCurrencyPill(Icons.diamond, AppColors.purpleGem, '850'),
             ],
           ),
-          
+
           const SizedBox(width: 8),
 
           // Settings Gear
@@ -83,7 +112,14 @@ class TopPlayerBar extends StatelessWidget {
       children: [
         Icon(icon, color: iconColor, size: 20),
         const SizedBox(width: 8),
-        Text(amount, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+        Text(
+          amount,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+        ),
         const SizedBox(width: 12),
         Container(
           width: 20,
@@ -93,7 +129,7 @@ class TopPlayerBar extends StatelessWidget {
             color: AppColors.purpleGem,
           ),
           child: const Icon(Icons.add, color: Colors.white, size: 14),
-        )
+        ),
       ],
     );
   }

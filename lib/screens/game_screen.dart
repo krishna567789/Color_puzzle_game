@@ -4,18 +4,20 @@ import '../widgets/tube_widget.dart';
 import '../core/app_colors.dart';
 
 class GameScreen extends StatefulWidget {
-  const GameScreen({super.key});
+  final GameMode mode;
+  const GameScreen({super.key, this.mode = GameMode.classic});
 
   @override
   State<GameScreen> createState() => _GameScreenState();
 }
 
 class _GameScreenState extends State<GameScreen> {
-  final GameController _controller = GameController();
+  late final GameController _controller;
 
   @override
   void initState() {
     super.initState();
+    _controller = GameController(mode: widget.mode);
     _controller.addListener(_onGameStateChanged);
   }
 
@@ -26,7 +28,45 @@ class _GameScreenState extends State<GameScreen> {
       Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted) _showWinDialog();
       });
+    } else if (_controller.remainingTime == 0 || (_controller.movesLimit != null && _controller.movesCount >= _controller.movesLimit!)) {
+       if (mounted) _showGameOverDialog();
     }
+  }
+
+  String _getModeTitle() {
+    switch (widget.mode) {
+      case GameMode.classic: return 'Level ${_controller.currentLevel}';
+      case GameMode.challenge: return 'Challenge';
+      case GameMode.daily: return 'Daily Challenge';
+    }
+  }
+
+  String _formatTime(int seconds) {
+    int mins = seconds ~/ 60;
+    int secs = seconds % 60;
+    return '$mins:${secs.toString().padLeft(2, '0')}';
+  }
+
+  void _showGameOverDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A2E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Game Over!', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+        content: const Text('You ran out of time or moves. Try again?', style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _controller.restartLevel();
+            },
+            child: const Text('Retry', style: TextStyle(color: Colors.white, fontSize: 16)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showWinDialog() {
@@ -80,12 +120,30 @@ class _GameScreenState extends State<GameScreen> {
         title: Column(
           children: [
             Text(
-              'Level ${_controller.currentLevel}',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24, letterSpacing: 1.2),
+              _getModeTitle(),
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20, letterSpacing: 1.2),
             ),
-            Text(
-              'Moves: ${_controller.movesCount}',
-              style: const TextStyle(color: Colors.white70, fontSize: 14),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_controller.remainingTime != null) ...[
+                  const Icon(Icons.timer, color: Colors.orange, size: 16),
+                  const SizedBox(width: 4),
+                  Text(
+                    _formatTime(_controller.remainingTime!),
+                    style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+                const Icon(Icons.touch_app, color: Colors.cyan, size: 16),
+                const SizedBox(width: 4),
+                Text(
+                  _controller.movesLimit != null 
+                    ? '${_controller.movesCount} / ${_controller.movesLimit}' 
+                    : '${_controller.movesCount}',
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+              ],
             ),
           ],
         ),
@@ -99,6 +157,7 @@ class _GameScreenState extends State<GameScreen> {
             onPressed: () => _controller.undo(),
             tooltip: 'Undo Move',
           ),
+
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: () => _controller.restartLevel(),

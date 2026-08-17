@@ -71,13 +71,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         Text(
                           _pages[index]['title']!,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
+                          style:  TextStyle(
                             color: AppColors.textLight,
                             fontSize: 32,
                             fontWeight: FontWeight.w900,
                             height: 1.2,
                           ),
                         ),
+
                         const SizedBox(height: 16),
                         Text(
                           _pages[index]['description']!,

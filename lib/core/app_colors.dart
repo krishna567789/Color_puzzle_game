@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  static const Color background = Color(0xFF090A1A); // Deep dark blue background matching the dashboard
-  static const Color cardBackground = Color(0xFF131B3A); // Lighter blue for cards
-  static const Color cardBorder = Color(0xFF28366A); // Subtle border for cards
-  static const Color primaryButton = Color(0xFF00C3FF); // Bright blue from the UI
-  static const Color textLight = Colors.white;
+  static const Color background = Color(0xFF03071E); // Very dark navy/black
+  static const Color cardBackground = Color(0xFF0B1231);
+  static const Color cardBorder = Color(0xFF1E2855);
   
-  static const Color goldCoin = Color(0xFFFFB800); // Gold for coins
-  static const Color purpleGem = Color(0xFFD900FF); // Purple for gems
-  static const Color bottomNavUnselected = Color(0xFF5A668A); // Unselected bottom nav icons
-  static const Color bottomNavSelected = Color(0xFF00C3FF); // Glowing selected icon
+  // Theme Colors for Cards
+  static const List<Color> classicGradient = [Color(0xFF0066FF), Color(0xFF003399)];
+  static const List<Color> challengeGradient = [Color(0xFF9900FF), Color(0xFF6600CC)];
+  static const List<Color> dailyGradient = [Color(0xFFFF6600), Color(0xFF993300)];
+  
+  static const Color primaryButton = Color(0xFF00C2FF);
+  static const Color goldCoin = Color(0xFFFFD700);
+  static const Color purpleGem = Color(0xFFE000FF);
+  
+  static const Color bottomNavUnselected = Color(0xFF4A567D);
+  static const Color bottomNavSelected = Color(0xFF00C2FF);
+  static const Color textLight = Colors.white;
 }

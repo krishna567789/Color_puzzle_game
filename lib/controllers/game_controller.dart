@@ -1,13 +1,22 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/tube_model.dart';
+import '../core/storage_service.dart';
+
+enum GameMode { classic, challenge, daily }
 
 class GameController extends ChangeNotifier {
   List<Tube> tubes = [];
   int? selectedTubeIndex;
   int? wrongMoveIndex;
   
+  // Player Stats
+  int coins = 0;
+  int gems = 0;
+  int maxUnlockedLevel = 1;
+
   // Pouring animation states
   int? pouringFromIndex;
   int? pouringToIndex;
@@ -18,6 +27,12 @@ class GameController extends ChangeNotifier {
   bool isLevelComplete = false;
   int currentLevel = 1;
   int movesCount = 0;
+  
+  // Mode specific logic
+  GameMode activeMode = GameMode.classic;
+  int? remainingTime; // for Challenge Mode (seconds)
+  int? movesLimit;    // for Challenge Mode
+  Timer? _timer;
 
   final List<List<Tube>> _history = [];
 
@@ -28,11 +43,21 @@ class GameController extends ChangeNotifier {
     Colors.teal, Colors.indigo, Colors.brown, Colors.lime,
   ];
 
-  GameController() {
-    _initLevel();
+  GameController({GameMode mode = GameMode.classic}) {
+    activeMode = mode;
+    _loadProgress().then((_) => _initLevel());
+  }
+
+  Future<void> _loadProgress() async {
+    maxUnlockedLevel = await StorageService.getLevel();
+    coins = await StorageService.getCoins();
+    gems = await StorageService.getGems();
+    currentLevel = (activeMode == GameMode.classic) ? maxUnlockedLevel : 1;
+    notifyListeners();
   }
 
   void _initLevel() {
+    _timer?.cancel();
     pouringFromIndex = null;
     pouringToIndex = null;
     pourTiltAngle = 0.0;
@@ -43,27 +68,56 @@ class GameController extends ChangeNotifier {
     movesCount = 0;
     _history.clear();
 
+    _setupModeConstraints();
     _generateProceduralLevel();
+    
+    if (activeMode == GameMode.challenge) {
+      _startTimer();
+    }
+    
+    notifyListeners();
+  }
+
+  void _setupModeConstraints() {
+    if (activeMode == GameMode.challenge) {
+      remainingTime = 120; // 2 minutes
+      movesLimit = 30;     // 30 moves
+    } else {
+      remainingTime = null;
+      movesLimit = null;
+    }
+  }
+
+  void _startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (remainingTime != null && remainingTime! > 0) {
+        remainingTime = remainingTime! - 1;
+        notifyListeners();
+      } else {
+        _timer?.cancel();
+        _handleGameOver();
+      }
+    });
+  }
+
+  void _handleGameOver() {
     notifyListeners();
   }
 
   void _generateProceduralLevel() {
     final Random random = Random();
     
-    // Determine number of colors based on level (more aggressive progression)
-    // Starting with 4 colors at level 1, increasing every 2 levels
-    int numColors = min((currentLevel ~/ 2) + 4, _availableColors.length);
+    int baseDifficulty = (currentLevel ~/ 2) + 4;
+    if (activeMode == GameMode.challenge) baseDifficulty += 2;
+    if (activeMode == GameMode.daily) baseDifficulty = 8;
     
-    // Number of empty tubes can also vary (2 or 3)
-    int numEmptyTubes = (currentLevel > 10 && random.nextBool()) ? 3 : 2;
-    
+    int numColors = min(baseDifficulty, _availableColors.length);
+    int numEmptyTubes = 2;
     int totalTubes = numColors + numEmptyTubes;
     
-    // 1. Pick colors
     List<Color> levelColors = List.from(_availableColors)..shuffle(random);
     levelColors = levelColors.take(numColors).toList();
     
-    // 2. Create all liquid units (4 per color)
     List<Color> allUnits = [];
     for (var color in levelColors) {
       for (int i = 0; i < 4; i++) {
@@ -71,24 +125,20 @@ class GameController extends ChangeNotifier {
       }
     }
     
-    // 3. Shuffle units thoroughly
     allUnits.shuffle(random);
     
-    // 4. Distribute into tubes
     tubes = List.generate(totalTubes, (index) {
       if (index < numColors) {
         List<Color> tubeColors = [];
-        // Ensure no tube starts already completed (4 of same color)
         for (int i = 0; i < 4; i++) {
           tubeColors.add(allUnits.removeLast());
         }
         return Tube(initialColors: tubeColors);
       } else {
-        return Tube(initialColors: []); // Empty tubes
+        return Tube(initialColors: []); 
       }
     });
 
-    // Final check: if a tube happens to be already sorted by chance, reshuffle
     bool hasAlreadySortedTube = tubes.any((t) => t.isFull && t.colors.every((c) => c == t.colors.first));
     if (hasAlreadySortedTube || _isAlreadySolved()) {
       _generateProceduralLevel();
@@ -105,11 +155,26 @@ class GameController extends ChangeNotifier {
     return true;
   }
 
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
   void restartLevel() {
     _initLevel();
   }
 
   void nextLevel() {
+    if (activeMode == GameMode.classic) {
+      // Reward and progression
+      coins += 50;
+      StorageService.saveCoins(coins);
+      if (currentLevel == maxUnlockedLevel) {
+        maxUnlockedLevel++;
+        StorageService.saveLevel(maxUnlockedLevel);
+      }
+    }
     currentLevel++;
     _initLevel();
   }
@@ -145,10 +210,14 @@ class GameController extends ChangeNotifier {
   }
 
   Future<void> _startPouring(int fromIndex, int toIndex) async {
+    if (movesLimit != null && movesCount >= movesLimit!) {
+      _triggerWrongMove(fromIndex);
+      return;
+    }
+
     Tube fromTube = tubes[fromIndex];
     Tube toTube = tubes[toIndex];
 
-    // New Logic: Anyone's color can be filled in anyone, just need space.
     if (toTube.isFull) {
       _triggerWrongMove(toIndex);
       selectedTubeIndex = null;
@@ -156,7 +225,6 @@ class GameController extends ChangeNotifier {
       return;
     }
 
-    // Save history
     _history.add(tubes.map((t) => t.copyWith()).toList());
     movesCount++;
 
@@ -165,15 +233,12 @@ class GameController extends ChangeNotifier {
     pouringColor = fromTube.topColor;
     selectedTubeIndex = null;
     
-    // Calculate tilt direction
     double tiltDirection = (toIndex > fromIndex) ? 1.2 : -1.2;
     pourTiltAngle = tiltDirection; 
     notifyListeners();
     
     await Future.delayed(const Duration(milliseconds: 400));
     
-    // Transfer colors: Even if they are different, we allow it.
-    // We transfer the entire top block of the same color.
     Color pColor = fromTube.topColor!;
     while (fromTube.colors.isNotEmpty && 
            fromTube.topColor == pColor && 
@@ -185,15 +250,22 @@ class GameController extends ChangeNotifier {
       await Future.delayed(const Duration(milliseconds: 200));
     }
 
-    // Tilt back
     pourTiltAngle = 0.0;
     notifyListeners();
     await Future.delayed(const Duration(milliseconds: 400));
 
-    // Reset pouring state
     pouringFromIndex = null;
     pouringToIndex = null;
+    
     _checkWinCondition();
+    
+    if (isLevelComplete) {
+      _timer?.cancel();
+    } else if (movesLimit != null && movesCount >= movesLimit!) {
+      _timer?.cancel();
+      _handleGameOver();
+    }
+    
     notifyListeners();
   }
 

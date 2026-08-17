@@ -3,6 +3,8 @@ import '../../core/app_colors.dart';
 import '../widgets/dashboard/top_player_bar.dart';
 import '../widgets/dashboard/mode_card.dart';
 import '../widgets/dashboard/custom_bottom_nav.dart';
+import '../controllers/game_controller.dart';
+import '../core/storage_service.dart';
 import 'game_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -14,6 +16,26 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(0);
+  int _userLevel = 1;
+  int _coins = 0;
+  int _gems = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final level = await StorageService.getLevel();
+    final coins = await StorageService.getCoins();
+    final gems = await StorageService.getGems();
+    setState(() {
+      _userLevel = level;
+      _coins = coins;
+      _gems = gems;
+    });
+  }
 
   @override
   void dispose() {
@@ -21,11 +43,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
-  void _navigateToGame() {
-    Navigator.push(
+  void _navigateToGame(GameMode mode) async {
+    await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const GameScreen()),
+      MaterialPageRoute(builder: (context) => GameScreen(mode: mode)),
     );
+    // Reload user data when returning from game
+    _loadUserData();
   }
 
   @override
@@ -35,7 +59,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const TopPlayerBar(),
+            TopPlayerBar(
+              level: _userLevel,
+              coins: _coins,
+              gems: _gems,
+            ),
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
@@ -44,14 +72,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: Column(
                     children: [
                       const SizedBox(height: 10),
-                      // Center Logo
-                      Image.asset(
-                        'assets/images/splash.png',
-                        height: 180,
-                        fit: BoxFit.contain,
+                      // Center Logo with extra padding/leaves effect (simulated)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Image.asset(
+                          'assets/images/splash.png',
+                          height: 280,
+                          fit: BoxFit.contain,
+                        ),
                       ),
-                      const SizedBox(height: 20),
-                      // Top 3 Cards
+                      const SizedBox(height: 10),
+                      // Top 3 Cards (Modes)
                       Row(
                         children: [
                           Expanded(
@@ -59,73 +90,77 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               title: 'Classic',
                               subtitle: 'Mode',
                               icon: 'assets/icon/classicMode.png',
-
-                              onTap: _navigateToGame,
+                              gradient: AppColors.classicGradient,
+                              onTap: () => _navigateToGame(GameMode.classic),
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: ModeCard(
                               title: 'Challenge',
                               subtitle: 'Mode',
                               icon: 'assets/icon/challengeMode.png',
-
-                              onTap: _navigateToGame,
+                              gradient: AppColors.challengeGradient,
+                              onTap: () => _navigateToGame(GameMode.challenge),
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: ModeCard(
                               title: 'Daily',
                               subtitle: 'Challenge',
                               icon: 'assets/icon/daily chalenge.png',
-
-                              onTap: _navigateToGame,
+                              gradient: AppColors.dailyGradient,
+                              onTap: () => _navigateToGame(GameMode.daily),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
-                      // Bottom 4 Cards (Grid)
+                      const SizedBox(height: 20),
+                      // Bottom 4-Column Grid
                       Row(
                         children: [
                           Expanded(
                             child: ModeCard(
-                              title: 'Lucky\nSpin',
+                              title: 'Lucky Spin',
                               subtitle: '',
                               icon: 'assets/icon/lucky_spin.png',
+                              isVertical: false,
+                              ctaText: 'SPIN NOW',
                               onTap: () {},
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: ModeCard(
-                              title: 'Events\n',
+                              title: 'Events',
                               subtitle: '',
-                              icon: 'assets/icon/challengeMode.png',
-
+                              icon: 'assets/icon/events.png',
+                              isVertical: false,
+                              ctaText: 'JOIN NOW',
+                              onTap: () {},
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ModeCard(
+                              title: 'Shop',
+                              subtitle: '',
+                              icon: 'assets/icon/shop.png',
+                              isVertical: false,
+                              ctaText: 'BUY NOW',
                               hasBadge: true,
                               onTap: () {},
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: ModeCard(
-                              title: 'Shop\n',
+                              title: 'Achievements',
                               subtitle: '',
-                              icon: 'assets/icon/challengeMode.png',
-
-                              hasBadge: true,
-                              onTap: () {},
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: ModeCard(
-                              title: 'Awards\n',
-                              subtitle: '',
-                              icon: 'assets/icon/challengeMode.png',
-
+                              icon: 'assets/icon/achivement.png',
+                              isVertical: false,
+                              ctaText: 'VIEW ALL',
                               onTap: () {},
                             ),
                           ),
@@ -149,7 +184,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               _selectedIndexNotifier.value = index;
               if (index == 2) {
                 // Play button navigates to game
-                _navigateToGame();
+                _navigateToGame(GameMode.classic);
               }
             },
           );

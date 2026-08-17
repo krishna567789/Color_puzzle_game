@@ -5,17 +5,22 @@ class ModeCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final String icon;
-
   final VoidCallback onTap;
   final bool hasBadge;
+  final bool isVertical;
+  final List<Color>? gradient;
+  final String? ctaText;
 
-  ModeCard({
+  const ModeCard({
     super.key,
     required this.title,
     required this.subtitle,
     required this.icon,
     required this.onTap,
     this.hasBadge = false,
+    this.isVertical = true,
+    this.gradient,
+    this.ctaText,
   });
 
   @override
@@ -26,71 +31,93 @@ class ModeCard extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           Container(
-            width: double.infinity,
+            padding: const EdgeInsets.all(5),
             decoration: BoxDecoration(
               color: AppColors.cardBackground,
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: AppColors.cardBorder, width: 2),
+              border: Border.all(
+                color: gradient != null ? gradient!.first.withValues(alpha: 0.5) : AppColors.cardBorder, 
+                width: 2,
+              ),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: gradient ?? [AppColors.cardBackground, AppColors.cardBackground],
+              ),
               boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
-                ),
+                if (gradient != null)
+                  BoxShadow(
+                    color: gradient!.first.withValues(alpha: 0.3),
+                    blurRadius: 15,
+                    spreadRadius: 1,
+                  ),
               ],
             ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                vertical: 5.0,
-                horizontal: 5.0,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(shape: BoxShape.circle),
-                    child: Image.asset(icon.toString()),
-                  ),
-                  const SizedBox(height: 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isVertical) ...[
+                  const SizedBox(height: 4),
+                  Image.asset(icon, height: 140, fit: BoxFit.cover),
+                  const SizedBox(height:8),
                   Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    title.toUpperCase(),
+                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900),
                   ),
-
-                  if (subtitle.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.6),
-                        fontSize: 12,
+                  Text(
+                    subtitle.toUpperCase(),
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  // "PLAY" Button style
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.white.withValues(alpha: 0.3), Colors.white.withValues(alpha: 0.1)],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        'PLAY',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                       ),
                     ),
-                  ],
+                  ),
+                ] else ...[
+                  // Horizontal/Small Grid style
+                  Image.asset(icon, height: 50, fit: BoxFit.contain),
+                  const SizedBox(height: 8),
+                  Text(
+                    title.toUpperCase(),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900),
+                  ),
+                  if (ctaText != null)
+                    Text(
+                      ctaText!.toUpperCase(),
+                      style: TextStyle(
+                        color: gradient != null ? gradient!.first : AppColors.primaryButton,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                 ],
-              ),
+              ],
             ),
           ),
           if (hasBadge)
             Positioned(
-              top: 10,
-              right: 10,
+              top: 5,
+              right: 5,
               child: Container(
-                width: 12,
-                height: 12,
-                decoration: const BoxDecoration(
-                  color: Colors.redAccent,
-                  shape: BoxShape.circle,
-                ),
+                width: 18,
+                height: 18,
+                decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                child: const Center(child: Text('!', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold))),
               ),
             ),
         ],

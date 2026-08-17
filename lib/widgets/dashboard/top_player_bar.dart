@@ -2,134 +2,134 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 
 class TopPlayerBar extends StatelessWidget {
-  const TopPlayerBar({super.key});
+  final int level;
+  final int coins;
+  final int gems;
+
+  const TopPlayerBar({
+    super.key,
+    required this.level,
+    required this.coins,
+    required this.gems,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Player Info
-          Row(
+          // Avatar with Circular Progress
+          Stack(
+            alignment: Alignment.center,
             children: [
               Container(
-                width: 48,
-                height: 48,
+                width: 54,
+                height: 54,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: AppColors.primaryButton.withValues(alpha: 0.2),
-                  border: Border.all(color: AppColors.primaryButton, width: 2),
+                  border: Border.all(color: const Color(0xFF1E2855), width: 3),
                 ),
-                child: const Icon(
-                  Icons.person,
-                  color: Colors.white,
-                  size: 32,
-                ), // Placeholder for avatar
               ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Player',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+              CircularProgressIndicator(
+                value: (level % 10) / 10.0,
+                strokeWidth: 3,
+                backgroundColor: Colors.transparent,
+                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.goldCoin),
+              ),
+              ClipOval(
+                child: Image.asset(
+                  'assets/images/onboarding1.png',
+                  width: 44,
+                  height: 44,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 12),
+          // Player & XP Bar
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Player',
+                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.stars, color: AppColors.goldCoin, size: 16),
+                    const SizedBox(width: 4),
+                    Text('Level $level', style: const TextStyle(color: Colors.white, fontSize: 13)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                // XP Progress Bar
+                Container(
+                  width: 100,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E2855),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: 0.6,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(colors: [Color(0xFFFFB800), Color(0xFFFF8A00)]),
+                        borderRadius: BorderRadius.circular(5),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.star,
-                        color: AppColors.goldCoin,
-                        size: 14,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Level 25',
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.access_time,
-                        color: AppColors.goldCoin,
-                        size: 14,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '11:56',
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(height: 2),
+                Text('${(level * 100) + 865} / ${(level + 1) * 300}', style: const TextStyle(color: Colors.white54, fontSize: 10)),
+              ],
+            ),
           ),
-
-          // Currency Info
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              _buildCurrencyPill(
-                Icons.monetization_on,
-                AppColors.goldCoin,
-                '12,560',
-              ),
-              const SizedBox(height: 8),
-              _buildCurrencyPill(Icons.diamond, AppColors.purpleGem, '850'),
-            ],
+          // Currency Container
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0B1231),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFF1E2855)),
+            ),
+            child: Column(
+              children: [
+                _buildCurrencyRow(Icons.monetization_on, AppColors.goldCoin, coins.toString()),
+                const SizedBox(height: 6),
+                _buildCurrencyRow(Icons.diamond, AppColors.purpleGem, gems.toString()),
+              ],
+            ),
           ),
-
           const SizedBox(width: 8),
-
-          // Settings Gear
+          // Settings Button
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.cardBackground,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.cardBorder, width: 1),
+              color: const Color(0xFF1E2855),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.settings, color: Colors.white, size: 24),
+            child: const Icon(Icons.settings, color: Colors.white70, size: 22),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCurrencyPill(IconData icon, Color iconColor, String amount) {
+  Widget _buildCurrencyRow(IconData icon, Color color, String amount) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: iconColor, size: 20),
-        const SizedBox(width: 8),
-        Text(
-          amount,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Container(
-          width: 20,
-          height: 20,
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            color: AppColors.purpleGem,
-          ),
-          child: const Icon(Icons.add, color: Colors.white, size: 14),
-        ),
+        Icon(icon, color: color, size: 16),
+        const SizedBox(width: 6),
+        Text(amount, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+        const SizedBox(width: 6),
+        const Icon(Icons.add_circle, color: Colors.white38, size: 16),
       ],
     );
   }

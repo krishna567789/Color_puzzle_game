@@ -14,19 +14,25 @@ class CustomBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.only(top: 8, bottom: 24, left: 16, right: 16),
-      decoration: const BoxDecoration(
-        color: AppColors.background,
-        border: Border(top: BorderSide(color: AppColors.cardBorder, width: 1)),
+      padding: const EdgeInsets.only(top: 12, bottom: 20, left: 8, right: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF080B1E),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
+          ),
+        ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildNavItem(0, Icons.home_filled, 'Home'),
-          _buildNavItem(1, Icons.leaderboard, 'Levels'),
-          _buildNavItem(2, Icons.science, 'Play', isCenter: true),
-          _buildNavItem(3, Icons.bar_chart, 'Stats'),
-          _buildNavItem(4, Icons.person, 'Profile'),
+          _buildNavItem(0, Icons.home_rounded, 'Home'),
+          _buildNavItem(1, Icons.grid_view_rounded, 'Levels'),
+          _buildNavItem(2, Icons.science_rounded, 'Play', isCenter: true),
+          _buildNavItem(3, Icons.bar_chart_rounded, 'Stats'),
+          _buildNavItem(4, Icons.person_rounded, 'Profile'),
         ],
       ),
     );
@@ -42,20 +48,31 @@ class CustomBottomNav extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            color: color,
-            size: isCenter ? 36 : 28,
+          Container(
+            padding: EdgeInsets.all(isSelected ? 8 : 0),
+            decoration: isSelected ? BoxDecoration(
+              color: AppColors.bottomNavSelected.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.bottomNavSelected.withValues(alpha: 0.2)),
+            ) : null,
+            child: Icon(
+              icon,
+              color: color,
+              size: isCenter ? 32 : 26,
+            ),
           ),
           const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            ),
-          )
+          if (isSelected)
+            Container(
+              width: 4,
+              height: 4,
+              decoration: const BoxDecoration(color: AppColors.bottomNavSelected, shape: BoxShape.circle),
+            )
+          else
+            Text(
+              label,
+              style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.normal),
+            )
         ],
       ),
     );

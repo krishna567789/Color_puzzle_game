@@ -11,6 +11,7 @@ class Tube {
 
   bool get isFull => colors.length >= capacity;
   bool get isEmpty => colors.isEmpty;
+  bool get isNotEmpty => colors.isNotEmpty;
   
   Color? get topColor => colors.isNotEmpty ? colors.last : null;
 

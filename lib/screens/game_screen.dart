@@ -41,10 +41,21 @@ class _GameScreenState extends State<GameScreen> {
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.pop(context); // Close dialog
+              Navigator.pop(context);
               _controller.restartLevel();
             },
-            child: const Text('Play Again', style: TextStyle(color: AppColors.primaryButton, fontSize: 16)),
+            child: const Text('Restart', style: TextStyle(color: Colors.white70, fontSize: 16)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryButton,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              _controller.nextLevel();
+            },
+            child: const Text('Next Level', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -66,11 +77,28 @@ class _GameScreenState extends State<GameScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
-        title: const Text(
-          'Level 1',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+        title: Column(
+          children: [
+            Text(
+              'Level ${_controller.currentLevel}',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 24, letterSpacing: 1.2),
+            ),
+            Text(
+              'Moves: ${_controller.movesCount}',
+              style: const TextStyle(color: Colors.white70, fontSize: 14),
+            ),
+          ],
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.undo, color: Colors.white),
+            onPressed: () => _controller.undo(),
+            tooltip: 'Undo Move',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: () => _controller.restartLevel(),
@@ -78,19 +106,57 @@ class _GameScreenState extends State<GameScreen> {
           ),
         ],
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 32.0),
-          child: Wrap(
-            spacing: 24,
-            runSpacing: 40,
-            alignment: WrapAlignment.center,
-            children: List.generate(
-              _controller.tubes.length,
-              (index) => TubeWidget(
-                tube: _controller.tubes[index],
-                isSelected: _controller.selectedTubeIndex == index,
-                onTap: () => _controller.selectTube(index),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.center,
+            radius: 1.5,
+            colors: [
+              AppColors.background.withOpacity(0.8),
+              AppColors.background,
+            ],
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 32.0),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 500),
+                transitionBuilder: (Widget child, Animation<double> animation) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(1, 0),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
+                    ),
+                  );
+                },
+                child: Wrap(
+                  key: ValueKey(_controller.currentLevel),
+                  spacing: 24,
+                  runSpacing: 40,
+                  alignment: WrapAlignment.center,
+                  children: List.generate(
+                    _controller.tubes.length,
+                    (index) {
+                      bool isPouringSource = _controller.pouringFromIndex == index;
+                      bool isReceiving = _controller.pouringToIndex == index;
+                      
+                      return TubeWidget(
+                        tube: _controller.tubes[index],
+                        isSelected: _controller.selectedTubeIndex == index,
+                        isShaking: _controller.wrongMoveIndex == index,
+                        isReceiving: isReceiving,
+                        tiltAngle: isPouringSource ? _controller.pourTiltAngle : 0.0,
+                        onTap: () => _controller.selectTube(index),
+                      );
+                    },
+                  ),
+                ),
               ),
             ),
           ),

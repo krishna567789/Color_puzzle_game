@@ -94,7 +94,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               title: 'Lucky\nSpin',
                               subtitle: '',
                               icon: 'assets/icon/lucky_spin.png',
-
                               onTap: () {},
                             ),
                           ),

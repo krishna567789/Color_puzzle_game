@@ -12,6 +12,7 @@ class TubeWidget extends StatefulWidget {
   final VoidCallback onTap;
   final Color? pouringColor;
   final Offset? targetOffset;
+  final String skinId;
 
   const TubeWidget({
     super.key,
@@ -24,6 +25,7 @@ class TubeWidget extends StatefulWidget {
     required this.onTap,
     this.pouringColor,
     this.targetOffset,
+    this.skinId = 'default_tube',
   });
 
   @override
@@ -227,7 +229,10 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
                       // Glass Bottle Body
                       CustomPaint(
                         size: const Size(55, 150),
-                        painter: BottlePainter(isSelected: widget.isSelected),
+                        painter: BottlePainter(
+                          isSelected: widget.isSelected,
+                          skinId: widget.skinId,
+                        ),
                       ),
 
                       // Bottle Glints/Highlights
@@ -331,32 +336,38 @@ class StreamPainter extends CustomPainter {
 
 class BottlePainter extends CustomPainter {
   final bool isSelected;
-  BottlePainter({required this.isSelected});
+  final String skinId;
+  BottlePainter({required this.isSelected, this.skinId = 'default_tube'});
 
   @override
   void paint(Canvas canvas, Size size) {
     final glassPaint = Paint()
-      ..color = Colors.cyanAccent.withOpacity(0.08)
+      ..color = _getGlassColor().withOpacity(0.08)
       ..style = PaintingStyle.fill;
 
     final borderPaint = Paint()
-      ..color = isSelected ? Colors.white : Colors.white.withOpacity(0.5)
+      ..color = isSelected ? _getSelectedBorderColor() : _getBorderColor()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3.0
+      ..strokeWidth = skinId == 'neon_tube' ? 4.0 : 3.0
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
     final path = _getBottlePath(size);
 
-    if (isSelected) {
-      canvas.drawShadow(path, Colors.white.withOpacity(0.6), 12, true);
+    if (isSelected || skinId == 'neon_tube') {
+      canvas.drawShadow(path, _getGlowColor().withOpacity(0.6), isSelected ? 12 : 6, true);
     }
 
     canvas.drawPath(path, glassPaint);
     canvas.drawPath(path, borderPaint);
     
+    // Add specific details based on skin
+    if (skinId == 'crystal_bottle') {
+       _drawCrystalFacets(canvas, size);
+    }
+
     final neckRimPaint = Paint()
-      ..color = Colors.white.withOpacity(0.8)
+      ..color = _getBorderColor().withOpacity(0.8)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3;
     
@@ -369,8 +380,51 @@ class BottlePainter extends CustomPainter {
     );
   }
 
+  Color _getGlassColor() {
+    switch(skinId) {
+      case 'neon_tube': return Colors.purpleAccent;
+      case 'crystal_bottle': return Colors.blueAccent;
+      case 'wooden_tube': return Colors.brown;
+      default: return Colors.cyanAccent;
+    }
+  }
+
+  Color _getBorderColor() {
+    switch(skinId) {
+      case 'neon_tube': return Colors.purpleAccent.withOpacity(0.6);
+      case 'wooden_tube': return Colors.brown[400]!;
+      default: return Colors.white.withOpacity(0.5);
+    }
+  }
+
+  Color _getSelectedBorderColor() {
+    switch(skinId) {
+      case 'neon_tube': return Colors.white;
+      case 'wooden_tube': return Colors.orangeAccent;
+      default: return Colors.white;
+    }
+  }
+
+  Color _getGlowColor() {
+    switch(skinId) {
+      case 'neon_tube': return Colors.purple;
+      case 'wooden_tube': return Colors.orange;
+      default: return Colors.white;
+    }
+  }
+
+  void _drawCrystalFacets(Canvas canvas, Size size) {
+    final facetPaint = Paint()
+      ..color = Colors.white.withOpacity(0.1)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    canvas.drawLine(Offset(size.width * 0.3, size.height * 0.2), Offset(size.width * 0.7, size.height * 0.5), facetPaint);
+    canvas.drawLine(Offset(size.width * 0.7, size.height * 0.2), Offset(size.width * 0.3, size.height * 0.5), facetPaint);
+  }
+
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant BottlePainter oldDelegate) => 
+      oldDelegate.isSelected != isSelected || oldDelegate.skinId != skinId;
 }
 
 class BottleClipper extends CustomClipper<Path> {

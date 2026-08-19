@@ -7,6 +7,17 @@ class StorageService {
   static const String _keyGems = 'user_gems';
   static const String _keyFirstTime = 'first_time_user';
   static const String _keyVibration = 'vibration_enabled';
+  static const String _keyMusic = 'music_enabled';
+  static const String _keySfx = 'sfx_enabled';
+  static const String _keyDailyRewardDate = 'daily_reward_date';
+  static const String _keyOwnedItems = 'owned_items';
+  static const String _keySelectedSkin = 'selected_skin';
+  static const String _keySelectedTheme = 'selected_theme';
+  static const String _keyLastSpinDate = 'last_spin_date';
+  static const String _keyAchievementProgress = 'achievement_progress';
+  static const String _keyTotalLevelsWon = 'total_levels_won';
+  static const String _keyEventProgress = 'event_progress';
+  static const String _keyTutorialCompleted = 'tutorial_completed';
 
   static Future<Box<dynamic>>? _boxFuture;
 
@@ -71,5 +82,115 @@ class StorageService {
   static Future<bool> getVibration() async {
     final box = await _getBox();
     return box.get(_keyVibration, defaultValue: true) as bool;
+  }
+
+  static Future<void> setMusic(bool enabled) async {
+    final box = await _getBox();
+    await box.put(_keyMusic, enabled);
+  }
+
+  static Future<bool> getMusic() async {
+    final box = await _getBox();
+    return box.get(_keyMusic, defaultValue: true) as bool;
+  }
+
+  static Future<void> setSfx(bool enabled) async {
+    final box = await _getBox();
+    await box.put(_keySfx, enabled);
+  }
+
+  static Future<bool> getSfx() async {
+    final box = await _getBox();
+    return box.get(_keySfx, defaultValue: true) as bool;
+  }
+
+  static Future<bool> hasClaimedDailyReward(String challengeId) async {
+    final box = await _getBox();
+    return box.get(_keyDailyRewardDate) == challengeId;
+  }
+
+  /// Claims a daily reward once for the supplied date-based challenge id.
+  static Future<bool> claimDailyReward(String challengeId) async {
+    final box = await _getBox();
+    if (box.get(_keyDailyRewardDate) == challengeId) return false;
+    await box.put(_keyDailyRewardDate, challengeId);
+    return true;
+  }
+
+  static Future<void> saveOwnedItems(List<String> itemIds) async {
+    final box = await _getBox();
+    await box.put(_keyOwnedItems, itemIds);
+  }
+
+  static Future<List<String>> getOwnedItems() async {
+    final box = await _getBox();
+    return List<String>.from(box.get(_keyOwnedItems, defaultValue: <String>['default_tube']) as List);
+  }
+
+  static Future<void> setSelectedSkin(String skinId) async {
+    final box = await _getBox();
+    await box.put(_keySelectedSkin, skinId);
+  }
+
+  static Future<String> getSelectedSkin() async {
+    final box = await _getBox();
+    return box.get(_keySelectedSkin, defaultValue: 'default_tube') as String;
+  }
+
+  static Future<void> setLastSpinDate(String date) async {
+    final box = await _getBox();
+    await box.put(_keyLastSpinDate, date);
+  }
+
+  static Future<String?> getLastSpinDate() async {
+    final box = await _getBox();
+    return box.get(_keyLastSpinDate) as String?;
+  }
+
+  static Future<void> saveAchievementProgress(String achievementId, bool claimed, int progress) async {
+    final box = await _getBox();
+    Map<String, dynamic> data = Map<String, dynamic>.from(box.get(_keyAchievementProgress, defaultValue: <String, dynamic>{}) as Map);
+    data[achievementId] = {'claimed': claimed, 'progress': progress};
+    await box.put(_keyAchievementProgress, data);
+  }
+
+  static Future<Map<String, dynamic>> getAchievementData(String achievementId) async {
+    final box = await _getBox();
+    Map<String, dynamic> data = Map<String, dynamic>.from(box.get(_keyAchievementProgress, defaultValue: <String, dynamic>{}) as Map);
+    return data[achievementId] as Map<String, dynamic>? ?? {'claimed': false, 'progress': 0};
+  }
+  
+  static Future<void> incrementTotalLevelsWon() async {
+    final box = await _getBox();
+    int total = box.get(_keyTotalLevelsWon, defaultValue: 0) as int;
+    await box.put(_keyTotalLevelsWon, total + 1);
+  }
+
+  static Future<int> getTotalLevelsWon() async {
+    final box = await _getBox();
+    return box.get(_keyTotalLevelsWon, defaultValue: 0) as int;
+  }
+
+  static Future<void> saveEventProgress(String eventId, bool claimed, int progress) async {
+    final box = await _getBox();
+    Map<String, dynamic> data = Map<String, dynamic>.from(box.get(_keyEventProgress, defaultValue: <String, dynamic>{}) as Map);
+    data[eventId] = {'claimed': claimed, 'progress': progress};
+    await box.put(_keyEventProgress, data);
+  }
+
+  static Future<Map<String, dynamic>> getEventData(String eventId) async {
+    final box = await _getBox();
+    Map<String, dynamic> data = Map<String, dynamic>.from(box.get(_keyEventProgress, defaultValue: <String, dynamic>{}) as Map);
+    return Map<String, dynamic>.from(data[eventId] as Map? ?? {'claimed': false, 'progress': 0});
+  }
+
+  static Future<void> setTutorialCompleted(bool completed) async {
+    final box = await _getBox();
+    await box.put(_keyTutorialCompleted, completed);
+  }
+
+  static Future<bool> isTutorialCompleted() async {
+    final box = await _getBox();
+    return box.get(_keyTutorialCompleted, defaultValue: false) as bool;
   }
 }

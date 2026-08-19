@@ -4,18 +4,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/tube_model.dart';
 import '../core/storage_service.dart';
+import '../core/audio_service.dart';
 
 enum GameMode { classic, challenge, daily }
+
+class HintMove {
+  const HintMove({required this.fromIndex, required this.toIndex});
+  final int fromIndex;
+  final int toIndex;
+}
 
 class GameController extends ChangeNotifier {
   List<Tube> tubes = [];
   int? selectedTubeIndex;
   int? wrongMoveIndex;
-  
+
   // Player Stats
   int coins = 0;
   int gems = 0;
   int maxUnlockedLevel = 1;
+  String selectedSkinId = 'default_tube';
 
   // Pouring animation states
   int? pouringFromIndex;
@@ -25,14 +33,17 @@ class GameController extends ChangeNotifier {
   Color? pouringColor;
 
   bool isLevelComplete = false;
+  bool isGameOver = false;
+  bool hasClaimedDailyReward = false;
   int currentLevel = 1;
   int movesCount = 0;
-  
+
   // Mode specific logic
   GameMode activeMode = GameMode.classic;
   int? remainingTime; // for Challenge Mode (seconds)
-  int? movesLimit;    // for Challenge Mode
+  int? movesLimit; // for Challenge Mode
   Timer? _timer;
+  bool _isDisposed = false;
 
   final List<List<Tube>> _history = [];
 
@@ -52,17 +63,29 @@ class GameController extends ChangeNotifier {
     const Color(0xFFA6FF00), // Vivid Lime
   ];
 
-  GameController({GameMode mode = GameMode.classic}) {
+  GameController({GameMode mode = GameMode.classic, bool loadProgress = true}) {
     activeMode = mode;
-    _loadProgress().then((_) => _initLevel());
+    if (loadProgress) {
+      _loadProgress().then((_) {
+        if (!_isDisposed) _initLevel();
+      });
+    } else {
+      _initLevel();
+    }
   }
 
   Future<void> _loadProgress() async {
     maxUnlockedLevel = await StorageService.getLevel();
     coins = await StorageService.getCoins();
     gems = await StorageService.getGems();
+    selectedSkinId = await StorageService.getSelectedSkin();
     currentLevel = (activeMode == GameMode.classic) ? maxUnlockedLevel : 1;
-    notifyListeners();
+    if (activeMode == GameMode.daily) {
+      hasClaimedDailyReward = await StorageService.hasClaimedDailyReward(
+        dailyChallengeId,
+      );
+    }
+    _notifySafely();
   }
 
   void _initLevel() {
@@ -74,23 +97,24 @@ class GameController extends ChangeNotifier {
     selectedTubeIndex = null;
     wrongMoveIndex = null;
     isLevelComplete = false;
+    isGameOver = false;
     movesCount = 0;
     _history.clear();
 
     _setupModeConstraints();
     _generateProceduralLevel();
-    
+
     if (activeMode == GameMode.challenge) {
       _startTimer();
     }
-    
-    notifyListeners();
+
+    _notifySafely();
   }
 
   void _setupModeConstraints() {
     if (activeMode == GameMode.challenge) {
       remainingTime = 120; // 2 minutes
-      movesLimit = 30;     // 30 moves
+      movesLimit = 30; // 30 moves
     } else {
       remainingTime = null;
       movesLimit = null;
@@ -99,59 +123,131 @@ class GameController extends ChangeNotifier {
 
   void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (remainingTime != null && remainingTime! > 0) {
-        remainingTime = remainingTime! - 1;
-        notifyListeners();
-      } else {
-        _timer?.cancel();
-        _handleGameOver();
+      if (_isDisposed || isLevelComplete || isGameOver) {
+        timer.cancel();
+        return;
       }
+
+      remainingTime = (remainingTime ?? 0) - 1;
+      if (remainingTime! <= 0) {
+        remainingTime = 0;
+        _handleGameOver();
+        return;
+      }
+      _notifySafely();
     });
   }
 
   void _handleGameOver() {
-    notifyListeners();
+    if (isGameOver || isLevelComplete) return;
+    isGameOver = true;
+    selectedTubeIndex = null;
+    _timer?.cancel();
+    _notifySafely();
   }
 
   void _generateProceduralLevel() {
-    final Random random = Random();
-    
+    final random = activeMode == GameMode.daily
+        ? Random(_dailySeed())
+        : Random();
+
     int baseDifficulty = (currentLevel ~/ 2) + 4;
     if (activeMode == GameMode.challenge) baseDifficulty += 2;
     if (activeMode == GameMode.daily) baseDifficulty = 8;
-    
+
     int numColors = min(baseDifficulty, _availableColors.length);
     int numEmptyTubes = 2;
-    int totalTubes = numColors + numEmptyTubes;
-    
     List<Color> levelColors = List.from(_availableColors)..shuffle(random);
     levelColors = levelColors.take(numColors).toList();
-    
-    List<Color> allUnits = [];
-    for (var color in levelColors) {
-      for (int i = 0; i < 4; i++) {
-        allUnits.add(color);
-      }
-    }
-    
-    allUnits.shuffle(random);
-    
-    tubes = List.generate(totalTubes, (index) {
-      if (index < numColors) {
-        List<Color> tubeColors = [];
-        for (int i = 0; i < 4; i++) {
-          tubeColors.add(allUnits.removeLast());
-        }
-        return Tube(initialColors: tubeColors);
-      } else {
-        return Tube(initialColors: []); 
-      }
-    });
 
-    bool hasAlreadySortedTube = tubes.any((t) => t.isFull && t.colors.every((c) => c == t.colors.first));
-    if (hasAlreadySortedTube || _isAlreadySolved()) {
-      _generateProceduralLevel();
+    // Start from a solved board and apply reversible mixing moves. Reversing
+    // those moves always gives the player at least one valid solution path.
+    for (var attempt = 0; attempt < 8; attempt++) {
+      tubes = [
+        ...levelColors.map(
+          (color) =>
+              Tube(initialColors: List<Color>.filled(4, color, growable: true)),
+        ),
+        ...List.generate(numEmptyTubes, (_) => Tube()),
+      ];
+
+      final mixMoves = min(80, numColors * 6 + currentLevel * 2);
+      for (var move = 0; move < mixMoves; move++) {
+        _applyReversibleMixMove(random);
+      }
+
+      if (!_isAlreadySolved() && tubes.any(_hasMixedColors)) return;
     }
+  }
+
+  bool _applyReversibleMixMove(Random random) {
+    final sourceIndexes = <int>[];
+    for (var index = 0; index < tubes.length; index++) {
+      final tube = tubes[index];
+      if (tube.isEmpty) continue;
+
+      final runLength = _topColorRunLength(tube);
+      // A mixed tube cannot expose a different color after the whole run is
+      // moved; otherwise the inverse move would not be legal.
+      if (tube.colors.length == runLength || runLength > 1) {
+        sourceIndexes.add(index);
+      }
+    }
+    if (sourceIndexes.isEmpty) return false;
+
+    sourceIndexes.shuffle(random);
+    for (final sourceIndex in sourceIndexes) {
+      final source = tubes[sourceIndex];
+      final color = source.topColor!;
+      final runLength = _topColorRunLength(source);
+      final maxTransfer = source.colors.length == runLength
+          ? runLength
+          : runLength - 1;
+
+      final targetIndexes = <int>[];
+      for (var index = 0; index < tubes.length; index++) {
+        final target = tubes[index];
+        if (index != sourceIndex &&
+            !target.isFull &&
+            (target.isEmpty || target.topColor != color)) {
+          targetIndexes.add(index);
+        }
+      }
+      if (targetIndexes.isEmpty) continue;
+
+      final target = tubes[targetIndexes[random.nextInt(targetIndexes.length)]];
+      final amount = min(
+        maxTransfer,
+        min(
+          target.capacity - target.colors.length,
+          1 + random.nextInt(maxTransfer),
+        ),
+      );
+      for (var count = 0; count < amount; count++) {
+        target.colors.add(source.colors.removeLast());
+      }
+      return true;
+    }
+    return false;
+  }
+
+  int _topColorRunLength(Tube tube) {
+    if (tube.isEmpty) return 0;
+    final color = tube.topColor;
+    var length = 0;
+    for (
+      var index = tube.colors.length - 1;
+      index >= 0 && tube.colors[index] == color;
+      index--
+    ) {
+      length++;
+    }
+    return length;
+  }
+
+  bool _hasMixedColors(Tube tube) {
+    return tube.colors.isNotEmpty &&
+        tube.colors.any((color) => color != tube.colors.first);
   }
 
   bool _isAlreadySolved() {
@@ -164,8 +260,19 @@ class GameController extends ChangeNotifier {
     return true;
   }
 
+  String get dailyChallengeId {
+    final today = DateTime.now();
+    return '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+  }
+
+  int _dailySeed() {
+    final today = DateTime.now();
+    return today.year * 10000 + today.month * 100 + today.day;
+  }
+
   @override
   void dispose() {
+    _isDisposed = true;
     _timer?.cancel();
     super.dispose();
   }
@@ -174,31 +281,58 @@ class GameController extends ChangeNotifier {
     _initLevel();
   }
 
-  void nextLevel() {
+  Future<void> nextLevel() async {
     if (activeMode == GameMode.classic) {
       // Reward and progression
       coins += 50;
-      StorageService.saveCoins(coins);
+      await StorageService.saveCoins(coins);
+      await StorageService.incrementTotalLevelsWon();
+      
+      // Update event progress logic
+      await _updateEventProgress();
+
       if (currentLevel == maxUnlockedLevel) {
         maxUnlockedLevel++;
-        StorageService.saveLevel(maxUnlockedLevel);
+        await StorageService.saveLevel(maxUnlockedLevel);
+      }
+    } else if (activeMode == GameMode.daily && !hasClaimedDailyReward) {
+      if (await StorageService.claimDailyReward(dailyChallengeId)) {
+        coins += 100;
+        gems += 1;
+        hasClaimedDailyReward = true;
+        await StorageService.saveCoins(coins);
+        await StorageService.saveGems(gems);
       }
     }
-    currentLevel++;
+    if (activeMode == GameMode.classic) currentLevel++;
     _initLevel();
   }
 
+  Future<void> _updateEventProgress() async {
+    // This would typically iterate through active events from a list
+    // For now, we update our hardcoded seasonal events
+    final eventIds = ['summer_season_2026', 'weekend_warrior'];
+    for (var id in eventIds) {
+      final data = await StorageService.getEventData(id);
+      if (!(data['claimed'] ?? false)) {
+        int currentProgress = data['progress'] ?? 0;
+        await StorageService.saveEventProgress(id, false, currentProgress + 1);
+      }
+    }
+  }
+
   void undo() {
-    if (_history.isNotEmpty) {
+    if (!isGameOver && pouringFromIndex == null && _history.isNotEmpty) {
       tubes = _history.removeLast();
       selectedTubeIndex = null;
-      notifyListeners();
+      movesCount = max(0, movesCount - 1);
+      _notifySafely();
       HapticFeedback.mediumImpact();
     }
   }
 
   void selectTube(int index) {
-    if (isLevelComplete || pouringFromIndex != null) return;
+    if (isLevelComplete || isGameOver || pouringFromIndex != null) return;
 
     if (selectedTubeIndex == null) {
       if (tubes[index].isEmpty) {
@@ -207,32 +341,67 @@ class GameController extends ChangeNotifier {
       }
       selectedTubeIndex = index;
       HapticFeedback.selectionClick();
-      notifyListeners();
+      AudioService.playClickSfx();
+      _notifySafely();
     } else {
       if (selectedTubeIndex == index) {
         selectedTubeIndex = null;
-        notifyListeners();
+        _notifySafely();
       } else {
         _startPouring(selectedTubeIndex!, index);
       }
     }
   }
 
+  bool canPour(int fromIndex, int toIndex) {
+    if (fromIndex == toIndex ||
+        fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= tubes.length ||
+        toIndex >= tubes.length) {
+      return false;
+    }
+
+    final fromTube = tubes[fromIndex];
+    final toTube = tubes[toIndex];
+    return fromTube.isNotEmpty &&
+        !toTube.isFull &&
+        (toTube.isEmpty || toTube.topColor == fromTube.topColor);
+  }
+
+  HintMove? requestHint() {
+    if (isLevelComplete || isGameOver || pouringFromIndex != null) return null;
+    for (var fromIndex = 0; fromIndex < tubes.length; fromIndex++) {
+      final source = tubes[fromIndex];
+      final isSolved =
+          source.isFull &&
+          source.isNotEmpty &&
+          source.colors.every((color) => color == source.colors.first);
+      if (source.isEmpty || isSolved) continue;
+      for (var toIndex = 0; toIndex < tubes.length; toIndex++) {
+        if (canPour(fromIndex, toIndex)) {
+          return HintMove(fromIndex: fromIndex, toIndex: toIndex);
+        }
+      }
+    }
+    return null;
+  }
+
   Future<void> _startPouring(int fromIndex, int toIndex) async {
-    if (movesLimit != null && movesCount >= movesLimit!) {
+    if (isGameOver || (movesLimit != null && movesCount >= movesLimit!)) {
       _triggerWrongMove(fromIndex);
+      return;
+    }
+
+    if (!canPour(fromIndex, toIndex)) {
+      _triggerWrongMove(toIndex);
+      selectedTubeIndex = null;
+      _notifySafely();
       return;
     }
 
     Tube fromTube = tubes[fromIndex];
     Tube toTube = tubes[toIndex];
-
-    if (toTube.isFull) {
-      _triggerWrongMove(toIndex);
-      selectedTubeIndex = null;
-      notifyListeners();
-      return;
-    }
 
     _history.add(tubes.map((t) => t.copyWith()).toList());
     movesCount++;
@@ -241,50 +410,62 @@ class GameController extends ChangeNotifier {
     pouringToIndex = toIndex;
     pouringColor = fromTube.topColor;
     selectedTubeIndex = null;
-    
+
     double tiltDirection = (toIndex > fromIndex) ? 1.5 : -1.5;
-    pourTiltAngle = tiltDirection; 
-    notifyListeners();
-    
+    pourTiltAngle = tiltDirection;
+    AudioService.playPourSfx();
+    _notifySafely();
+
     await Future.delayed(const Duration(milliseconds: 400));
-    
+
+    if (_isDisposed) return;
+    if (isGameOver) {
+      pouringFromIndex = null;
+      pouringToIndex = null;
+      pourTiltAngle = 0.0;
+      _notifySafely();
+      return;
+    }
+
     Color pColor = fromTube.topColor!;
-    while (fromTube.colors.isNotEmpty && 
-           fromTube.topColor == pColor && 
-           !toTube.isFull) {
+    while (fromTube.colors.isNotEmpty &&
+        fromTube.topColor == pColor &&
+        !toTube.isFull) {
       Color removedColor = fromTube.colors.removeLast();
       toTube.colors.add(removedColor);
-      notifyListeners();
+      _notifySafely();
       HapticFeedback.lightImpact();
       await Future.delayed(const Duration(milliseconds: 200));
     }
 
     pourTiltAngle = 0.0;
-    notifyListeners();
+    _notifySafely();
     await Future.delayed(const Duration(milliseconds: 400));
 
+    if (_isDisposed) return;
     pouringFromIndex = null;
     pouringToIndex = null;
-    
+
     _checkWinCondition();
-    
+
     if (isLevelComplete) {
       _timer?.cancel();
     } else if (movesLimit != null && movesCount >= movesLimit!) {
       _timer?.cancel();
       _handleGameOver();
     }
-    
-    notifyListeners();
+
+    _notifySafely();
   }
 
   void _triggerWrongMove(int index) {
     wrongMoveIndex = index;
     HapticFeedback.vibrate();
-    notifyListeners();
+    _notifySafely();
     Future.delayed(const Duration(milliseconds: 500), () {
+      if (_isDisposed) return;
       wrongMoveIndex = null;
-      notifyListeners();
+      _notifySafely();
     });
   }
 
@@ -302,9 +483,14 @@ class GameController extends ChangeNotifier {
         break;
       }
     }
-    
+
     if (allSorted) {
       isLevelComplete = true;
+      AudioService.playWinSfx();
     }
+  }
+
+  void _notifySafely() {
+    if (!_isDisposed) notifyListeners();
   }
 }

@@ -15,8 +15,10 @@ class GameScreen extends StatefulWidget {
 class _GameScreenState extends State<GameScreen> {
   late final GameController _controller;
   late final AudioPlayer _audioPlayer;
+  late final AudioPlayer _lockAudioPlayer;
   late List<GlobalKey> _tubeKeys;
   bool _isPlayingSound = false;
+  bool _isEndDialogVisible = false;
   int _solvedTubesCount = 0;
 
   @override
@@ -25,12 +27,14 @@ class _GameScreenState extends State<GameScreen> {
     _controller = GameController(mode: widget.mode);
     _controller.addListener(_onGameStateChanged);
     _audioPlayer = AudioPlayer();
+    _lockAudioPlayer = AudioPlayer();
     _tubeKeys = List.generate(20, (_) => GlobalKey());
   }
 
   void _onGameStateChanged() {
+    if (!mounted) return;
     setState(() {});
-    
+
     // Play sound when pouring starts
     if (_controller.pouringFromIndex != null && !_isPlayingSound) {
       _isPlayingSound = true;
@@ -40,27 +44,40 @@ class _GameScreenState extends State<GameScreen> {
       _audioPlayer.stop();
     }
 
-    int currentSolvedCount = _controller.tubes.where((t) => t.isFull && t.colors.isNotEmpty && t.colors.every((c) => c == t.colors.first)).length;
+    int currentSolvedCount = _controller.tubes
+        .where(
+          (t) =>
+              t.isFull &&
+              t.colors.isNotEmpty &&
+              t.colors.every((c) => c == t.colors.first),
+        )
+        .length;
     if (currentSolvedCount > _solvedTubesCount) {
-       AudioPlayer().play(AssetSource('audio/lock.wav'));
+      _lockAudioPlayer.play(AssetSource('audio/lock.wav'));
     }
     _solvedTubesCount = currentSolvedCount;
 
+    if (_isEndDialogVisible) return;
     if (_controller.isLevelComplete) {
+      _isEndDialogVisible = true;
       // Small delay to allow the last pour to render before showing dialog
       Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted) _showWinDialog();
       });
-    } else if (_controller.remainingTime == 0 || (_controller.movesLimit != null && _controller.movesCount >= _controller.movesLimit!)) {
-       if (mounted) _showGameOverDialog();
+    } else if (_controller.isGameOver) {
+      _isEndDialogVisible = true;
+      if (mounted) _showGameOverDialog();
     }
   }
 
   String _getModeTitle() {
     switch (widget.mode) {
-      case GameMode.classic: return 'Level ${_controller.currentLevel}';
-      case GameMode.challenge: return 'Challenge';
-      case GameMode.daily: return 'Daily Challenge';
+      case GameMode.classic:
+        return 'Level ${_controller.currentLevel}';
+      case GameMode.challenge:
+        return 'Challenge';
+      case GameMode.daily:
+        return 'Daily Challenge';
     }
   }
 
@@ -71,58 +88,91 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _showGameOverDialog() {
-    showDialog(
+    showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A2E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Game Over!', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
-        content: const Text('You ran out of time or moves. Try again?', style: TextStyle(color: Colors.white70)),
+        title: const Text(
+          'Game Over!',
+          style: TextStyle(
+            color: Colors.redAccent,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: const Text(
+          'You ran out of time or moves. Try again?',
+          style: TextStyle(color: Colors.white70),
+        ),
+
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               _controller.restartLevel();
             },
-            child: const Text('Retry', style: TextStyle(color: Colors.white, fontSize: 16)),
+            child: const Text(
+              'Retry',
+              style: TextStyle(color: Colors.white, fontSize: 16),
+            ),
           ),
         ],
       ),
-    );
+    ).whenComplete(() => _isEndDialogVisible = false);
   }
 
   void _showWinDialog() {
-    showDialog(
+    showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A2E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Level Complete!', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: const Text('Great job! You sorted all the colors.', style: TextStyle(color: Colors.white70)),
+        title: const Text(
+          'Level Complete!',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'Great job! You sorted all the colors.',
+          style: TextStyle(color: Colors.white70),
+        ),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               _controller.restartLevel();
             },
-            child: const Text('Restart', style: TextStyle(color: Colors.white70, fontSize: 16)),
+            child: const Text(
+              'Restart',
+              style: TextStyle(color: Colors.white70, fontSize: 16),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryButton,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
             onPressed: () {
               Navigator.pop(context);
               _controller.nextLevel();
             },
-            child: const Text('Next Level', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            child: Text(
+              widget.mode == GameMode.daily &&
+                      !_controller.hasClaimedDailyReward
+                  ? 'Collect 100 + 1'
+                  : 'Next Level',
+              style: TextStyle(
+                color: Colors.black,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
-    );
+    ).whenComplete(() => _isEndDialogVisible = false);
   }
 
   @override
@@ -130,6 +180,7 @@ class _GameScreenState extends State<GameScreen> {
     _controller.removeListener(_onGameStateChanged);
     _controller.dispose();
     _audioPlayer.dispose();
+    _lockAudioPlayer.dispose();
     super.dispose();
   }
 
@@ -145,7 +196,12 @@ class _GameScreenState extends State<GameScreen> {
           children: [
             Text(
               _getModeTitle(),
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20, letterSpacing: 1.2),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+                letterSpacing: 1.2,
+              ),
             ),
             Row(
               mainAxisSize: MainAxisSize.min,
@@ -155,16 +211,20 @@ class _GameScreenState extends State<GameScreen> {
                   const SizedBox(width: 4),
                   Text(
                     _formatTime(_controller.remainingTime!),
-                    style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(width: 12),
                 ],
                 const Icon(Icons.touch_app, color: Colors.cyan, size: 16),
                 const SizedBox(width: 4),
                 Text(
-                  _controller.movesLimit != null 
-                    ? '${_controller.movesCount} / ${_controller.movesLimit}' 
-                    : '${_controller.movesCount}',
+                  _controller.movesLimit != null
+                      ? '${_controller.movesCount} / ${_controller.movesLimit}'
+                      : '${_controller.movesCount}',
                   style: const TextStyle(color: Colors.white70, fontSize: 14),
                 ),
               ],
@@ -180,6 +240,11 @@ class _GameScreenState extends State<GameScreen> {
             icon: const Icon(Icons.undo, color: Colors.white),
             onPressed: () => _controller.undo(),
             tooltip: 'Undo Move',
+          ),
+          IconButton(
+            icon: const Icon(Icons.lightbulb_outline, color: Colors.amber),
+            onPressed: _showHint,
+            tooltip: 'Show Hint',
           ),
 
           IconButton(
@@ -203,7 +268,10 @@ class _GameScreenState extends State<GameScreen> {
         child: Center(
           child: SingleChildScrollView(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 32.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 32.0,
+              ),
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 500),
                 transitionBuilder: (Widget child, Animation<double> animation) {
@@ -223,50 +291,61 @@ class _GameScreenState extends State<GameScreen> {
                   spacing: 24,
                   runSpacing: 40,
                   alignment: WrapAlignment.center,
-                  children: List.generate(
-                    _controller.tubes.length,
-                    (index) {
-                      bool isPouringSource = _controller.pouringFromIndex == index;
-                      bool isReceiving = _controller.pouringToIndex == index;
-                      
-                      Offset moveOffset = Offset.zero;
-                      Offset? targetOffset;
+                  children: List.generate(_controller.tubes.length, (index) {
+                    bool isPouringSource =
+                        _controller.pouringFromIndex == index;
+                    bool isReceiving = _controller.pouringToIndex == index;
 
-                      if (isPouringSource && _controller.pouringToIndex != null) {
-                         if (_tubeKeys[index].currentContext != null && 
-                             _tubeKeys[_controller.pouringToIndex!].currentContext != null) {
-                           RenderBox sourceBox = _tubeKeys[index].currentContext!.findRenderObject() as RenderBox;
-                           RenderBox targetBox = _tubeKeys[_controller.pouringToIndex!].currentContext!.findRenderObject() as RenderBox;
-                           
-                           Offset sourcePos = sourceBox.localToGlobal(Offset.zero);
-                           Offset targetPos = targetBox.localToGlobal(Offset.zero);
-                           
-                           double tiltDir = _controller.pourTiltAngle > 0 ? -20 : 20;
-                           moveOffset = Offset(
-                             targetPos.dx - sourcePos.dx + tiltDir, 
-                             targetPos.dy - sourcePos.dy - 160
-                           );
-                           
-                           targetOffset = Offset(0, 160);
-                         }
+                    Offset moveOffset = Offset.zero;
+                    Offset? targetOffset;
+
+                    if (isPouringSource && _controller.pouringToIndex != null) {
+                      if (_tubeKeys[index].currentContext != null &&
+                          _tubeKeys[_controller.pouringToIndex!]
+                                  .currentContext !=
+                              null) {
+                        RenderBox sourceBox =
+                            _tubeKeys[index].currentContext!.findRenderObject()
+                                as RenderBox;
+                        RenderBox targetBox =
+                            _tubeKeys[_controller.pouringToIndex!]
+                                    .currentContext!
+                                    .findRenderObject()
+                                as RenderBox;
+
+                        Offset sourcePos = sourceBox.localToGlobal(Offset.zero);
+                        Offset targetPos = targetBox.localToGlobal(Offset.zero);
+
+                        double tiltDir = _controller.pourTiltAngle > 0
+                            ? -20
+                            : 20;
+                        moveOffset = Offset(
+                          targetPos.dx - sourcePos.dx + tiltDir,
+                          targetPos.dy - sourcePos.dy - 160,
+                        );
+
+                        targetOffset = Offset(0, 160);
                       }
+                    }
 
-                      return Container(
-                        key: _tubeKeys[index],
-                        child: TubeWidget(
-                          tube: _controller.tubes[index],
-                          isSelected: _controller.selectedTubeIndex == index,
-                          isShaking: _controller.wrongMoveIndex == index,
-                          isReceiving: isReceiving,
-                          tiltAngle: isPouringSource ? _controller.pourTiltAngle : 0.0,
-                          offset: moveOffset,
-                          targetOffset: targetOffset,
-                          pouringColor: _controller.pouringColor,
-                          onTap: () => _controller.selectTube(index),
-                        ),
-                      );
-                    },
-                  ),
+                    return Container(
+                      key: _tubeKeys[index],
+                      child: TubeWidget(
+                        tube: _controller.tubes[index],
+                        isSelected: _controller.selectedTubeIndex == index,
+                        isShaking: _controller.wrongMoveIndex == index,
+                        isReceiving: isReceiving,
+                        tiltAngle: isPouringSource
+                            ? _controller.pourTiltAngle
+                            : 0.0,
+                        offset: moveOffset,
+                        targetOffset: targetOffset,
+                        pouringColor: _controller.pouringColor,
+                        onTap: () => _controller.selectTube(index),
+                        skinId: _controller.selectedSkinId,
+                      ),
+                    );
+                  }),
                 ),
               ),
             ),
@@ -274,5 +353,15 @@ class _GameScreenState extends State<GameScreen> {
         ),
       ),
     );
+  }
+
+  void _showHint() {
+    final hint = _controller.requestHint();
+    final message = hint == null
+        ? 'No hint available right now.'
+        : 'Hint: pour tube ${hint.fromIndex + 1} into tube ${hint.toIndex + 1}.';
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 }

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
 import 'core/storage_service.dart';
+import 'core/audio_service.dart';
 import 'screens/splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await StorageService.init();
+  await AudioService.init();
   runApp(const ColorPuzzleGameApp());
 }
 

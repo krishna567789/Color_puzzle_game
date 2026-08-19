@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../screens/settings_screen.dart';
 
 class TopPlayerBar extends StatelessWidget {
   final int level;
@@ -108,13 +109,21 @@ class TopPlayerBar extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           // Settings Button
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E2855),
-              borderRadius: BorderRadius.circular(10),
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E2855),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.settings, color: Colors.white70, size: 22),
             ),
-            child: const Icon(Icons.settings, color: Colors.white70, size: 22),
           ),
         ],
       ),

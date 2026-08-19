@@ -1,11 +1,13 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../widgets/dashboard/top_player_bar.dart';
 import '../widgets/dashboard/mode_card.dart';
-import '../widgets/dashboard/custom_bottom_nav.dart';
 import '../controllers/game_controller.dart';
 import '../core/storage_service.dart';
 import '../core/audio_service.dart';
+import '../widgets/common/game_button.dart';
 import 'game_screen.dart';
 import 'shop_screen.dart';
 import 'lucky_spin_screen.dart';
@@ -20,7 +22,6 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProviderStateMixin {
-  final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(0);
   int _userLevel = 1;
   int _coins = 0;
   int _gems = 0;
@@ -53,7 +54,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
 
   @override
   void dispose() {
-    _selectedIndexNotifier.dispose();
+    _entranceController.dispose();
     super.dispose();
   }
 
@@ -78,7 +79,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
       animation: animation,
       builder: (context, child) {
         return Opacity(
-          opacity: animation.value,
+          opacity: animation.value.clamp(0.0, 1.0),
           child: Transform.translate(
             offset: Offset(0, 50 * (1 - animation.value)),
             child: child,
@@ -93,173 +94,191 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            TopPlayerBar(
-              level: _userLevel,
-              coins: _coins,
-              gems: _gems,
+      body: Stack(
+        children: [
+          // Animated Background Particles
+          Positioned.fill(
+            child: CustomPaint(
+              painter: BackgroundParticlesPainter(animation: _entranceController),
             ),
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 10),
-                      // Center Logo with Entrance
-                      _buildAnimatedItem(
-                        index: 0,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          child: Image.asset(
-                            'assets/images/splash.png',
-                            height: 280,
-                            fit: BoxFit.contain,
+          ),
+          SafeArea(
+            child: Column(
+              children: [
+                TopPlayerBar(
+                  level: _userLevel,
+                  coins: _coins,
+                  gems: _gems,
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 10),
+                          // Center Logo with Entrance
+                          _buildAnimatedItem(
+                            index: 0,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              child: Image.asset(
+                                'assets/images/splash.png',
+                                height: 280,
+                                fit: BoxFit.contain,
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(height: 10),
+                          // Top 3 Cards (Modes)
+                          _buildAnimatedItem(
+                            index: 1,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: ModeCard(
+                                    title: 'Classic',
+                                    subtitle: 'Mode',
+                                    icon: 'assets/icon/classicMode.png',
+                                    gradient: AppColors.classicGradient,
+                                    onTap: () => _navigateToGame(GameMode.classic),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ModeCard(
+                                    title: 'Challenge',
+                                    subtitle: 'Mode',
+                                    icon: 'assets/icon/challengeMode.png',
+                                    gradient: AppColors.challengeGradient,
+                                    onTap: () => _navigateToGame(GameMode.challenge),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ModeCard(
+                                    title: 'Daily',
+                                    subtitle: 'Challenge',
+                                    icon: 'assets/icon/daily chalenge.png',
+                                    gradient: AppColors.dailyGradient,
+                                    onTap: () => _navigateToGame(GameMode.daily),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          // Bottom 4-Column Grid
+                          _buildAnimatedItem(
+                            index: 2,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: ModeCard(
+                                    title: 'Lucky Spin',
+                                    subtitle: '',
+                                    icon: 'assets/icon/lucky_spin.png',
+                                    isVertical: false,
+                                    ctaText: 'SPIN NOW',
+                                    onTap: () async {
+                                      await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(builder: (context) => const LuckySpinScreen()),
+                                      );
+                                      _loadUserData();
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: ModeCard(
+                                    title: 'Events',
+                                    subtitle: '',
+                                    icon: 'assets/icon/events.png',
+                                    isVertical: false,
+                                    ctaText: 'JOIN NOW',
+                                    onTap: () async {
+                                      await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(builder: (context) => const EventsScreen()),
+                                      );
+                                      _loadUserData();
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: ModeCard(
+                                    title: 'Shop',
+                                    subtitle: '',
+                                    icon: 'assets/icon/shop.png',
+                                    isVertical: false,
+                                    ctaText: 'BUY NOW',
+                                    hasBadge: true,
+                                    onTap: () async {
+                                      await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(builder: (context) => const ShopScreen()),
+                                      );
+                                      _loadUserData();
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: ModeCard(
+                                    title: 'Achievements',
+                                    subtitle: '',
+                                    icon: 'assets/icon/achivement.png',
+                                    isVertical: false,
+                                    ctaText: 'VIEW ALL',
+                                    onTap: () async {
+                                      await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(builder: (context) => const AchievementsScreen()),
+                                      );
+                                      _loadUserData();
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+                        ],
                       ),
-                      const SizedBox(height: 10),
-                      // Top 3 Cards (Modes)
-                      _buildAnimatedItem(
-                        index: 1,
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: ModeCard(
-                                title: 'Classic',
-                                subtitle: 'Mode',
-                                icon: 'assets/icon/classicMode.png',
-                                gradient: AppColors.classicGradient,
-                                onTap: () => _navigateToGame(GameMode.classic),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: ModeCard(
-                                title: 'Challenge',
-                                subtitle: 'Mode',
-                                icon: 'assets/icon/challengeMode.png',
-                                gradient: AppColors.challengeGradient,
-                                onTap: () => _navigateToGame(GameMode.challenge),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: ModeCard(
-                                title: 'Daily',
-                                subtitle: 'Challenge',
-                                icon: 'assets/icon/daily chalenge.png',
-                                gradient: AppColors.dailyGradient,
-                                onTap: () => _navigateToGame(GameMode.daily),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      // Bottom 4-Column Grid
-                      _buildAnimatedItem(
-                        index: 2,
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: ModeCard(
-                                title: 'Lucky Spin',
-                                subtitle: '',
-                                icon: 'assets/icon/lucky_spin.png',
-                                isVertical: false,
-                                ctaText: 'SPIN NOW',
-                                onTap: () async {
-                                  await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (context) => const LuckySpinScreen()),
-                                  );
-                                  _loadUserData();
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: ModeCard(
-                                title: 'Events',
-                                subtitle: '',
-                                icon: 'assets/icon/events.png',
-                                isVertical: false,
-                                ctaText: 'JOIN NOW',
-                                onTap: () async {
-                                  await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (context) => const EventsScreen()),
-                                  );
-                                  _loadUserData();
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: ModeCard(
-                                title: 'Shop',
-                                subtitle: '',
-                                icon: 'assets/icon/shop.png',
-                                isVertical: false,
-                                ctaText: 'BUY NOW',
-                                hasBadge: true,
-                                onTap: () async {
-                                  await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (context) => const ShopScreen()),
-                                  );
-                                  _loadUserData();
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: ModeCard(
-                                title: 'Achievements',
-                                subtitle: '',
-                                icon: 'assets/icon/achivement.png',
-                                isVertical: false,
-                                ctaText: 'VIEW ALL',
-                                onTap: () async {
-                                  await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (context) => const AchievementsScreen()),
-                                  );
-                                  _loadUserData();
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
-
-      bottomNavigationBar: ValueListenableBuilder<int>(
-        valueListenable: _selectedIndexNotifier,
-        builder: (context, selectedIndex, child) {
-          return CustomBottomNav(
-            selectedIndex: selectedIndex,
-            onItemSelected: (index) {
-              _selectedIndexNotifier.value = index;
-              if (index == 2) {
-                _navigateToGame(GameMode.classic);
-              }
-            },
-          );
-        },
+          ),
+        ],
       ),
     );
   }
+}
+
+class BackgroundParticlesPainter extends CustomPainter {
+  final Animation<double> animation;
+  BackgroundParticlesPainter({required this.animation}) : super(repaint: animation);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.05)
+      ..style = PaintingStyle.fill;
+
+    final random = math.Random(42);
+    for (int i = 0; i < 15; i++) {
+      double x = random.nextDouble() * size.width;
+      double y = (random.nextDouble() * size.height + (animation.value * 100)) % size.height;
+      double radius = random.nextDouble() * 20 + 10;
+      canvas.drawCircle(Offset(x, y), radius, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

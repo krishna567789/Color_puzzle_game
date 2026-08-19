@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import '../controllers/game_controller.dart';
+import '../core/storage_service.dart';
 import '../widgets/tube_widget.dart';
 import '../core/app_colors.dart';
+import '../widgets/common/hand_indicator.dart';
+import '../widgets/common/game_button.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'level_complete_screen.dart';
 
 class GameScreen extends StatefulWidget {
   final GameMode mode;
@@ -20,6 +24,12 @@ class _GameScreenState extends State<GameScreen> {
   bool _isPlayingSound = false;
   bool _isEndDialogVisible = false;
   int _solvedTubesCount = 0;
+  bool _showTutorial = false;
+  int _tutorialStep = 0;
+  int _currentLevelForKeys = 0;
+  
+  // Performance Tracking
+  final Stopwatch _levelStopwatch = Stopwatch();
 
   @override
   void initState() {
@@ -28,11 +38,38 @@ class _GameScreenState extends State<GameScreen> {
     _controller.addListener(_onGameStateChanged);
     _audioPlayer = AudioPlayer();
     _lockAudioPlayer = AudioPlayer();
+    _currentLevelForKeys = _controller.currentLevel;
     _tubeKeys = List.generate(20, (_) => GlobalKey());
+    _checkTutorial();
+    _levelStopwatch.start();
+  }
+
+  Future<void> _checkTutorial() async {
+    if (widget.mode == GameMode.classic) {
+      bool completed = await StorageService.isTutorialCompleted();
+      if (!completed && _controller.currentLevel == 1) {
+        setState(() {
+          _showTutorial = true;
+        });
+        // Force a rebuild after frame to calculate positions
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() {});
+        });
+      }
+    }
   }
 
   void _onGameStateChanged() {
     if (!mounted) return;
+
+    // Refresh keys if level changed to avoid "Duplicate GlobalKeys" during AnimatedSwitcher transition
+    if (_controller.currentLevel != _currentLevelForKeys) {
+      _tubeKeys = List.generate(20, (_) => GlobalKey());
+      _currentLevelForKeys = _controller.currentLevel;
+      _levelStopwatch.reset();
+      _levelStopwatch.start();
+    }
+
     setState(() {});
 
     // Play sound when pouring starts
@@ -60,7 +97,6 @@ class _GameScreenState extends State<GameScreen> {
     if (_isEndDialogVisible) return;
     if (_controller.isLevelComplete) {
       _isEndDialogVisible = true;
-      // Small delay to allow the last pour to render before showing dialog
       Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted) _showWinDialog();
       });
@@ -107,72 +143,59 @@ class _GameScreenState extends State<GameScreen> {
         ),
 
         actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _controller.restartLevel();
-            },
-            child: const Text(
-              'Retry',
-              style: TextStyle(color: Colors.white, fontSize: 16),
+          Center(
+            child: GameButton(
+              width: 160,
+              onTap: () {
+                Navigator.pop(context);
+                _controller.restartLevel();
+              },
+              color: Colors.redAccent,
+              child: const Text('RETRY', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
             ),
           ),
+          const SizedBox(height: 10),
         ],
       ),
     ).whenComplete(() => _isEndDialogVisible = false);
   }
 
   void _showWinDialog() {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A2E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'Level Complete!',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+    _levelStopwatch.stop();
+    final int elapsedSeconds = _levelStopwatch.elapsed.inSeconds;
+    final int moves = _controller.movesCount;
+    
+    // Star Calculation Logic (3 stars = good, 1 star = slow/many moves)
+    int stars = 1;
+    if (moves <= 15 && elapsedSeconds <= 30) {
+      stars = 3;
+    } else if (moves <= 25 && elapsedSeconds <= 60) {
+      stars = 2;
+    }
+
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        opaque: false,
+        pageBuilder: (context, _, __) => LevelCompleteScreen(
+          stars: stars,
+          coinsEarned: 50,
+          moves: moves,
+          timeTaken: _formatTime(elapsedSeconds),
+          onNextLevel: () {
+            Navigator.pop(context);
+            _controller.nextLevel();
+          },
+          onRestart: () {
+            Navigator.pop(context);
+            _controller.restartLevel();
+          },
         ),
-        content: const Text(
-          'Great job! You sorted all the colors.',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _controller.restartLevel();
-            },
-            child: const Text(
-              'Restart',
-              style: TextStyle(color: Colors.white70, fontSize: 16),
-            ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryButton,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            onPressed: () {
-              Navigator.pop(context);
-              _controller.nextLevel();
-            },
-            child: Text(
-              widget.mode == GameMode.daily &&
-                      !_controller.hasClaimedDailyReward
-                  ? 'Collect 100 + 1'
-                  : 'Next Level',
-              style: TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
       ),
-    ).whenComplete(() => _isEndDialogVisible = false);
+    ).then((_) => _isEndDialogVisible = false);
   }
 
   @override
@@ -183,6 +206,95 @@ class _GameScreenState extends State<GameScreen> {
     _lockAudioPlayer.dispose();
     super.dispose();
   }
+
+  Widget _buildTutorialOverlay() {
+    int targetIndex = -1;
+    if (_tutorialStep == 0) {
+      targetIndex = _controller.tubes.indexWhere((t) => t.isNotEmpty);
+    } else {
+      targetIndex = _controller.tubes.indexWhere((t) => t.isEmpty);
+    }
+    
+    Offset handPos = Offset.zero;
+    if (targetIndex != -1 && targetIndex < _tubeKeys.length) {
+      final context = _tubeKeys[targetIndex].currentContext;
+      if (context != null) {
+        final box = context.findRenderObject() as RenderBox?;
+        if (box != null) {
+          final pos = box.localToGlobal(Offset.zero);
+          final size = box.size;
+          handPos = Offset(pos.dx + size.width / 2, pos.dy + size.height / 2);
+        }
+      }
+    }
+
+    return Stack(
+      children: [
+        // 1. Full screen IgnorePointer for the hand and ripple
+        if (handPos != Offset.zero)
+          IgnorePointer(
+            child: Stack(
+              children: [
+                Container(color: Colors.black12), // Subtle dimming
+                Positioned(
+                  left: handPos.dx - 50,
+                  top: handPos.dy - 50,
+                  child: const HandIndicator(),
+                ),
+              ],
+            ),
+          ),
+
+        // 2. Short Message (Non-blocking)
+        IgnorePointer(
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 140),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00C2FF).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: const Color(0xFF00C2FF), width: 1.5),
+                  boxShadow: [
+                    BoxShadow(color: const Color(0xFF00C2FF).withValues(alpha: 0.1), blurRadius: 15, spreadRadius: 2),
+                  ],
+                ),
+                child: Text(
+                  _tutorialStep == 0 ? 'TAP BOTTLE' : 'POUR HERE',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 2),
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        // 3. SKIP button (Interactive)
+        Positioned(
+          top: 60,
+          right: 20,
+          child: GestureDetector(
+            onTap: () {
+              setState(() => _showTutorial = false);
+              StorageService.setTutorialCompleted(true);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white10,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: const Text('SKIP', style: TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Remove the old _buildAnimatedFinger as it's replaced by HandIndicator
 
   @override
   Widget build(BuildContext context) {
@@ -254,103 +366,133 @@ class _GameScreenState extends State<GameScreen> {
           ),
         ],
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment.center,
-            radius: 1.5,
-            colors: [
-              AppColors.background.withOpacity(0.8),
-              AppColors.background,
-            ],
-          ),
-        ),
-        child: Center(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 32.0,
+      body: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment.center,
+                radius: 1.5,
+                colors: [
+                  AppColors.background.withValues(alpha: 0.8),
+                  AppColors.background,
+                ],
               ),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 500),
-                transitionBuilder: (Widget child, Animation<double> animation) {
-                  return FadeTransition(
-                    opacity: animation,
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(1, 0),
-                        end: Offset.zero,
-                      ).animate(animation),
-                      child: child,
-                    ),
-                  );
-                },
-                child: Wrap(
-                  key: ValueKey(_controller.currentLevel),
-                  spacing: 24,
-                  runSpacing: 40,
-                  alignment: WrapAlignment.center,
-                  children: List.generate(_controller.tubes.length, (index) {
-                    bool isPouringSource =
-                        _controller.pouringFromIndex == index;
-                    bool isReceiving = _controller.pouringToIndex == index;
+            ),
+            child: Center(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 32.0,
+                  ),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 500),
+                    transitionBuilder: (Widget child, Animation<double> animation) {
+                      return FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(1, 0),
+                            end: Offset.zero,
+                          ).animate(animation),
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: Wrap(
+                      key: ValueKey(_controller.currentLevel),
+                      spacing: 24,
+                      runSpacing: 40,
+                      alignment: WrapAlignment.center,
+                      children: List.generate(_controller.tubes.length, (index) {
+                        bool isPouringSource =
+                            _controller.pouringFromIndex == index;
+                        bool isReceiving = _controller.pouringToIndex == index;
 
-                    Offset moveOffset = Offset.zero;
-                    Offset? targetOffset;
+                        Offset moveOffset = Offset.zero;
+                        Offset? targetOffset;
 
-                    if (isPouringSource && _controller.pouringToIndex != null) {
-                      if (_tubeKeys[index].currentContext != null &&
-                          _tubeKeys[_controller.pouringToIndex!]
-                                  .currentContext !=
-                              null) {
-                        RenderBox sourceBox =
-                            _tubeKeys[index].currentContext!.findRenderObject()
-                                as RenderBox;
-                        RenderBox targetBox =
-                            _tubeKeys[_controller.pouringToIndex!]
-                                    .currentContext!
-                                    .findRenderObject()
-                                as RenderBox;
+                        if (isPouringSource && _controller.pouringToIndex != null) {
+                          if (_tubeKeys[index].currentContext != null &&
+                              _tubeKeys[_controller.pouringToIndex!]
+                                      .currentContext !=
+                                  null) {
+                            RenderBox sourceBox =
+                                _tubeKeys[index].currentContext!.findRenderObject()
+                                    as RenderBox;
+                            RenderBox targetBox =
+                                _tubeKeys[_controller.pouringToIndex!]
+                                        .currentContext!
+                                        .findRenderObject()
+                                    as RenderBox;
 
-                        Offset sourcePos = sourceBox.localToGlobal(Offset.zero);
-                        Offset targetPos = targetBox.localToGlobal(Offset.zero);
+                            Offset sourcePos = sourceBox.localToGlobal(Offset.zero);
+                            Offset targetPos = targetBox.localToGlobal(Offset.zero);
 
-                        double tiltDir = _controller.pourTiltAngle > 0
-                            ? -20
-                            : 20;
-                        moveOffset = Offset(
-                          targetPos.dx - sourcePos.dx + tiltDir,
-                          targetPos.dy - sourcePos.dy - 160,
+                            double tiltDir = _controller.pourTiltAngle > 0
+                                ? -20
+                                : 20;
+                            moveOffset = Offset(
+                              targetPos.dx - sourcePos.dx + tiltDir,
+                              targetPos.dy - sourcePos.dy - 160,
+                            );
+
+                            targetOffset = Offset(0, 160);
+                          }
+                        }
+
+                        return Container(
+                          key: _tubeKeys[index],
+                          child: TubeWidget(
+                            tube: _controller.tubes[index],
+                            isSelected: _controller.selectedTubeIndex == index,
+                            isShaking: _controller.wrongMoveIndex == index,
+                            isReceiving: isReceiving,
+                            tiltAngle: isPouringSource
+                                ? _controller.pourTiltAngle
+                                : 0.0,
+                            offset: moveOffset,
+                            targetOffset: targetOffset,
+                            pouringColor: _controller.pouringColor,
+                            onTap: () {
+                          if (_showTutorial) {
+                            bool isCorrect = false;
+                            if (_tutorialStep == 0) {
+                              // Correct if user taps any non-empty tube
+                              isCorrect = _controller.tubes[index].isNotEmpty;
+                            } else {
+                              // Correct if user taps any valid target tube (empty for the first move)
+                              isCorrect = _controller.tubes[index].isEmpty;
+                            }
+                            
+                            if (!isCorrect) {
+                              _controller.triggerWrongMove(index);
+                              return;
+                            }
+                            
+                            setState(() {
+                              _tutorialStep++;
+                              if (_tutorialStep >= 2) {
+                                _showTutorial = false;
+                                StorageService.setTutorialCompleted(true);
+                              }
+                            });
+                          }
+                          _controller.selectTube(index);
+                        },
+                            skinId: _controller.selectedSkinId,
+                          ),
                         );
-
-                        targetOffset = Offset(0, 160);
-                      }
-                    }
-
-                    return Container(
-                      key: _tubeKeys[index],
-                      child: TubeWidget(
-                        tube: _controller.tubes[index],
-                        isSelected: _controller.selectedTubeIndex == index,
-                        isShaking: _controller.wrongMoveIndex == index,
-                        isReceiving: isReceiving,
-                        tiltAngle: isPouringSource
-                            ? _controller.pourTiltAngle
-                            : 0.0,
-                        offset: moveOffset,
-                        targetOffset: targetOffset,
-                        pouringColor: _controller.pouringColor,
-                        onTap: () => _controller.selectTube(index),
-                        skinId: _controller.selectedSkinId,
-                      ),
-                    );
-                  }),
+                      }),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
-        ),
+          if (_showTutorial) _buildTutorialOverlay(),
+        ],
       ),
     );
   }

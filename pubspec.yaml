@@ -36,6 +36,7 @@ dependencies:
   audioplayers: ^6.7.1
   shared_preferences: ^2.5.2
   hive_flutter: ^1.1.0
+  rive: ^0.13.15
 
 dev_dependencies:
   flutter_test:
@@ -64,6 +65,7 @@ flutter:
     - assets/images/
     - assets/icon/
     - assets/audio/
+    - assets/rive/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

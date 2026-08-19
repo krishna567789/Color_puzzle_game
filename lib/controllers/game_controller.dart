@@ -46,8 +46,6 @@ class GameController extends ChangeNotifier {
   bool _isDisposed = false;
 
   final List<List<Tube>> _history = [];
-
-  // Available colors for level generation (vivid, high-contrast flat colors)
   final List<Color> _availableColors = [
     const Color(0xFFFF2A2A), // Vivid Red
     const Color(0xFF1E88E5), // Vivid Blue
@@ -113,8 +111,8 @@ class GameController extends ChangeNotifier {
 
   void _setupModeConstraints() {
     if (activeMode == GameMode.challenge) {
-      remainingTime = 120; // 2 minutes
-      movesLimit = 30; // 30 moves
+      remainingTime = 120;
+      movesLimit = 30;
     } else {
       remainingTime = null;
       movesLimit = null;
@@ -159,9 +157,6 @@ class GameController extends ChangeNotifier {
     int numEmptyTubes = 2;
     List<Color> levelColors = List.from(_availableColors)..shuffle(random);
     levelColors = levelColors.take(numColors).toList();
-
-    // Start from a solved board and apply reversible mixing moves. Reversing
-    // those moves always gives the player at least one valid solution path.
     for (var attempt = 0; attempt < 8; attempt++) {
       tubes = [
         ...levelColors.map(
@@ -187,8 +182,6 @@ class GameController extends ChangeNotifier {
       if (tube.isEmpty) continue;
 
       final runLength = _topColorRunLength(tube);
-      // A mixed tube cannot expose a different color after the whole run is
-      // moved; otherwise the inverse move would not be legal.
       if (tube.colors.length == runLength || runLength > 1) {
         sourceIndexes.add(index);
       }
@@ -309,8 +302,6 @@ class GameController extends ChangeNotifier {
   }
 
   Future<void> _updateEventProgress() async {
-    // This would typically iterate through active events from a list
-    // For now, we update our hardcoded seasonal events
     final eventIds = ['summer_season_2026', 'weekend_warrior'];
     for (var id in eventIds) {
       final data = await StorageService.getEventData(id);
@@ -336,7 +327,7 @@ class GameController extends ChangeNotifier {
 
     if (selectedTubeIndex == null) {
       if (tubes[index].isEmpty) {
-        _triggerWrongMove(index);
+        triggerWrongMove(index);
         return;
       }
       selectedTubeIndex = index;
@@ -389,12 +380,12 @@ class GameController extends ChangeNotifier {
 
   Future<void> _startPouring(int fromIndex, int toIndex) async {
     if (isGameOver || (movesLimit != null && movesCount >= movesLimit!)) {
-      _triggerWrongMove(fromIndex);
+      triggerWrongMove(fromIndex);
       return;
     }
 
     if (!canPour(fromIndex, toIndex)) {
-      _triggerWrongMove(toIndex);
+      triggerWrongMove(toIndex);
       selectedTubeIndex = null;
       _notifySafely();
       return;
@@ -458,7 +449,7 @@ class GameController extends ChangeNotifier {
     _notifySafely();
   }
 
-  void _triggerWrongMove(int index) {
+  void triggerWrongMove(int index) {
     wrongMoveIndex = index;
     HapticFeedback.vibrate();
     _notifySafely();

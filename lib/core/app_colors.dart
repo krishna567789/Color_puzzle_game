@@ -4,6 +4,8 @@ class AppColors {
   static const Color background = Color(0xFF03071E); // Very dark navy/black
   static const Color cardBackground = Color(0xFF0B1231);
   static const Color cardBorder = Color(0xFF1E2855);
+  static const Color cardHighlight = Color(0xFF323F73); // For 3D edge effect
+  static const Color cardShadow = Color(0xFF020512);    // For bottom shadow
   
   // Theme Colors for Cards
   static const List<Color> classicGradient = [Color(0xFF0066FF), Color(0xFF003399)];

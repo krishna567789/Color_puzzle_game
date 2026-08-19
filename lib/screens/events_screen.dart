@@ -125,9 +125,9 @@ class _EventsScreenState extends State<EventsScreen> {
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: isActive ? AppColors.primaryButton.withOpacity(0.5) : AppColors.cardBorder, width: 2),
+        border: Border.all(color: isActive ? AppColors.primaryButton.withValues(alpha: 0.5) : AppColors.cardBorder, width: 2),
         boxShadow: [
-          if (isActive) BoxShadow(color: AppColors.primaryButton.withOpacity(0.1), blurRadius: 20),
+          if (isActive) BoxShadow(color: AppColors.primaryButton.withValues(alpha: 0.1), blurRadius: 20),
         ],
       ),
       child: Column(
@@ -143,7 +143,7 @@ class _EventsScreenState extends State<EventsScreen> {
                   height: 150,
                   width: double.infinity,
                   fit: BoxFit.cover,
-                  color: isActive ? null : Colors.grey.withOpacity(0.5),
+                  color: isActive ? null : Colors.grey.withValues(alpha: 0.5),
                   colorBlendMode: isActive ? null : BlendMode.saturation,
                 ),
               ),

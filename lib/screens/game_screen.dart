@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../controllers/game_controller.dart';
 import '../widgets/tube_widget.dart';
 import '../core/app_colors.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 class GameScreen extends StatefulWidget {
   final GameMode mode;
@@ -13,16 +14,38 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
   late final GameController _controller;
+  late final AudioPlayer _audioPlayer;
+  late List<GlobalKey> _tubeKeys;
+  bool _isPlayingSound = false;
+  int _solvedTubesCount = 0;
 
   @override
   void initState() {
     super.initState();
     _controller = GameController(mode: widget.mode);
     _controller.addListener(_onGameStateChanged);
+    _audioPlayer = AudioPlayer();
+    _tubeKeys = List.generate(20, (_) => GlobalKey());
   }
 
   void _onGameStateChanged() {
     setState(() {});
+    
+    // Play sound when pouring starts
+    if (_controller.pouringFromIndex != null && !_isPlayingSound) {
+      _isPlayingSound = true;
+      _audioPlayer.play(AssetSource('audio/pour.ogg'));
+    } else if (_controller.pouringFromIndex == null && _isPlayingSound) {
+      _isPlayingSound = false;
+      _audioPlayer.stop();
+    }
+
+    int currentSolvedCount = _controller.tubes.where((t) => t.isFull && t.colors.isNotEmpty && t.colors.every((c) => c == t.colors.first)).length;
+    if (currentSolvedCount > _solvedTubesCount) {
+       AudioPlayer().play(AssetSource('audio/lock.wav'));
+    }
+    _solvedTubesCount = currentSolvedCount;
+
     if (_controller.isLevelComplete) {
       // Small delay to allow the last pour to render before showing dialog
       Future.delayed(const Duration(milliseconds: 300), () {
@@ -106,6 +129,7 @@ class _GameScreenState extends State<GameScreen> {
   void dispose() {
     _controller.removeListener(_onGameStateChanged);
     _controller.dispose();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -205,13 +229,41 @@ class _GameScreenState extends State<GameScreen> {
                       bool isPouringSource = _controller.pouringFromIndex == index;
                       bool isReceiving = _controller.pouringToIndex == index;
                       
-                      return TubeWidget(
-                        tube: _controller.tubes[index],
-                        isSelected: _controller.selectedTubeIndex == index,
-                        isShaking: _controller.wrongMoveIndex == index,
-                        isReceiving: isReceiving,
-                        tiltAngle: isPouringSource ? _controller.pourTiltAngle : 0.0,
-                        onTap: () => _controller.selectTube(index),
+                      Offset moveOffset = Offset.zero;
+                      Offset? targetOffset;
+
+                      if (isPouringSource && _controller.pouringToIndex != null) {
+                         if (_tubeKeys[index].currentContext != null && 
+                             _tubeKeys[_controller.pouringToIndex!].currentContext != null) {
+                           RenderBox sourceBox = _tubeKeys[index].currentContext!.findRenderObject() as RenderBox;
+                           RenderBox targetBox = _tubeKeys[_controller.pouringToIndex!].currentContext!.findRenderObject() as RenderBox;
+                           
+                           Offset sourcePos = sourceBox.localToGlobal(Offset.zero);
+                           Offset targetPos = targetBox.localToGlobal(Offset.zero);
+                           
+                           double tiltDir = _controller.pourTiltAngle > 0 ? -20 : 20;
+                           moveOffset = Offset(
+                             targetPos.dx - sourcePos.dx + tiltDir, 
+                             targetPos.dy - sourcePos.dy - 160
+                           );
+                           
+                           targetOffset = Offset(0, 160);
+                         }
+                      }
+
+                      return Container(
+                        key: _tubeKeys[index],
+                        child: TubeWidget(
+                          tube: _controller.tubes[index],
+                          isSelected: _controller.selectedTubeIndex == index,
+                          isShaking: _controller.wrongMoveIndex == index,
+                          isReceiving: isReceiving,
+                          tiltAngle: isPouringSource ? _controller.pourTiltAngle : 0.0,
+                          offset: moveOffset,
+                          targetOffset: targetOffset,
+                          pouringColor: _controller.pouringColor,
+                          onTap: () => _controller.selectTube(index),
+                        ),
                       );
                     },
                   ),

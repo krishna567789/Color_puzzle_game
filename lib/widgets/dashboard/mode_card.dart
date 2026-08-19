@@ -36,13 +36,17 @@ class ModeCard extends StatelessWidget {
               color: AppColors.cardBackground,
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: gradient != null ? gradient!.first.withValues(alpha: 0.5) : AppColors.cardBorder, 
+                color: gradient != null
+                    ? gradient!.first.withValues(alpha: 0.5)
+                    : AppColors.cardBorder,
                 width: 2,
               ),
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: gradient ?? [AppColors.cardBackground, AppColors.cardBackground],
+                colors:
+                    gradient ??
+                    [AppColors.cardBackground, AppColors.cardBackground],
               ),
               boxShadow: [
                 if (gradient != null)
@@ -59,14 +63,22 @@ class ModeCard extends StatelessWidget {
                 if (isVertical) ...[
                   const SizedBox(height: 4),
                   Image.asset(icon, height: 140, fit: BoxFit.cover),
-                  const SizedBox(height:8),
+                  const SizedBox(height: 8),
                   Text(
                     title.toUpperCase(),
-                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                   Text(
                     subtitle.toUpperCase(),
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   // "PLAY" Button style
@@ -75,7 +87,10 @@ class ModeCard extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Colors.white.withValues(alpha: 0.3), Colors.white.withValues(alpha: 0.1)],
+                        colors: [
+                          Colors.white.withValues(alpha: 0.3),
+                          Colors.white.withValues(alpha: 0.1),
+                        ],
                       ),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.white24),
@@ -83,7 +98,11 @@ class ModeCard extends StatelessWidget {
                     child: const Center(
                       child: Text(
                         'PLAY',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
                   ),
@@ -94,13 +113,19 @@ class ModeCard extends StatelessWidget {
                   Text(
                     title.toUpperCase(),
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                   if (ctaText != null)
                     Text(
                       ctaText!.toUpperCase(),
                       style: TextStyle(
-                        color: gradient != null ? gradient!.first : AppColors.primaryButton,
+                        color: gradient != null
+                            ? gradient!.first
+                            : AppColors.primaryButton,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
@@ -116,8 +141,20 @@ class ModeCard extends StatelessWidget {
               child: Container(
                 width: 18,
                 height: 18,
-                decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                child: const Center(child: Text('!', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold))),
+                decoration: const BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(
+                  child: Text(
+                    '!',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ),
             ),
         ],

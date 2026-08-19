@@ -36,11 +36,20 @@ class GameController extends ChangeNotifier {
 
   final List<List<Tube>> _history = [];
 
-  // Available colors for level generation
+  // Available colors for level generation (vivid, high-contrast flat colors)
   final List<Color> _availableColors = [
-    Colors.red, Colors.blue, Colors.green, Colors.yellow,
-    Colors.orange, Colors.purple, Colors.cyan, Colors.pink,
-    Colors.teal, Colors.indigo, Colors.brown, Colors.lime,
+    const Color(0xFFFF2A2A), // Vivid Red
+    const Color(0xFF1E88E5), // Vivid Blue
+    const Color(0xFF2AFA2A), // Vivid Green
+    const Color(0xFFFFD500), // Vivid Yellow
+    const Color(0xFFFF7A00), // Vivid Orange
+    const Color(0xFFA200FF), // Vivid Purple
+    const Color(0xFF00E5FF), // Vivid Cyan
+    const Color(0xFFFF0088), // Vivid Pink
+    const Color(0xFF00FF88), // Vivid Teal
+    const Color(0xFF5500FF), // Vivid Indigo
+    const Color(0xFFFF4500), // Vivid Deep Orange
+    const Color(0xFFA6FF00), // Vivid Lime
   ];
 
   GameController({GameMode mode = GameMode.classic}) {
@@ -233,7 +242,7 @@ class GameController extends ChangeNotifier {
     pouringColor = fromTube.topColor;
     selectedTubeIndex = null;
     
-    double tiltDirection = (toIndex > fromIndex) ? 1.2 : -1.2;
+    double tiltDirection = (toIndex > fromIndex) ? 1.5 : -1.5;
     pourTiltAngle = tiltDirection; 
     notifyListeners();
     

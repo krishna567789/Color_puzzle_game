@@ -74,20 +74,29 @@ class _ShopScreenState extends State<ShopScreen> {
     if (_coins >= item.price) {
       _coins -= item.price;
       item.isOwned = true;
-      
-      List<String> owned = _items.where((i) => i.isOwned).map((i) => i.id).toList();
+
+      List<String> owned = _items
+          .where((i) => i.isOwned)
+          .map((i) => i.id)
+          .toList();
       await StorageService.saveCoins(_coins);
       await StorageService.saveOwnedItems(owned);
       AudioService.playWinSfx();
       setState(() {});
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Purchased ${item.name}!'), backgroundColor: Colors.green),
+        SnackBar(
+          content: Text('Purchased ${item.name}!'),
+          backgroundColor: Colors.green,
+        ),
       );
     } else {
       AudioService.playClickSfx();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Not enough coins!'), backgroundColor: Colors.redAccent),
+        const SnackBar(
+          content: Text('Not enough coins!'),
+          backgroundColor: Colors.redAccent,
+        ),
       );
     }
   }
@@ -111,10 +120,21 @@ class _ShopScreenState extends State<ShopScreen> {
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('SHOP', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 2)),
+        title: const Text(
+          'SHOP',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 2,
+          ),
+        ),
         centerTitle: true,
         actions: [
-          _buildCurrencyDisplay(Icons.monetization_on, AppColors.goldCoin, _coins.toString()),
+          _buildCurrencyDisplay(
+            Icons.monetization_on,
+            AppColors.goldCoin,
+            _coins.toString(),
+          ),
           const SizedBox(width: 16),
         ],
       ),
@@ -132,7 +152,7 @@ class _ShopScreenState extends State<ShopScreen> {
               ],
             ),
           ),
-          
+
           Expanded(
             child: GridView.builder(
               padding: const EdgeInsets.all(20),
@@ -190,25 +210,50 @@ class _ShopScreenState extends State<ShopScreen> {
             color: isSelected ? AppColors.primaryButton : AppColors.cardBorder,
             width: 2,
           ),
-          boxShadow: isSelected ? [
-            BoxShadow(color: AppColors.primaryButton.withValues(alpha: 0.3), blurRadius: 10)
-          ] : [],
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: AppColors.primaryButton.withValues(alpha: 0.3),
+                    blurRadius: 10,
+                  ),
+                ]
+              : [],
         ),
         child: Column(
           children: [
             const Spacer(),
             // Mock icon for bottle skins
-            Icon(Icons.science, size: 60, color: isSelected ? AppColors.primaryButton : Colors.white38),
+            Icon(
+              Icons.science,
+              size: 60,
+              color: isSelected ? AppColors.primaryButton : Colors.white38,
+            ),
             const Spacer(),
-            Text(item.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            Text(
+              item.name,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 4),
             if (!item.isOwned)
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.monetization_on, color: AppColors.goldCoin, size: 16),
+                  const Icon(
+                    Icons.monetization_on,
+                    color: AppColors.goldCoin,
+                    size: 16,
+                  ),
                   const SizedBox(width: 4),
-                  Text(item.price.toString(), style: const TextStyle(color: AppColors.goldCoin, fontWeight: FontWeight.bold)),
+                  Text(
+                    item.price.toString(),
+                    style: const TextStyle(
+                      color: AppColors.goldCoin,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               )
             else
@@ -233,8 +278,41 @@ class _ShopScreenState extends State<ShopScreen> {
       children: [
         Icon(icon, color: color, size: 20),
         const SizedBox(width: 6),
-        Text(amount, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+        Text(
+          amount,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
       ],
     );
   }
+}
+
+Widget _buildCurrencyDisplay(IconData icon, Color color, String amount) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    decoration: BoxDecoration(
+      color: Colors.black54,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: Colors.white24),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: 16),
+        const SizedBox(width: 6),
+        Text(
+          amount,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+        ),
+      ],
+    ),
+  );
 }

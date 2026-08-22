@@ -79,7 +79,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
     final animation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _entranceController,
-        curve: Interval(0.2 * index, 0.2 * index + 0.6, curve: Curves.easeOutBack),
+        curve: Interval(0.1 * index, 0.1 * index + 0.6, curve: Curves.easeOutBack),
       ),
     );
 

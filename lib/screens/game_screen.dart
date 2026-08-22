@@ -6,7 +6,7 @@ import '../core/app_colors.dart';
 import '../widgets/common/hand_indicator.dart';
 import '../widgets/common/game_button.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'level_complete_screen.dart';
+import '../widgets/common/level_complete_dialog.dart';
 
 class GameScreen extends StatefulWidget {
   final GameMode mode;
@@ -177,18 +177,17 @@ class _GameScreenState extends State<GameScreen> {
       context,
       PageRouteBuilder(
         opaque: false,
-        pageBuilder: (context, _, __) => LevelCompleteScreen(
-          stars: stars,
+        pageBuilder: (context, _, __) => LevelCompleteDialog(
+          level: _controller.currentLevel,
           coinsEarned: 50,
-          moves: moves,
-          timeTaken: _formatTime(elapsedSeconds),
-          onNextLevel: () {
+          gemsEarned: 5,
+          onNext: () {
             Navigator.pop(context);
             _controller.nextLevel();
           },
-          onRestart: () {
+          onHome: () {
             Navigator.pop(context);
-            _controller.restartLevel();
+            Navigator.pop(context); // Go back to dashboard
           },
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {

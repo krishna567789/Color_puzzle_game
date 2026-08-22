@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
@@ -21,12 +22,13 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProviderStateMixin {
+class _DashboardScreenState extends State<DashboardScreen> with TickerProviderStateMixin {
   int _userLevel = 1;
   int _coins = 0;
   int _gems = 0;
   
   late AnimationController _entranceController;
+  late AnimationController _bubbleController;
 
   @override
   void initState() {
@@ -39,6 +41,11 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
       duration: const Duration(milliseconds: 1000),
     );
     _entranceController.forward();
+
+    _bubbleController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    )..repeat();
   }
 
   Future<void> _loadUserData() async {
@@ -55,6 +62,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
   @override
   void dispose() {
     _entranceController.dispose();
+    _bubbleController.dispose();
     super.dispose();
   }
 
@@ -90,164 +98,291 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     );
   }
 
+  Widget _buildSideIcon({
+    required String title,
+    required String icon,
+    required List<Color> gradient,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 75,
+        height: 90,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: gradient.first.withValues(alpha: 0.3),
+              blurRadius: 15,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Image.asset(icon, height: 50, fit: BoxFit.contain),
+                const SizedBox(height: 4),
+                Text(
+                  title.toUpperCase(),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    shadows: [Shadow(color: Colors.black54, offset: Offset(0, 1), blurRadius: 2)],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomButton({
+    required String title,
+    required String icon,
+    required VoidCallback onTap,
+    bool hasBadge = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 75,
+            height: 85,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.4), // Dark translucent background
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.15), width: 1),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4)),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Image.asset(icon, height: 42, fit: BoxFit.contain),
+                    const SizedBox(height: 6),
+                    Text(
+                      title.toUpperCase(),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (hasBadge)
+            Positioned(
+              top: -4,
+              right: -4,
+              child: Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 4)],
+                ),
+                child: const Center(
+                  child: Text('!', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Stack(
         children: [
-          // Animated Background Particles
+          // Stunning 2D Wizard Room Background
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/wizard_room_bg.jpg',
+              fit: BoxFit.cover,
+            ),
+          ),
+          // Magic Bubbles & Glow Particles over the cauldron
           Positioned.fill(
             child: CustomPaint(
-              painter: BackgroundParticlesPainter(animation: _entranceController),
+              painter: MagicBubblesPainter(animation: _bubbleController),
+            ),
+          ),
+          // Dark Overlay for UI readability at the top/bottom
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.7),
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.7),
+                  ],
+                  stops: const [0.0, 0.5, 1.0],
+                ),
+              ),
             ),
           ),
           SafeArea(
-            child: Column(
+            child: Stack(
               children: [
-                TopPlayerBar(
-                  level: _userLevel,
-                  coins: _coins,
-                  gems: _gems,
+                // Top Player Bar
+                Positioned(
+                  top: 0, left: 0, right: 0,
+                  child: TopPlayerBar(
+                    level: _userLevel,
+                    coins: _coins,
+                    gems: _gems,
+                  ),
                 ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Column(
-                        children: [
-                          const SizedBox(height: 10),
-                          // Center Logo with Entrance
-                          _buildAnimatedItem(
-                            index: 0,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              child: Image.asset(
-                                'assets/images/splash.png',
-                                height: 280,
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          // Top 3 Cards (Modes)
-                          _buildAnimatedItem(
-                            index: 1,
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: ModeCard(
-                                    title: 'Classic',
-                                    subtitle: 'Mode',
-                                    icon: 'assets/icon/classicMode.png',
-                                    gradient: AppColors.classicGradient,
-                                    onTap: () => _navigateToGame(GameMode.classic),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: ModeCard(
-                                    title: 'Challenge',
-                                    subtitle: 'Mode',
-                                    icon: 'assets/icon/challengeMode.png',
-                                    gradient: AppColors.challengeGradient,
-                                    onTap: () => _navigateToGame(GameMode.challenge),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: ModeCard(
-                                    title: 'Daily',
-                                    subtitle: 'Challenge',
-                                    icon: 'assets/icon/daily chalenge.png',
-                                    gradient: AppColors.dailyGradient,
-                                    onTap: () => _navigateToGame(GameMode.daily),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          // Bottom 4-Column Grid
-                          _buildAnimatedItem(
-                            index: 2,
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: ModeCard(
-                                    title: 'Lucky Spin',
-                                    subtitle: '',
-                                    icon: 'assets/icon/lucky_spin.png',
-                                    isVertical: false,
-                                    ctaText: 'SPIN NOW',
-                                    onTap: () async {
-                                      await Navigator.push(
-                                        context,
-                                        MaterialPageRoute(builder: (context) => const LuckySpinScreen()),
-                                      );
-                                      _loadUserData();
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: ModeCard(
-                                    title: 'Events',
-                                    subtitle: '',
-                                    icon: 'assets/icon/events.png',
-                                    isVertical: false,
-                                    ctaText: 'JOIN NOW',
-                                    onTap: () async {
-                                      await Navigator.push(
-                                        context,
-                                        MaterialPageRoute(builder: (context) => const EventsScreen()),
-                                      );
-                                      _loadUserData();
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: ModeCard(
-                                    title: 'Shop',
-                                    subtitle: '',
-                                    icon: 'assets/icon/shop.png',
-                                    isVertical: false,
-                                    ctaText: 'BUY NOW',
-                                    hasBadge: true,
-                                    onTap: () async {
-                                      await Navigator.push(
-                                        context,
-                                        MaterialPageRoute(builder: (context) => const ShopScreen()),
-                                      );
-                                      _loadUserData();
-                                    },
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: ModeCard(
-                                    title: 'Achievements',
-                                    subtitle: '',
-                                    icon: 'assets/icon/achivement.png',
-                                    isVertical: false,
-                                    ctaText: 'VIEW ALL',
-                                    onTap: () async {
-                                      await Navigator.push(
-                                        context,
-                                        MaterialPageRoute(builder: (context) => const AchievementsScreen()),
-                                      );
-                                      _loadUserData();
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 32),
-                        ],
+                
+                // Logo (Smaller, positioned higher)
+                Positioned(
+                  top: 60, left: 0, right: 0,
+                  child: _buildAnimatedItem(
+                    index: 0,
+                    child: Center(
+                      child: Image.asset(
+                        'assets/images/splash.png',
+                        height: 120,
+                        fit: BoxFit.contain,
                       ),
+                    ),
+                  ),
+                ),
+                
+                // Left Side (Challenge)
+                Positioned(
+                  left: 16,
+                  top: MediaQuery.of(context).size.height * 0.3,
+                  child: _buildAnimatedItem(
+                    index: 1,
+                    child: _buildSideIcon(
+                      title: 'Challenge',
+                      icon: 'assets/icon/challengeMode.png',
+                      gradient: AppColors.challengeGradient,
+                      onTap: () => _navigateToGame(GameMode.challenge),
+                    ),
+                  ),
+                ),
+
+                // Right Side (Daily)
+                Positioned(
+                  right: 16,
+                  top: MediaQuery.of(context).size.height * 0.3,
+                  child: _buildAnimatedItem(
+                    index: 2,
+                    child: _buildSideIcon(
+                      title: 'Daily',
+                      icon: 'assets/icon/daily chalenge.png',
+                      gradient: AppColors.dailyGradient,
+                      onTap: () => _navigateToGame(GameMode.daily),
+                    ),
+                  ),
+                ),
+
+                // Bottom Center: Main PLAY (Classic)
+                Positioned(
+                  bottom: 120,
+                  left: 0,
+                  right: 0,
+                  child: _buildAnimatedItem(
+                    index: 3,
+                    child: Center(
+                      child: GameButton(
+                        width: 240,
+                        height: 75,
+                        color: const Color(0xFF5CD615), // Magical vibrant green
+                        onTap: () => _navigateToGame(GameMode.classic),
+                        child: const Text(
+                          'PLAY CLASSIC',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: 1.5,
+                            shadows: [Shadow(color: Colors.black54, offset: Offset(0, 2), blurRadius: 4)],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                
+                // Bottom Row (Lucky Spin, Events, Shop, Achievements)
+                Positioned(
+                  bottom: 20,
+                  left: 10,
+                  right: 10,
+                  child: _buildAnimatedItem(
+                    index: 4,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildBottomButton(
+                          title: 'Lucky Spin',
+                          icon: 'assets/icon/lucky_spin.png',
+                          onTap: () async {
+                            await Navigator.push(context, MaterialPageRoute(builder: (context) => const LuckySpinScreen()));
+                            _loadUserData();
+                          },
+                        ),
+                        _buildBottomButton(
+                          title: 'Events',
+                          icon: 'assets/icon/events.png',
+                          onTap: () async {
+                            await Navigator.push(context, MaterialPageRoute(builder: (context) => const EventsScreen()));
+                            _loadUserData();
+                          },
+                        ),
+                        _buildBottomButton(
+                          title: 'Shop',
+                          icon: 'assets/icon/shop.png',
+                          hasBadge: true,
+                          onTap: () async {
+                            await Navigator.push(context, MaterialPageRoute(builder: (context) => const ShopScreen()));
+                            _loadUserData();
+                          },
+                        ),
+                        _buildBottomButton(
+                          title: 'Trophies',
+                          icon: 'assets/icon/achivement.png',
+                          onTap: () async {
+                            await Navigator.push(context, MaterialPageRoute(builder: (context) => const AchievementsScreen()));
+                            _loadUserData();
+                          },
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -260,22 +395,58 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
   }
 }
 
-class BackgroundParticlesPainter extends CustomPainter {
+class MagicBubblesPainter extends CustomPainter {
   final Animation<double> animation;
-  BackgroundParticlesPainter({required this.animation}) : super(repaint: animation);
+  MagicBubblesPainter({required this.animation}) : super(repaint: animation);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.05)
-      ..style = PaintingStyle.fill;
+    final random = math.Random(42); // Fixed seed for consistent bubble paths
+    
+    // Cauldron position is roughly center bottom
+    final centerX = size.width / 2;
+    final startY = size.height * 0.7; 
 
-    final random = math.Random(42);
-    for (int i = 0; i < 15; i++) {
-      double x = random.nextDouble() * size.width;
-      double y = (random.nextDouble() * size.height + (animation.value * 100)) % size.height;
-      double radius = random.nextDouble() * 20 + 10;
-      canvas.drawCircle(Offset(x, y), radius, paint);
+    for (int i = 0; i < 25; i++) {
+      // Randomize properties for each bubble
+      double offsetX = (random.nextDouble() - 0.5) * 120; // Spread width
+      double speed = random.nextDouble() * 0.5 + 0.5; // Speed multiplier
+      double maxRadius = random.nextDouble() * 8 + 4; // Size of bubbles
+      
+      // Calculate current position based on animation value
+      // Add a random phase offset for each bubble so they don't spawn together
+      double phase = random.nextDouble();
+      double t = (animation.value * speed + phase) % 1.0;
+      
+      // Bubble floats up and slightly side-to-side (sine wave)
+      double currentY = startY - (t * 400); // Float up 400 pixels
+      double currentX = centerX + offsetX + math.sin(t * math.pi * 4) * 20;
+      
+      // Fade out as it goes higher
+      double opacity = (1.0 - t).clamp(0.0, 1.0);
+      
+      // Draw glowing bubble
+      final paint = Paint()
+        ..color = Colors.purpleAccent.withValues(alpha: opacity * 0.8)
+        ..style = PaintingStyle.fill;
+        
+      // Inner bright spot
+      final innerPaint = Paint()
+        ..color = Colors.white.withValues(alpha: opacity * 0.9)
+        ..style = PaintingStyle.fill;
+
+      canvas.drawCircle(Offset(currentX, currentY), maxRadius * (0.5 + 0.5 * math.sin(t * math.pi)), paint);
+      canvas.drawCircle(Offset(currentX - maxRadius * 0.2, currentY - maxRadius * 0.2), maxRadius * 0.2, innerPaint);
+      
+      // Glowing particles/sparks around the room
+      if (i % 3 == 0) {
+        double sparkX = random.nextDouble() * size.width;
+        double sparkY = (random.nextDouble() * size.height - (t * 200)) % size.height;
+        final sparkPaint = Paint()
+          ..color = Colors.amberAccent.withValues(alpha: opacity * random.nextDouble())
+          ..style = PaintingStyle.fill;
+        canvas.drawCircle(Offset(sparkX, sparkY), random.nextDouble() * 3, sparkPaint);
+      }
     }
   }
 

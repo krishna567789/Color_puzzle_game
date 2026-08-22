@@ -178,6 +178,7 @@ class _GameScreenState extends State<GameScreen> {
       PageRouteBuilder(
         opaque: false,
         pageBuilder: (context, _, __) => LevelCompleteDialog(
+          stars: stars,
           level: _controller.currentLevel,
           coinsEarned: 50,
           gemsEarned: 5,

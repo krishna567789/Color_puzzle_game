@@ -101,9 +101,15 @@ class TopPlayerBar extends StatelessWidget {
             ),
             child: Column(
               children: [
-                _buildCurrencyRow(Icons.monetization_on, AppColors.goldCoin, coins.toString()),
+                _buildCurrencyRow(
+                  Image.asset('assets/blender/coin.png', width: 20, height: 20),
+                  coins.toString()
+                ),
                 const SizedBox(height: 6),
-                _buildCurrencyRow(Icons.diamond, AppColors.purpleGem, gems.toString()),
+                _buildCurrencyRow(
+                  const Icon(Icons.diamond, color: AppColors.purpleGem, size: 16),
+                  gems.toString()
+                ),
               ],
             ),
           ),
@@ -130,11 +136,11 @@ class TopPlayerBar extends StatelessWidget {
     );
   }
 
-  Widget _buildCurrencyRow(IconData icon, Color color, String amount) {
+  Widget _buildCurrencyRow(Widget icon, String amount) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: color, size: 16),
+        icon,
         const SizedBox(width: 6),
         Text(amount, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
         const SizedBox(width: 6),

@@ -369,20 +369,34 @@ class BottlePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
     final glassPaint = Paint()
-      ..color = _getGlassColor().withOpacity(0.08)
+      ..shader = LinearGradient(
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+        colors: [
+          Colors.white.withOpacity(0.5),
+          Colors.white.withOpacity(0.1),
+          Colors.transparent,
+          Colors.white.withOpacity(0.05),
+          Colors.white.withOpacity(0.3),
+        ],
+        stops: const [0.0, 0.15, 0.5, 0.85, 1.0],
+      ).createShader(rect)
       ..style = PaintingStyle.fill;
 
     final borderPaint = Paint()
-      ..color = isSelected
-          ? Colors.white
-          : const Color(0xFF90CAF9).withOpacity(
-              0.9,
-            ) // Light blue border like the image
+      ..shader = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          isSelected ? Colors.white : Colors.white.withOpacity(0.9),
+          isSelected ? Colors.white70 : Colors.white.withOpacity(0.3),
+          isSelected ? Colors.white : Colors.white.withOpacity(0.6),
+        ],
+      ).createShader(rect)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = skinId == 'neon_tube'
-          ? 4.0
-          : 3.5 // Thicker border
+      ..strokeWidth = skinId == 'neon_tube' ? 4.0 : 2.5
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
@@ -406,14 +420,20 @@ class BottlePainter extends CustomPainter {
     }
 
     final neckRimPaint = Paint()
-      ..color = const Color(0xFF90CAF9).withOpacity(0.9)
+      ..shader = LinearGradient(
+        colors: [
+          Colors.white.withOpacity(0.9),
+          Colors.white.withOpacity(0.4),
+          Colors.white.withOpacity(0.8),
+        ]
+      ).createShader(rect)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.5;
 
     // The top pill-shaped rim of the bottle
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(size.width * 0.25, -2, size.width * 0.5, 6),
+        Rect.fromLTWH(size.width * 0.25, -3, size.width * 0.5, 8),
         const Radius.circular(4),
       ),
       neckRimPaint,

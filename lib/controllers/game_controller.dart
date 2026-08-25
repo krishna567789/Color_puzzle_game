@@ -40,8 +40,15 @@ class GameController extends ChangeNotifier {
 
   // Mode specific logic
   GameMode activeMode = GameMode.classic;
-  int? remainingTime; // for Challenge Mode (seconds)
-  int? movesLimit; // for Challenge Mode
+  int? remainingTime; // for all modes (seconds)
+  int? movesLimit; // for all modes
+  int extraChancesUsed = 0;
+  
+  // Powerups / Tools
+  int undoUsesLeft = 3;
+  int shuffleUsesLeft = 2;
+  int addTubeUsesLeft = 1;
+  
   Timer? _timer;
   bool _isDisposed = false;
 
@@ -105,12 +112,19 @@ class GameController extends ChangeNotifier {
     isLevelComplete = false;
     isGameOver = false;
     movesCount = 0;
+    extraChancesUsed = 0;
+    
+    // Reset Tools Limits
+    undoUsesLeft = 3;
+    shuffleUsesLeft = 2;
+    addTubeUsesLeft = 1;
+    
     _history.clear();
 
     _setupModeConstraints();
     _generateProceduralLevel();
 
-    if (activeMode == GameMode.challenge) {
+    if (remainingTime != null) {
       _startTimer();
     }
 
@@ -121,6 +135,9 @@ class GameController extends ChangeNotifier {
     if (activeMode == GameMode.challenge) {
       remainingTime = 120;
       movesLimit = 30;
+    } else if (activeMode == GameMode.classic) {
+      remainingTime = 60 + (currentLevel * 10);
+      movesLimit = 15 + (currentLevel * 5);
     } else {
       remainingTime = null;
       movesLimit = null;
@@ -321,9 +338,13 @@ class GameController extends ChangeNotifier {
   }
 
   void undo() {
-    if (!isGameOver && pouringFromIndex == null && _history.isNotEmpty) {
+    if (isGameOver || isLevelComplete || pouringFromIndex != null) return;
+    if (undoUsesLeft <= 0) return; // Cannot undo if no uses left
+    if (_history.isNotEmpty) {
       tubes = _history.removeLast();
       selectedTubeIndex = null;
+      undoUsesLeft--; // Consume 1 use
+      // Decrease moves count if we undo
       movesCount = max(0, movesCount - 1);
       _notifySafely();
       HapticFeedback.mediumImpact();
@@ -366,6 +387,84 @@ class GameController extends ChangeNotifier {
     return fromTube.isNotEmpty &&
         !toTube.isFull &&
         (toTube.isEmpty || toTube.topColor == fromTube.topColor);
+  }
+
+  void shuffleTubes() {
+    if (isGameOver || isLevelComplete || shuffleUsesLeft <= 0) return;
+
+    List<Color> topColors = [];
+    List<int> validIndices = [];
+
+    for (int i = 0; i < tubes.length; i++) {
+      if (tubes[i].isNotEmpty && !tubes[i].isComplete) {
+        topColors.add(tubes[i].topColor!);
+        validIndices.add(i);
+      }
+    }
+
+    if (topColors.length > 1) {
+      _history.add(tubes.map((t) => t.copyWith()).toList());
+      movesCount++;
+      
+      topColors.shuffle(Random());
+      for (int i = 0; i < validIndices.length; i++) {
+        int tubeIndex = validIndices[i];
+        tubes[tubeIndex].colors.removeLast();
+        tubes[tubeIndex].colors.add(topColors[i]);
+      }
+      
+      AudioService.playPourSfx();
+      
+      // Check win condition right after shuffle
+      _checkWinCondition();
+      if (isLevelComplete) {
+        _timer?.cancel();
+      } else if (movesLimit != null && movesCount >= movesLimit!) {
+        _timer?.cancel();
+        _handleGameOver();
+      }
+      
+      // Consume 1 use
+      shuffleUsesLeft--;
+      
+      _notifySafely();
+    }
+  }
+  
+  void addExtraTube() {
+    if (isGameOver || isLevelComplete || addTubeUsesLeft <= 0) return;
+    
+    // Add an empty tube with standard capacity
+    tubes.add(Tube(capacity: 4));
+    addTubeUsesLeft--;
+    
+    AudioService.playPourSfx(); // Optional: play a different sound
+    _notifySafely();
+  }
+
+  void useExtraChance(bool isTime, {bool isAd = false}) {
+    if (extraChancesUsed >= 3) return;
+    
+    // Deduct coins if not an Ad
+    if (!isAd) {
+      if (coins >= 50) {
+        coins -= 50;
+        StorageService.saveCoins(coins);
+      } else {
+        return; // Prevent using chance if they somehow bypass the UI check
+      }
+    }
+    
+    extraChancesUsed++;
+    isGameOver = false;
+
+    if (isTime) {
+      remainingTime = (remainingTime ?? 0) + 30;
+      _startTimer();
+    } else {
+      movesLimit = (movesLimit ?? 0) + 5;
+    }
+    _notifySafely();
   }
 
   HintMove? requestHint() {

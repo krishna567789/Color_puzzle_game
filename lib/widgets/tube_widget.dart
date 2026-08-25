@@ -228,9 +228,7 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
                                         ),
                                         child: Container(
                                           width: double.infinity,
-                                          margin: const EdgeInsets.symmetric(
-                                            vertical: 0.1,
-                                          ),
+                                          margin: EdgeInsets.zero,
                                         ),
                                       ),
                                     ),
@@ -386,17 +384,9 @@ class BottlePainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     final borderPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          isSelected ? Colors.white : Colors.white.withOpacity(0.9),
-          isSelected ? Colors.white70 : Colors.white.withOpacity(0.3),
-          isSelected ? Colors.white : Colors.white.withOpacity(0.6),
-        ],
-      ).createShader(rect)
+      ..color = isSelected ? Colors.white : Colors.white.withOpacity(0.4)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = skinId == 'neon_tube' ? 4.0 : 2.5
+      ..strokeWidth = skinId == 'neon_tube' ? 4.0 : 2.0
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
@@ -695,23 +685,12 @@ class LiquidSegmentPainter extends CustomPainter {
     final paint = Paint()..shader = gradient.createShader(rect);
     canvas.drawRect(rect, paint);
     
-    // Top surface ellipse for 3D depth
+    // Top surface ellipse for 3D depth removed to match reference design
     if (isTopSegment && splashValue == 0) {
-      final ellipseRect = Rect.fromLTWH(0, -6, size.width, 12);
-      final topSurfaceColor = Color.lerp(baseColor, Colors.white, 0.4)!;
-      
       final topPaint = Paint()
-        ..color = topSurfaceColor
+        ..color = Color.lerp(baseColor, Colors.white, 0.2)!
         ..style = PaintingStyle.fill;
-        
-      canvas.drawOval(ellipseRect, topPaint);
-      
-      // Inner shadow/rim on the ellipse
-      final rimPaint = Paint()
-        ..color = Color.lerp(baseColor, Colors.black, 0.2)!
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0;
-      canvas.drawOval(ellipseRect, rimPaint);
+      canvas.drawRect(Rect.fromLTWH(0, 0, size.width, 3), topPaint);
     }
   }
 

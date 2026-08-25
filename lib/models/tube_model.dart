@@ -13,6 +13,15 @@ class Tube {
   bool get isEmpty => colors.isEmpty;
   bool get isNotEmpty => colors.isNotEmpty;
   
+  bool get isComplete {
+    if (!isFull) return false;
+    final firstColor = colors.first;
+    for (final color in colors) {
+      if (color != firstColor) return false;
+    }
+    return true;
+  }
+  
   Color? get topColor => colors.isNotEmpty ? colors.last : null;
 
   Tube copyWith({List<Color>? colors}) {

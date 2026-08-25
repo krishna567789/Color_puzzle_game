@@ -24,19 +24,17 @@ class LevelCompleteDialog extends StatefulWidget {
   State<LevelCompleteDialog> createState() => _LevelCompleteDialogState();
 }
 
-class _LevelCompleteDialogState extends State<LevelCompleteDialog> with SingleTickerProviderStateMixin {
+class _LevelCompleteDialogState extends State<LevelCompleteDialog>
+    with SingleTickerProviderStateMixin {
   late AnimationController _starController;
 
   @override
   void initState() {
     super.initState();
-    
-    // स्टार्स को एनिमेट करने के लिए कंट्रोलर
     _starController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     );
-    // थोड़ा रुक कर स्टार्स का पॉप-अप शुरू करें ताकि बैकग्राउंड आ जाए
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) _starController.forward();
     });
@@ -48,47 +46,63 @@ class _LevelCompleteDialogState extends State<LevelCompleteDialog> with SingleTi
     super.dispose();
   }
 
-  // शानदार 3D जैसा पॉप-अप स्टार बनाने का फंक्शन
   Widget _buildAnimatedStar(int starIndex, {bool isCenter = false}) {
     bool isEarned = widget.stars >= starIndex;
-    
-    // हर स्टार थोड़ी देर बाद (Sequence में) पॉप-अप होगा
+
     double start = (starIndex - 1) * 0.2; // 0.0, 0.2, 0.4
     double end = start + 0.4; // 0.4, 0.6, 0.8
-    
-    Animation<double> scaleAnim = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween(begin: 0.0, end: 1.4).chain(CurveTween(curve: Curves.easeOutCubic)), 
-        weight: 40
-      ),
-      TweenSequenceItem(
-        tween: Tween(begin: 1.4, end: 1.0).chain(CurveTween(curve: Curves.elasticOut)), 
-        weight: 60
-      ),
-    ]).animate(CurvedAnimation(
-      parent: _starController,
-      curve: Interval(start, end, curve: Curves.linear),
-    ));
+
+    Animation<double> scaleAnim =
+        TweenSequence<double>([
+          TweenSequenceItem(
+            tween: Tween(
+              begin: 0.0,
+              end: 1.4,
+            ).chain(CurveTween(curve: Curves.easeOutCubic)),
+            weight: 40,
+          ),
+          TweenSequenceItem(
+            tween: Tween(
+              begin: 1.4,
+              end: 1.0,
+            ).chain(CurveTween(curve: Curves.elasticOut)),
+            weight: 60,
+          ),
+        ]).animate(
+          CurvedAnimation(
+            parent: _starController,
+            curve: Interval(start, end, curve: Curves.linear),
+          ),
+        );
 
     return AnimatedBuilder(
       animation: _starController,
       builder: (context, child) {
-        // अगर स्टार नहीं जीता (Unearned) है, तो वह छोटा और ग्रे रहेगा
         double scale = isEarned ? scaleAnim.value : 0.8;
-        if (scale == 0.0 && isEarned) scale = 0.0; // छुपा के रखें जब तक एनीमेशन शुरू न हो
+        if (scale == 0.0 && isEarned) scale = 0.0;
 
         return Transform.scale(
           scale: scale,
           child: Transform.translate(
-            offset: Offset(0, isCenter ? -20 : 0), // बीच वाला स्टार थोड़ा ऊपर
+            offset: Offset(0, isCenter ? -20 : 0),
             child: Icon(
               Icons.star_rounded,
               size: 85,
-              color: isEarned ? Colors.amber : Colors.black45, // नहीं जीता तो काला/ग्रे
-              shadows: isEarned ? [
-                const Shadow(color: Colors.deepOrange, blurRadius: 4, offset: Offset(0, 3)),
-                const Shadow(color: Colors.yellowAccent, blurRadius: 15, offset: Offset(0, 0))
-              ] : null, // सिर्फ जीते हुए स्टार्स चमकेंगे
+              color: isEarned ? Colors.amber : Colors.black45,
+              shadows: isEarned
+                  ? [
+                      const Shadow(
+                        color: Colors.deepOrange,
+                        blurRadius: 4,
+                        offset: Offset(0, 3),
+                      ),
+                      const Shadow(
+                        color: Colors.yellowAccent,
+                        blurRadius: 15,
+                        offset: Offset(0, 0),
+                      ),
+                    ]
+                  : null,
             ),
           ),
         );
@@ -108,7 +122,7 @@ class _LevelCompleteDialogState extends State<LevelCompleteDialog> with SingleTi
       elevation: 0,
       child: SizedBox(
         width: dialogWidth,
-        height: dialogWidth * 1.45, // थोड़ा हाइट बढ़ाया ताकि Overflow न हो
+        height: dialogWidth * 1.45,
         child: Stack(
           alignment: Alignment.center,
           clipBehavior: Clip.none,
@@ -128,16 +142,25 @@ class _LevelCompleteDialogState extends State<LevelCompleteDialog> with SingleTi
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(24),
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF6B4226), Color(0xFF3E2312)], // लकड़ी का रंग
+                  colors: [Color(0xFF6B4226), Color(0xFF3E2312)],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                 ),
                 border: Border.all(color: const Color(0xFF9E6539), width: 4),
                 boxShadow: const [
-                  BoxShadow(color: Colors.black54, offset: Offset(0, 15), blurRadius: 20),
+                  BoxShadow(
+                    color: Colors.black54,
+                    offset: Offset(0, 15),
+                    blurRadius: 20,
+                  ),
                   // 3D Highlight
-                  BoxShadow(color: Colors.white24, offset: Offset(0, 2), blurRadius: 0, spreadRadius: -3),
-                ]
+                  BoxShadow(
+                    color: Colors.white24,
+                    offset: Offset(0, 2),
+                    blurRadius: 0,
+                    spreadRadius: -3,
+                  ),
+                ],
               ),
             ),
 
@@ -217,7 +240,7 @@ class _LevelCompleteDialogState extends State<LevelCompleteDialog> with SingleTi
                     _buildAnimatedStar(3),
                   ],
                 ),
-                
+
                 // === BOTTOM SECTION (Rewards & Buttons) ===
                 Column(
                   children: [
@@ -346,13 +369,17 @@ class SpinningSunburst extends StatefulWidget {
   State<SpinningSunburst> createState() => _SpinningSunburstState();
 }
 
-class _SpinningSunburstState extends State<SpinningSunburst> with SingleTickerProviderStateMixin {
+class _SpinningSunburstState extends State<SpinningSunburst>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 15))..repeat();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 15),
+    )..repeat();
   }
 
   @override
@@ -365,9 +392,7 @@ class _SpinningSunburstState extends State<SpinningSunburst> with SingleTickerPr
   Widget build(BuildContext context) {
     return RotationTransition(
       turns: _controller,
-      child: CustomPaint(
-        painter: SunburstPainter(),
-      ),
+      child: CustomPaint(painter: SunburstPainter()),
     );
   }
 }
@@ -378,7 +403,7 @@ class SunburstPainter extends CustomPainter {
     final paint = Paint()
       ..color = Colors.amber.withOpacity(0.5)
       ..style = PaintingStyle.fill;
-      
+
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width > size.height ? size.width : size.height;
 
@@ -387,10 +412,16 @@ class SunburstPainter extends CustomPainter {
     for (int i = 0; i < rays; i++) {
       double angle1 = (i * 2 * math.pi) / rays;
       double angle2 = ((i + 0.3) * 2 * math.pi) / rays;
-      
+
       path.moveTo(center.dx, center.dy);
-      path.lineTo(center.dx + radius * math.cos(angle1), center.dy + radius * math.sin(angle1));
-      path.lineTo(center.dx + radius * math.cos(angle2), center.dy + radius * math.sin(angle2));
+      path.lineTo(
+        center.dx + radius * math.cos(angle1),
+        center.dy + radius * math.sin(angle1),
+      );
+      path.lineTo(
+        center.dx + radius * math.cos(angle2),
+        center.dy + radius * math.sin(angle2),
+      );
       path.close();
     }
     canvas.drawPath(path, paint);

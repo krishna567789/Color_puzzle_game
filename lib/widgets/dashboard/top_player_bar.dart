@@ -102,12 +102,12 @@ class TopPlayerBar extends StatelessWidget {
             child: Column(
               children: [
                 _buildCurrencyRow(
-                  Image.asset('assets/blender/coin.png', width: 20, height: 20),
+                  Image.asset('assets/icon/coin_3d.png', width: 22, height: 22),
                   coins.toString()
                 ),
                 const SizedBox(height: 6),
                 _buildCurrencyRow(
-                  const Icon(Icons.diamond, color: AppColors.purpleGem, size: 16),
+                  Image.asset('assets/icon/gem_3d.png', width: 22, height: 22),
                   gems.toString()
                 ),
               ],

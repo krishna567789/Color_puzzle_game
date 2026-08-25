@@ -14,6 +14,7 @@ import 'shop_screen.dart';
 import 'lucky_spin_screen.dart';
 import 'achievements_screen.dart';
 import 'events_screen.dart';
+import 'level_map_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -22,11 +23,12 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> with TickerProviderStateMixin {
+class _DashboardScreenState extends State<DashboardScreen>
+    with TickerProviderStateMixin {
   int _userLevel = 1;
   int _coins = 0;
   int _gems = 0;
-  
+
   late AnimationController _entranceController;
   late AnimationController _bubbleController;
 
@@ -35,7 +37,7 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
     super.initState();
     _loadUserData();
     AudioService.playBGM();
-    
+
     _entranceController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
@@ -67,11 +69,18 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
   }
 
   void _navigateToGame(GameMode mode) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => GameScreen(mode: mode)),
-    );
-    // Reload user data when returning from game
+    if (mode == GameMode.classic) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const LevelMapScreen()),
+      );
+    } else {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => GameScreen(mode: mode)),
+      );
+    }
+    // Reload user data when returning
     _loadUserData();
   }
 
@@ -79,7 +88,11 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
     final animation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _entranceController,
-        curve: Interval(0.1 * index, 0.1 * index + 0.6, curve: Curves.easeOutBack),
+        curve: Interval(
+          0.1 * index,
+          0.1 * index + 0.6,
+          curve: Curves.easeOutBack,
+        ),
       ),
     );
 
@@ -106,43 +119,61 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
   }) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: SizedBox(
         width: 75,
-        height: 90,
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: gradient.first.withValues(alpha: 0.3),
-              blurRadius: 15,
-              spreadRadius: 1,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Glowing Floating Icon
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: gradient.first.withValues(alpha: 0.8),
+                    blurRadius: 25,
+                    spreadRadius: 2,
+                  ),
+                  BoxShadow(
+                    color: Colors.white.withValues(alpha: 0.3),
+                    blurRadius: 10,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: Image.asset(icon, height: 60, fit: BoxFit.contain),
+            ),
+            const SizedBox(height: 8),
+            // Highlighted Text Label
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: gradient.last.withValues(alpha: 0.8),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: gradient.first.withValues(alpha: 0.4),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+              child: Text(
+                title.toUpperCase(),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.0,
+                ),
+              ),
             ),
           ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset(icon, height: 50, fit: BoxFit.contain),
-                const SizedBox(height: 4),
-                Text(
-                  title.toUpperCase(),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w900,
-                    shadows: [Shadow(color: Colors.black54, offset: Offset(0, 1), blurRadius: 2)],
-                  ),
-                ),
-              ],
-            ),
-          ),
         ),
       ),
     );
@@ -163,11 +194,20 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
             width: 75,
             height: 85,
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.4), // Dark translucent background
+              color: Colors.black.withValues(
+                alpha: 0.4,
+              ), // Dark translucent background
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.15), width: 1),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.15),
+                width: 1,
+              ),
               boxShadow: [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4)),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
               ],
             ),
             child: ClipRRect(
@@ -205,10 +245,19 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                   color: Colors.red,
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 2),
-                  boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 4)],
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black45, blurRadius: 4),
+                  ],
                 ),
                 child: const Center(
-                  child: Text('!', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                  child: Text(
+                    '!',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -258,33 +307,37 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
               children: [
                 // Top Player Bar
                 Positioned(
-                  top: 0, left: 0, right: 0,
+                  top: 0,
+                  left: 0,
+                  right: 0,
                   child: TopPlayerBar(
                     level: _userLevel,
                     coins: _coins,
                     gems: _gems,
                   ),
                 ),
-                
+
                 // Logo (Smaller, positioned higher)
                 Positioned(
-                  top: 60, left: 0, right: 0,
+                  top: 90,
+                  left: 0,
+                  right: 0,
                   child: _buildAnimatedItem(
                     index: 0,
                     child: Center(
                       child: Image.asset(
                         'assets/images/splash.png',
-                        height: 120,
-                        fit: BoxFit.contain,
+                        height: 200,
+                        fit: BoxFit.cover,
                       ),
                     ),
                   ),
                 ),
-                
+
                 // Left Side (Challenge)
                 Positioned(
                   left: 16,
-                  top: MediaQuery.of(context).size.height * 0.3,
+                  top: MediaQuery.of(context).size.height * 0.28,
                   child: _buildAnimatedItem(
                     index: 1,
                     child: _buildSideIcon(
@@ -296,10 +349,10 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                   ),
                 ),
 
-                // Right Side (Daily)
+                // Left Side (Daily) - Below Challenge
                 Positioned(
-                  right: 16,
-                  top: MediaQuery.of(context).size.height * 0.3,
+                  left: 16,
+                  top: MediaQuery.of(context).size.height * 0.45,
                   child: _buildAnimatedItem(
                     index: 2,
                     child: _buildSideIcon(
@@ -331,17 +384,23 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                             fontWeight: FontWeight.w900,
                             color: Colors.white,
                             letterSpacing: 1.5,
-                            shadows: [Shadow(color: Colors.black54, offset: Offset(0, 2), blurRadius: 4)],
+                            shadows: [
+                              Shadow(
+                                color: Colors.black54,
+                                offset: Offset(0, 2),
+                                blurRadius: 4,
+                              ),
+                            ],
                           ),
                         ),
                       ),
                     ),
                   ),
                 ),
-                
+
                 // Bottom Row (Lucky Spin, Events, Shop, Achievements)
                 Positioned(
-                  bottom: 20,
+                  bottom: 5,
                   left: 10,
                   right: 10,
                   child: _buildAnimatedItem(
@@ -353,7 +412,12 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                           title: 'Lucky Spin',
                           icon: 'assets/icon/lucky_spin.png',
                           onTap: () async {
-                            await Navigator.push(context, MaterialPageRoute(builder: (context) => const LuckySpinScreen()));
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const LuckySpinScreen(),
+                              ),
+                            );
                             _loadUserData();
                           },
                         ),
@@ -361,7 +425,12 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                           title: 'Events',
                           icon: 'assets/icon/events.png',
                           onTap: () async {
-                            await Navigator.push(context, MaterialPageRoute(builder: (context) => const EventsScreen()));
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const EventsScreen(),
+                              ),
+                            );
                             _loadUserData();
                           },
                         ),
@@ -370,7 +439,12 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                           icon: 'assets/icon/shop.png',
                           hasBadge: true,
                           onTap: () async {
-                            await Navigator.push(context, MaterialPageRoute(builder: (context) => const ShopScreen()));
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const ShopScreen(),
+                              ),
+                            );
                             _loadUserData();
                           },
                         ),
@@ -378,7 +452,13 @@ class _DashboardScreenState extends State<DashboardScreen> with TickerProviderSt
                           title: 'Trophies',
                           icon: 'assets/icon/achivement.png',
                           onTap: () async {
-                            await Navigator.push(context, MaterialPageRoute(builder: (context) => const AchievementsScreen()));
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const AchievementsScreen(),
+                              ),
+                            );
                             _loadUserData();
                           },
                         ),
@@ -402,50 +482,107 @@ class MagicBubblesPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final random = math.Random(42); // Fixed seed for consistent bubble paths
-    
+
     // Cauldron position is roughly center bottom
     final centerX = size.width / 2;
-    final startY = size.height * 0.7; 
+    final startY = size.height * 0.69; // Exactly on the liquid surface
 
+    // Liquid ellipse dimensions (to keep bubbles inside the rim)
+    final surfaceWidth = 140.0;
+    final surfaceHeight = 24.0;
+
+    // 1. Boiling Surface Bubbles (stay strictly inside the liquid and pop)
+    for (int i = 0; i < 20; i++) {
+      double offsetX = (random.nextDouble() - 0.5) * surfaceWidth;
+      double offsetY = (random.nextDouble() - 0.5) * surfaceHeight;
+      double maxRadius = random.nextDouble() * 9 + 3;
+
+      double phase = random.nextDouble();
+      double speed = random.nextDouble() * 1.5 + 0.5;
+      double t = (animation.value * speed + phase) % 1.0;
+
+      // Bubbles grow and pop (sine wave scale)
+      double scale = math.sin(t * math.pi);
+      double currentRadius = maxRadius * scale;
+      double opacity = scale.clamp(0.0, 1.0);
+
+      if (currentRadius > 0.5) {
+        final paint = Paint()
+          ..color = Colors.purpleAccent.withValues(alpha: opacity * 0.8)
+          ..style = PaintingStyle.fill;
+
+        final innerPaint = Paint()
+          ..color = Colors.white.withValues(alpha: opacity * 0.7)
+          ..style = PaintingStyle.fill;
+
+        canvas.drawCircle(
+          Offset(centerX + offsetX, startY + offsetY),
+          currentRadius,
+          paint,
+        );
+        canvas.drawCircle(
+          Offset(
+            centerX + offsetX - currentRadius * 0.3,
+            startY + offsetY - currentRadius * 0.3,
+          ),
+          currentRadius * 0.25,
+          innerPaint,
+        );
+      }
+    }
+
+    // 2. Flying Bubbles (spawn ONLY from liquid surface and float up)
     for (int i = 0; i < 25; i++) {
-      // Randomize properties for each bubble
-      double offsetX = (random.nextDouble() - 0.5) * 120; // Spread width
-      double speed = random.nextDouble() * 0.5 + 0.5; // Speed multiplier
-      double maxRadius = random.nextDouble() * 8 + 4; // Size of bubbles
-      
-      // Calculate current position based on animation value
-      // Add a random phase offset for each bubble so they don't spawn together
+      double offsetX = (random.nextDouble() - 0.5) * surfaceWidth;
+      double offsetY = (random.nextDouble() - 0.5) * surfaceHeight;
+      double speed = random.nextDouble() * 0.5 + 0.5;
+      double maxRadius = random.nextDouble() * 7 + 3;
+
       double phase = random.nextDouble();
       double t = (animation.value * speed + phase) % 1.0;
-      
-      // Bubble floats up and slightly side-to-side (sine wave)
-      double currentY = startY - (t * 400); // Float up 400 pixels
+
+      // Bubble floats up and sways
+      double currentY = (startY + offsetY) - (t * 400); // Float up from surface
       double currentX = centerX + offsetX + math.sin(t * math.pi * 4) * 20;
-      
+
       // Fade out as it goes higher
       double opacity = (1.0 - t).clamp(0.0, 1.0);
-      
+
       // Draw glowing bubble
       final paint = Paint()
         ..color = Colors.purpleAccent.withValues(alpha: opacity * 0.8)
         ..style = PaintingStyle.fill;
-        
-      // Inner bright spot
+
       final innerPaint = Paint()
         ..color = Colors.white.withValues(alpha: opacity * 0.9)
         ..style = PaintingStyle.fill;
 
-      canvas.drawCircle(Offset(currentX, currentY), maxRadius * (0.5 + 0.5 * math.sin(t * math.pi)), paint);
-      canvas.drawCircle(Offset(currentX - maxRadius * 0.2, currentY - maxRadius * 0.2), maxRadius * 0.2, innerPaint);
-      
+      canvas.drawCircle(
+        Offset(currentX, currentY),
+        maxRadius * (0.5 + 0.5 * math.sin(t * math.pi)),
+        paint,
+      );
+      canvas.drawCircle(
+        Offset(currentX - maxRadius * 0.2, currentY - maxRadius * 0.2),
+        maxRadius * 0.2,
+        innerPaint,
+      );
+
       // Glowing particles/sparks around the room
       if (i % 3 == 0) {
         double sparkX = random.nextDouble() * size.width;
-        double sparkY = (random.nextDouble() * size.height - (t * 200)) % size.height;
+        double sparkY =
+            (random.nextDouble() * size.height - (t * 200)) % size.height;
         final sparkPaint = Paint()
-          ..color = Colors.amberAccent.withValues(alpha: opacity * random.nextDouble())
+          ..color = Colors.amberAccent.withValues(
+            alpha: opacity * random.nextDouble(),
+          )
           ..style = PaintingStyle.fill;
-        canvas.drawCircle(Offset(sparkX, sparkY), random.nextDouble() * 3, sparkPaint);
+        canvas.drawCircle(
+          Offset(sparkX, sparkY),
+          random.nextDouble() * 3,
+          sparkPaint,
+        );
       }
     }
   }

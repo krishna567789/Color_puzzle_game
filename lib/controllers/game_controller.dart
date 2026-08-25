@@ -61,8 +61,11 @@ class GameController extends ChangeNotifier {
     const Color(0xFFA6FF00), // Vivid Lime
   ];
 
-  GameController({GameMode mode = GameMode.classic, bool loadProgress = true}) {
+  GameController({GameMode mode = GameMode.classic, bool loadProgress = true, int? targetLevel}) {
     activeMode = mode;
+    if (targetLevel != null) {
+      currentLevel = targetLevel;
+    }
     if (loadProgress) {
       _loadProgress().then((_) {
         if (!_isDisposed) _initLevel();
@@ -77,7 +80,12 @@ class GameController extends ChangeNotifier {
     coins = await StorageService.getCoins();
     gems = await StorageService.getGems();
     selectedSkinId = await StorageService.getSelectedSkin();
-    currentLevel = (activeMode == GameMode.classic) ? maxUnlockedLevel : 1;
+    if (activeMode == GameMode.classic) {
+      // Keep currentLevel if targetLevel was passed via constructor, else use maxUnlockedLevel
+      currentLevel = (currentLevel > 0) ? currentLevel : maxUnlockedLevel;
+    } else {
+      currentLevel = 1;
+    }
     if (activeMode == GameMode.daily) {
       hasClaimedDailyReward = await StorageService.hasClaimedDailyReward(
         dailyChallengeId,

@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../core/app_colors.dart';
 import '../core/storage_service.dart';
@@ -20,14 +21,15 @@ class LuckySpinScreen extends StatefulWidget {
   State<LuckySpinScreen> createState() => _LuckySpinScreenState();
 }
 
-class _LuckySpinScreenState extends State<LuckySpinScreen> with SingleTickerProviderStateMixin {
+class _LuckySpinScreenState extends State<LuckySpinScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
-  
+
   bool _isSpinning = false;
   bool _canSpin = true;
   double _currentRotation = 0.0;
-  
+
   final List<Reward> _rewards = [
     Reward('50 Coins', 50, Icons.monetization_on, Colors.amber),
     Reward('100 Coins', 100, Icons.monetization_on, Colors.orange),
@@ -43,7 +45,7 @@ class _LuckySpinScreenState extends State<LuckySpinScreen> with SingleTickerProv
   void initState() {
     super.initState();
     _checkSpinAvailability();
-    
+
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 4),
@@ -77,34 +79,33 @@ class _LuckySpinScreenState extends State<LuckySpinScreen> with SingleTickerProv
     });
 
     AudioService.playClickSfx();
-    
+
     // Random rotation (min 5 full turns + random offset)
     double randomAngle = math.Random().nextDouble() * math.pi * 2;
     double totalRotation = (math.pi * 2 * 8) + randomAngle;
-    
+
     _animation = Tween<double>(
       begin: _currentRotation,
       end: _currentRotation + totalRotation,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOutCubic,
-    ));
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
 
     _controller.forward(from: 0.0);
   }
 
   void _onSpinEnd() async {
     _currentRotation = _animation.value % (math.pi * 2);
-    
+
     // Calculate which segment it landed on
     // 0 is top, 2*pi is full circle. Pointer is at the top.
     // Segments are clockwise.
     double segmentAngle = (math.pi * 2) / _rewards.length;
     // Offset by half segment to center the hit
-    int index = ((math.pi * 2 - _currentRotation) / segmentAngle).floor() % _rewards.length;
-    
+    int index =
+        ((math.pi * 2 - _currentRotation) / segmentAngle).floor() %
+        _rewards.length;
+
     final reward = _rewards[index];
-    
+
     // Save reward
     if (reward.value > 0) {
       if (reward.name.contains('Gem')) {
@@ -136,16 +137,26 @@ class _LuckySpinScreenState extends State<LuckySpinScreen> with SingleTickerProv
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.cardBackground,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('LUCKY SPIN!', textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+        title: const Text(
+          'LUCKY SPIN!',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(reward.icon, color: reward.color, size: 80),
             const SizedBox(height: 16),
             Text(
-              reward.value > 0 ? 'YOU WON ${reward.name.toUpperCase()}!' : 'BETTER LUCK NEXT TIME!',
+              reward.value > 0
+                  ? 'YOU WON ${reward.name.toUpperCase()}!'
+                  : 'BETTER LUCK NEXT TIME!',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white70, fontSize: 18, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),
@@ -155,9 +166,17 @@ class _LuckySpinScreenState extends State<LuckySpinScreen> with SingleTickerProv
               onPressed: () => Navigator.pop(context),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryButton,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
               ),
-              child: const Text('COLLECT', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+              child: const Text(
+                'COLLECT',
+                style: TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
         ],
@@ -174,7 +193,8 @@ class _LuckySpinScreenState extends State<LuckySpinScreen> with SingleTickerProv
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.black, // fallback
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -182,108 +202,197 @@ class _LuckySpinScreenState extends State<LuckySpinScreen> with SingleTickerProv
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('LUCKY SPIN', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 2)),
-        centerTitle: true,
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              'SPIN THE WHEEL & WIN PRIZES!',
-              style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.w600),
+      body: Stack(
+        children: [
+          // Background Image with Blur
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/wizard_room_bg.jpg',
+              fit: BoxFit.cover,
             ),
-            const SizedBox(height: 40),
-            
-            // The Wheel
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                // Wheel Outer Glow
-                Container(
-                  width: 320,
-                  height: 320,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(color: AppColors.primaryButton.withValues(alpha: 0.2), blurRadius: 40, spreadRadius: 5),
-                    ],
-                  ),
-                ),
-                
-                // Animated Wheel
-                AnimatedBuilder(
-                  animation: _animation,
-                  builder: (context, child) {
-                    return Transform.rotate(
-                      angle: _animation.value,
-                      child: CustomPaint(
-                        size: const Size(300, 300),
-                        painter: WheelPainter(rewards: _rewards),
-                      ),
-                    );
-                  },
-                ),
-                
-                // Center Cap
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [BoxShadow(color: Colors.black45, blurRadius: 10)],
-                    border: Border.all(color: AppColors.primaryButton, width: 3),
-                  ),
-                  child: const Center(child: Icon(Icons.star, color: AppColors.goldCoin, size: 20)),
-                ),
-                
-                // Pointer (Static)
-                Positioned(
-                  top: -10,
-                  child: Transform.rotate(
-                    angle: math.pi,
-                    child: Icon(Icons.arrow_drop_down, color: Colors.redAccent, size: 50),
-                  ),
-                ),
-              ],
+          ),
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(color: Colors.black.withValues(alpha: 0.6)),
             ),
-            
-            const SizedBox(height: 60),
-            
-            // Spin Button
-            GestureDetector(
-              onTap: _spin,
-              child: Container(
-                width: 220,
-                height: 60,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: _canSpin 
-                      ? [AppColors.primaryButton, const Color(0xFF0080FF)] 
-                      : [Colors.grey, Colors.blueGrey],
-                  ),
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    if (_canSpin)
-                      BoxShadow(color: AppColors.primaryButton.withValues(alpha: 0.4), blurRadius: 20, offset: const Offset(0, 10)),
-                  ],
-                ),
-                child: Center(
-                  child: Text(
-                    _canSpin ? 'SPIN NOW' : 'NEXT SPIN TOMORROW',
+          ),
+
+          SafeArea(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'LUCKY SPIN',
                     style: TextStyle(
-                      color: _canSpin ? Colors.black : Colors.white38,
-                      fontSize: 16,
+                      color: Colors.white,
+                      fontSize: 32,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 1.2,
+                      letterSpacing: 4,
+                      shadows: [
+                        Shadow(color: AppColors.primaryButton, blurRadius: 20),
+                      ],
                     ),
                   ),
-                ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'SPIN THE WHEEL & WIN PRIZES!',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 50),
+
+                  // The Wheel
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Wheel Outer Glow
+                      Container(
+                        width: 400,
+                        height: 400,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              Colors.purpleAccent.withValues(alpha: 0.3),
+                              AppColors.primaryButton.withValues(alpha: 0.15),
+                              Colors.transparent,
+                            ],
+                            stops: const [0.3, 0.6, 1.0],
+                          ),
+                        ),
+                      ),
+
+                      // Animated Wheel
+                      AnimatedBuilder(
+                        animation: _animation,
+                        builder: (context, child) {
+                          return Transform.rotate(
+                            angle: _animation.value,
+                            child: CustomPaint(
+                              size: const Size(310, 310),
+                              painter: WheelPainter(rewards: _rewards),
+                            ),
+                          );
+                        },
+                      ),
+
+                      // Center Magical Gem
+                      Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          gradient: const RadialGradient(
+                            colors: [
+                              Colors.white,
+                              AppColors.goldCoin,
+                              Colors.orange,
+                            ],
+                            stops: [0.1, 0.6, 1.0],
+                          ),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.goldCoin.withValues(alpha: 0.8),
+                              blurRadius: 20,
+                              spreadRadius: 2,
+                            ),
+                            BoxShadow(
+                              color: Colors.black54,
+                              blurRadius: 10,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                          border: Border.all(color: Colors.white70, width: 2),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.star_rounded,
+                            color: Colors.white,
+                            size: 36,
+                            shadows: [
+                              Shadow(color: Colors.black38, blurRadius: 4),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // Golden Pointer
+                      Positioned(
+                        top: -20,
+                        child: Container(
+                          width: 40,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.amber.withValues(alpha: 0.5),
+                                blurRadius: 15,
+                              ),
+                            ],
+                          ),
+                          child: CustomPaint(painter: PointerPainter()),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 70),
+
+                  // Spin Button
+                  GestureDetector(
+                    onTap: _spin,
+                    child: Container(
+                      width: 240,
+                      height: 65,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: _canSpin
+                              ? [Colors.yellowAccent, Colors.orange]
+                              : [Colors.grey.shade800, Colors.grey.shade900],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                        borderRadius: BorderRadius.circular(35),
+                        border: Border.all(
+                          color: Colors.white.withValues(
+                            alpha: _canSpin ? 0.8 : 0.2,
+                          ),
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          if (_canSpin)
+                            BoxShadow(
+                              color: Colors.orange.withValues(alpha: 0.6),
+                              blurRadius: 25,
+                              offset: const Offset(0, 8),
+                            ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Text(
+                          _canSpin ? 'SPIN NOW' : 'NEXT SPIN TOMORROW',
+                          style: TextStyle(
+                            color: _canSpin ? Colors.black87 : Colors.white54,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -299,12 +408,23 @@ class WheelPainter extends CustomPainter {
     final Offset center = Offset(radius, radius);
     final double arcAngle = (math.pi * 2) / rewards.length;
 
+    final sliceColors = [
+      Colors.purple.shade800,
+      Colors.deepOrange.shade700,
+      Colors.teal.shade800,
+      Colors.pink.shade800,
+      Colors.blue.shade800,
+      Colors.amber.shade800,
+      Colors.blueGrey.shade800,
+      Colors.red.shade800,
+    ];
+
     for (int i = 0; i < rewards.length; i++) {
+      // Draw arc with vibrant color
       final paint = Paint()
-        ..color = i % 2 == 0 ? AppColors.cardBackground : const Color(0xFF1E2855)
+        ..color = sliceColors[i % sliceColors.length]
         ..style = PaintingStyle.fill;
 
-      // Draw arc
       canvas.drawArc(
         Rect.fromCircle(center: center, radius: radius),
         i * arcAngle - math.pi / 2,
@@ -313,44 +433,134 @@ class WheelPainter extends CustomPainter {
         paint,
       );
 
-      // Draw border
-      final borderPaint = Paint()
-        ..color = Colors.white.withOpacity(0.1)
+      // Draw inner border/glow for slice
+      final innerBorderPaint = Paint()
+        ..color = Colors.white.withValues(alpha: 0.3)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1;
+        ..strokeWidth = 2;
       canvas.drawArc(
         Rect.fromCircle(center: center, radius: radius),
         i * arcAngle - math.pi / 2,
         arcAngle,
         true,
-        borderPaint,
+        innerBorderPaint,
       );
 
-      // Draw Icon/Text
+      // Draw Icon and Text
       canvas.save();
       canvas.translate(center.dx, center.dy);
-      canvas.rotate(i * arcAngle + arcAngle / 2);
-      
-      // Draw small dot/indicator for value
+      canvas.rotate(i * arcAngle - math.pi / 2 + arcAngle / 2);
+
+      // Draw Icon
+      final iconPainter = TextPainter(
+        text: TextSpan(
+          text: String.fromCharCode(rewards[i].icon.codePoint),
+          style: TextStyle(
+            fontSize: 28,
+            fontFamily: rewards[i].icon.fontFamily,
+            color: Colors.white,
+            shadows: const [
+              Shadow(
+                color: Colors.black54,
+                blurRadius: 4,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+      iconPainter.layout();
+      iconPainter.paint(
+        canvas,
+        Offset(radius * 0.45, -iconPainter.height / 2 - 15),
+      );
+
+      // Draw Value Text
       final textPainter = TextPainter(
         text: TextSpan(
-          text: rewards[i].value > 0 ? '${rewards[i].value}' : '?',
-          style: TextStyle(color: rewards[i].color, fontWeight: FontWeight.bold, fontSize: 14),
+          text: rewards[i].value > 0 ? '${rewards[i].value}' : 'TRY AGAIN',
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w900,
+            fontSize: 14,
+            shadows: [Shadow(color: Colors.black87, blurRadius: 3)],
+          ),
         ),
         textDirection: TextDirection.ltr,
       );
       textPainter.layout();
-      textPainter.paint(canvas, Offset(radius * 0.6, -textPainter.height / 2));
-      
+      textPainter.paint(
+        canvas,
+        Offset(
+          radius * 0.45 + (iconPainter.width / 2) - (textPainter.width / 2),
+          5,
+        ),
+      );
+
       canvas.restore();
     }
-    
-    // Outer border
+
+    // Outer Golden Border
     final outerPaint = Paint()
-      ..color = AppColors.cardBorder
+      ..shader = const SweepGradient(
+        colors: [Colors.amber, Colors.orange, Colors.yellow, Colors.amber],
+      ).createShader(Rect.fromCircle(center: center, radius: radius))
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 8;
+      ..strokeWidth = 12;
+
+    final outerShadow = Paint()
+      ..color = Colors.black.withValues(alpha: 0.5)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 12
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+
+    canvas.drawCircle(center, radius, outerShadow);
     canvas.drawCircle(center, radius, outerPaint);
+
+    // Inner Golden Rim
+    final innerOuterPaint = Paint()
+      ..color = Colors.white70
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    canvas.drawCircle(center, radius - 6, innerOuterPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class PointerPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..shader = const LinearGradient(
+        colors: [Colors.yellow, Colors.orange],
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..style = PaintingStyle.fill;
+
+    final shadowPaint = Paint()
+      ..color = Colors.black54
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+
+    final path = Path()
+      ..moveTo(size.width / 2, size.height) // Bottom point
+      ..lineTo(0, 10) // Top left
+      ..lineTo(size.width / 2, 0) // Top center dip
+      ..lineTo(size.width, 10) // Top right
+      ..close();
+
+    canvas.drawPath(path.shift(const Offset(0, 4)), shadowPaint);
+    canvas.drawPath(path, paint);
+
+    // Border
+    final borderPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    canvas.drawPath(path, borderPaint);
   }
 
   @override

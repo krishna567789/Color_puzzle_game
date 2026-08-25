@@ -1,9 +1,9 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../core/app_colors.dart';
 import '../core/storage_service.dart';
 import '../models/event_model.dart';
 import '../core/audio_service.dart';
-
 class EventsScreen extends StatefulWidget {
   const EventsScreen({super.key});
 
@@ -93,7 +93,8 @@ class _EventsScreenState extends State<EventsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -104,15 +105,37 @@ class _EventsScreenState extends State<EventsScreen> {
         title: const Text('LIMITED EVENTS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 2)),
         centerTitle: true,
       ),
-      body: _events.isEmpty 
-        ? const Center(child: CircularProgressIndicator())
-        : ListView.builder(
-            padding: const EdgeInsets.all(20),
-            itemCount: _events.length,
-            itemBuilder: (context, index) {
-              return _buildEventCard(_events[index]);
-            },
+      body: Stack(
+        children: [
+          // Magical Background with Blur
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/wizard_room_bg.jpg',
+              fit: BoxFit.cover,
+            ),
           ),
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.65),
+              ),
+            ),
+          ),
+          
+          SafeArea(
+            child: _events.isEmpty 
+              ? const Center(child: CircularProgressIndicator(color: AppColors.primaryButton))
+              : ListView.builder(
+                  padding: const EdgeInsets.all(20),
+                  itemCount: _events.length,
+                  itemBuilder: (context, index) {
+                    return _buildEventCard(_events[index]);
+                  },
+                ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -123,104 +146,200 @@ class _EventsScreenState extends State<EventsScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: AppColors.cardBackground.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: isActive ? AppColors.primaryButton.withValues(alpha: 0.5) : AppColors.cardBorder, width: 2),
+        border: Border.all(
+          color: isActive ? AppColors.primaryButton.withValues(alpha: 0.6) : Colors.white12, 
+          width: 1.5,
+        ),
         boxShadow: [
-          if (isActive) BoxShadow(color: AppColors.primaryButton.withValues(alpha: 0.1), blurRadius: 20),
+          if (isActive) 
+            BoxShadow(color: AppColors.primaryButton.withValues(alpha: 0.15), blurRadius: 30, spreadRadius: -5),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Banner
-          Stack(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-                child: Image.asset(
-                  event.bannerImage,
-                  height: 150,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  color: isActive ? null : Colors.grey.withValues(alpha: 0.5),
-                  colorBlendMode: isActive ? null : BlendMode.saturation,
-                ),
-              ),
-              if (isActive)
-                Positioned(
-                  top: 12,
-                  left: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(20)),
-                    child: const Text('LIVE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+              // Banner
+              Stack(
+                children: [
+                  Image.asset(
+                    event.bannerImage,
+                    height: 150,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    color: isActive ? null : Colors.grey.withValues(alpha: 0.6),
+                    colorBlendMode: isActive ? null : BlendMode.saturation,
                   ),
-                ),
-              Positioned(
-                bottom: 12,
-                right: 12,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(12)),
-                  child: Text('${event.daysRemaining}d Left', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                  // Banner Inner Shadow / Gradient Overlay for readability
+                  Container(
+                    height: 150,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black54,
+                          Colors.transparent,
+                          AppColors.cardBackground.withValues(alpha: 0.8),
+                        ],
+                      ),
+                    ),
+                  ),
+                  
+                  if (isActive)
+                    Positioned(
+                      top: 12,
+                      left: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [Colors.redAccent, Colors.pink]),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: const [BoxShadow(color: Colors.redAccent, blurRadius: 10)],
+                        ),
+                        child: const Text('LIVE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1)),
+                      ),
+                    ),
+                  Positioned(
+                    bottom: 12,
+                    right: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.6), 
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white30, width: 1),
+                      ),
+                      child: Text('${event.daysRemaining}d Left', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+              
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      event.title, 
+                      style: const TextStyle(
+                        color: Colors.white, 
+                        fontSize: 24, 
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1,
+                        shadows: [Shadow(color: Colors.black54, blurRadius: 2, offset: Offset(0, 1))],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      event.description, 
+                      style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.4),
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    // Progress
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Progress: ${event.currentProgress}/${event.goal}', 
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                        if (event.isClaimed)
+                           const Text('CLAIMED', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, letterSpacing: 1))
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    
+                    // Neon Progress Bar
+                    Container(
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: Colors.black45,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            return Stack(
+                              children: [
+                                Container(
+                                  width: constraints.maxWidth * event.progressPercentage,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: event.isCompleted 
+                                        ? [Colors.green, Colors.greenAccent] 
+                                        : [Colors.cyan, AppColors.primaryButton],
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: (event.isCompleted ? Colors.green : AppColors.primaryButton).withValues(alpha: 0.8),
+                                        blurRadius: 10,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 30),
+                    
+                    // Action Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 55,
+                      child: GestureDetector(
+                        onTap: canClaim ? () => _claimReward(event) : (isActive ? () => Navigator.pop(context) : null),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: canClaim 
+                                ? [Colors.green, Colors.lightGreen] 
+                                : (isActive ? [AppColors.primaryButton, Colors.cyan] : [Colors.white10, Colors.black26]),
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              if (isActive || canClaim)
+                                BoxShadow(
+                                  color: (canClaim ? Colors.green : AppColors.primaryButton).withValues(alpha: 0.4),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 5),
+                                ),
+                            ],
+                            border: Border.all(color: isActive ? Colors.white30 : Colors.white12, width: 1),
+                          ),
+                          child: Center(
+                            child: Text(
+                              canClaim ? 'CLAIM REWARD' : (isActive ? 'PLAY NOW' : 'FINISHED'),
+                              style: TextStyle(
+                                color: isActive || canClaim ? Colors.black87 : Colors.white54, 
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(event.title, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
-                const SizedBox(height: 8),
-                Text(event.description, style: const TextStyle(color: Colors.white60, fontSize: 14)),
-                const SizedBox(height: 20),
-                
-                // Progress
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Progress: ${event.currentProgress}/${event.goal}', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)),
-                    if (event.isClaimed)
-                       const Text('CLAIMED', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold))
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: LinearProgressIndicator(
-                    value: event.progressPercentage,
-                    minHeight: 12,
-                    backgroundColor: Colors.white10,
-                    valueColor: AlwaysStoppedAnimation<Color>(event.isCompleted ? Colors.green : AppColors.primaryButton),
-                  ),
-                ),
-                
-                const SizedBox(height: 24),
-                
-                // Action
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: canClaim ? () => _claimReward(event) : (isActive ? () => Navigator.pop(context) : null),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: canClaim ? Colors.green : (isActive ? AppColors.primaryButton : Colors.white10),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
-                    child: Text(
-                      canClaim ? 'CLAIM REWARD' : (isActive ? 'PLAY NOW' : 'FINISHED'),
-                      style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

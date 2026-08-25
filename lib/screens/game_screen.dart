@@ -10,7 +10,8 @@ import '../widgets/common/level_complete_dialog.dart';
 
 class GameScreen extends StatefulWidget {
   final GameMode mode;
-  const GameScreen({super.key, this.mode = GameMode.classic});
+  final int? targetLevel;
+  const GameScreen({super.key, this.mode = GameMode.classic, this.targetLevel});
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -34,7 +35,7 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void initState() {
     super.initState();
-    _controller = GameController(mode: widget.mode);
+    _controller = GameController(mode: widget.mode, targetLevel: widget.targetLevel);
     _controller.addListener(_onGameStateChanged);
     _audioPlayer = AudioPlayer();
     _lockAudioPlayer = AudioPlayer();

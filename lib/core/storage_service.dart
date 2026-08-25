@@ -137,6 +137,16 @@ class StorageService {
     return box.get(_keySelectedSkin, defaultValue: 'default_tube') as String;
   }
 
+  static Future<void> setSelectedTheme(String themeId) async {
+    final box = await _getBox();
+    await box.put(_keySelectedTheme, themeId);
+  }
+
+  static Future<String> getSelectedTheme() async {
+    final box = await _getBox();
+    return box.get(_keySelectedTheme, defaultValue: 'default_theme') as String;
+  }
+
   static Future<void> setLastSpinDate(String date) async {
     final box = await _getBox();
     await box.put(_keyLastSpinDate, date);

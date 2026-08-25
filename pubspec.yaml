@@ -38,6 +38,7 @@ dependencies:
   hive_flutter: ^1.1.0
   rive: ^0.13.15
   video_player: ^2.11.1
+  image: ^4.9.2
 
 dev_dependencies:
   flutter_test:

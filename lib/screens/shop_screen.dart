@@ -1,8 +1,10 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../core/app_colors.dart';
 import '../core/storage_service.dart';
 import '../models/shop_item_model.dart';
 import '../core/audio_service.dart';
+import '../widgets/custom_bottle.dart';
 
 class ShopScreen extends StatefulWidget {
   const ShopScreen({super.key});
@@ -16,6 +18,8 @@ class _ShopScreenState extends State<ShopScreen> {
   int _gems = 0;
   List<ShopItem> _items = [];
   String _selectedSkinId = 'default_tube';
+  String _selectedThemeId = 'default_theme';
+  int _activeTabIndex = 0;
 
   @override
   void initState() {
@@ -28,11 +32,13 @@ class _ShopScreenState extends State<ShopScreen> {
     final gems = await StorageService.getGems();
     final ownedIds = await StorageService.getOwnedItems();
     final selectedSkin = await StorageService.getSelectedSkin();
+    final selectedTheme = await StorageService.getSelectedTheme();
 
     setState(() {
       _coins = coins;
       _gems = gems;
       _selectedSkinId = selectedSkin;
+      _selectedThemeId = selectedTheme;
       _items = [
         ShopItem(
           id: 'default_tube',
@@ -65,6 +71,30 @@ class _ShopScreenState extends State<ShopScreen> {
           price: 1500,
           type: ShopItemType.tubeSkin,
           isOwned: ownedIds.contains('wooden_tube'),
+        ),
+        ShopItem(
+          id: 'default_theme',
+          name: 'Wizard Room',
+          description: 'Magical dark theme.',
+          price: 0,
+          type: ShopItemType.theme,
+          isOwned: true,
+        ),
+        ShopItem(
+          id: 'forest_theme',
+          name: 'Enchanted Forest',
+          description: 'Lush green magical woods.',
+          price: 2000,
+          type: ShopItemType.theme,
+          isOwned: ownedIds.contains('forest_theme'),
+        ),
+        ShopItem(
+          id: 'space_theme',
+          name: 'Cosmic Void',
+          description: 'Deep space puzzles.',
+          price: 3500,
+          type: ShopItemType.theme,
+          isOwned: ownedIds.contains('space_theme'),
         ),
       ];
     });
@@ -101,10 +131,15 @@ class _ShopScreenState extends State<ShopScreen> {
     }
   }
 
-  Future<void> _selectSkin(ShopItem item) async {
+  Future<void> _selectItem(ShopItem item) async {
     if (!item.isOwned) return;
-    _selectedSkinId = item.id;
-    await StorageService.setSelectedSkin(item.id);
+    if (item.type == ShopItemType.tubeSkin) {
+      _selectedSkinId = item.id;
+      await StorageService.setSelectedSkin(item.id);
+    } else if (item.type == ShopItemType.theme) {
+      _selectedThemeId = item.id;
+      await StorageService.setSelectedTheme(item.id);
+    }
     AudioService.playClickSfx();
     setState(() {});
   }
@@ -112,7 +147,8 @@ class _ShopScreenState extends State<ShopScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -125,7 +161,8 @@ class _ShopScreenState extends State<ShopScreen> {
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w900,
-            letterSpacing: 2,
+            letterSpacing: 4,
+            shadows: [Shadow(color: AppColors.primaryButton, blurRadius: 20)],
           ),
         ),
         centerTitle: true,
@@ -138,36 +175,72 @@ class _ShopScreenState extends State<ShopScreen> {
           const SizedBox(width: 16),
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          // Category Tabs
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildCategoryTab('BOTTLES', true),
-                const SizedBox(width: 20),
-                _buildCategoryTab('THEMES', false),
-              ],
+          // Magical Background
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/wizard_room_bg.jpg',
+              fit: BoxFit.cover,
+            ),
+          ),
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+              child: Container(color: Colors.black.withValues(alpha: 0.7)),
             ),
           ),
 
-          Expanded(
-            child: GridView.builder(
-              padding: const EdgeInsets.all(20),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: 0.75,
-              ),
-              itemCount: _items.length,
-              itemBuilder: (context, index) {
-                final item = _items[index];
-                final isSelected = _selectedSkinId == item.id;
-                return _buildShopItemCard(item, isSelected);
-              },
+          SafeArea(
+            child: Column(
+              children: [
+                // Category Tabs
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildCategoryTab('BOTTLES', 0),
+                      const SizedBox(width: 20),
+                      _buildCategoryTab('THEMES', 1),
+                    ],
+                  ),
+                ),
+
+                Expanded(
+                  child: GridView.builder(
+                    padding: const EdgeInsets.all(20),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 20,
+                          mainAxisSpacing: 20,
+                          childAspectRatio: 0.75,
+                        ),
+                    itemCount: _items
+                        .where(
+                          (i) => _activeTabIndex == 0
+                              ? i.type == ShopItemType.tubeSkin
+                              : i.type == ShopItemType.theme,
+                        )
+                        .length,
+                    itemBuilder: (context, index) {
+                      final displayItems = _items
+                          .where(
+                            (i) => _activeTabIndex == 0
+                                ? i.type == ShopItemType.tubeSkin
+                                : i.type == ShopItemType.theme,
+                          )
+                          .toList();
+                      final item = displayItems[index];
+                      final isSelected = item.type == ShopItemType.tubeSkin
+                          ? _selectedSkinId == item.id
+                          : _selectedThemeId == item.id;
+                      return _buildShopItemCard(item, isSelected);
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -175,19 +248,42 @@ class _ShopScreenState extends State<ShopScreen> {
     );
   }
 
-  Widget _buildCategoryTab(String label, bool active) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      decoration: BoxDecoration(
-        color: active ? AppColors.primaryButton : Colors.white10,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: active ? Colors.black : Colors.white60,
-          fontWeight: FontWeight.bold,
-          fontSize: 14,
+  Widget _buildCategoryTab(String label, int index) {
+    final active = _activeTabIndex == index;
+    return GestureDetector(
+      onTap: () {
+        AudioService.playClickSfx();
+        setState(() => _activeTabIndex = index);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+        decoration: BoxDecoration(
+          gradient: active
+              ? const LinearGradient(
+                  colors: [Colors.cyan, AppColors.primaryButton],
+                )
+              : const LinearGradient(colors: [Colors.white10, Colors.black26]),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: active ? Colors.white54 : Colors.white12,
+            width: 1.5,
+          ),
+          boxShadow: [
+            if (active)
+              BoxShadow(
+                color: AppColors.primaryButton.withValues(alpha: 0.5),
+                blurRadius: 15,
+              ),
+          ],
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: active ? Colors.black87 : Colors.white60,
+            fontWeight: FontWeight.w900,
+            fontSize: 14,
+            letterSpacing: 1,
+          ),
         ),
       ),
     );
@@ -197,122 +293,189 @@ class _ShopScreenState extends State<ShopScreen> {
     return GestureDetector(
       onTap: () {
         if (item.isOwned) {
-          _selectSkin(item);
+          _selectItem(item);
         } else {
           _buyItem(item);
         }
       },
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.cardBackground,
+          color: AppColors.cardBackground.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: isSelected ? AppColors.primaryButton : AppColors.cardBorder,
-            width: 2,
+            color: isSelected ? AppColors.primaryButton : Colors.white12,
+            width: isSelected ? 2 : 1,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: AppColors.primaryButton.withValues(alpha: 0.3),
-                    blurRadius: 10,
+                    color: AppColors.primaryButton.withValues(alpha: 0.4),
+                    blurRadius: 20,
                   ),
                 ]
               : [],
         ),
-        child: Column(
-          children: [
-            const Spacer(),
-            // Mock icon for bottle skins
-            Icon(
-              Icons.science,
-              size: 60,
-              color: isSelected ? AppColors.primaryButton : Colors.white38,
-            ),
-            const Spacer(),
-            Text(
-              item.name,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 4),
-            if (!item.isOwned)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.monetization_on,
-                    color: AppColors.goldCoin,
-                    size: 16,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Column(
+              children: [
+                const Spacer(),
+                Builder(
+                  builder: (context) {
+                    if (item.type == ShopItemType.theme) {
+                      IconData icon = Icons.wallpaper;
+                      Color color = Colors.purpleAccent;
+                      if (item.name.contains('Forest')) {
+                        icon = Icons.forest;
+                        color = Colors.green;
+                      } else if (item.name.contains('Space') ||
+                          item.name.contains('Cosmic')) {
+                        icon = Icons.rocket_launch;
+                        color = Colors.blueAccent;
+                      }
+
+                      return Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            if (isSelected)
+                              BoxShadow(
+                                color: color.withValues(alpha: 0.5),
+                                blurRadius: 30,
+                                spreadRadius: -5,
+                              ),
+                          ],
+                        ),
+                        child: Icon(
+                          icon,
+                          size: 70,
+                          color: isSelected ? color : Colors.white54,
+                          shadows: [
+                            if (isSelected)
+                              Shadow(color: color, blurRadius: 15),
+                          ],
+                        ),
+                      );
+                    }
+
+                    BottleType bType = BottleType.flask;
+                    Color bColor = Colors.blue;
+                    if (item.name.contains('Neon')) {
+                      bType = BottleType.beaker;
+                      bColor = Colors.greenAccent;
+                    } else if (item.name.contains('Crystal')) {
+                      bType = BottleType.potion;
+                      bColor = Colors.purpleAccent;
+                    } else if (item.name.contains('Nature') ||
+                        item.name.contains('Tube')) {
+                      bType = BottleType.tube;
+                      bColor = Colors.lightGreenAccent;
+                    }
+
+                    return CustomBottleWidget(
+                      type: bType,
+                      liquidColor: isSelected ? bColor : Colors.grey.shade400,
+                      isGlowing: isSelected,
+                      fillLevel: 0.7,
+                      width: 50,
+                      height: 70,
+                    );
+                  },
+                ),
+                const Spacer(),
+                Text(
+                  item.name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                    letterSpacing: 0.5,
                   ),
-                  const SizedBox(width: 4),
+                ),
+                const SizedBox(height: 8),
+                if (!item.isOwned)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black45,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.monetization_on,
+                          color: AppColors.goldCoin,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          item.price.toString(),
+                          style: const TextStyle(
+                            color: AppColors.goldCoin,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
                   Text(
-                    item.price.toString(),
-                    style: const TextStyle(
-                      color: AppColors.goldCoin,
-                      fontWeight: FontWeight.bold,
+                    isSelected ? 'SELECTED' : 'OWNED',
+                    style: TextStyle(
+                      color: isSelected ? Colors.cyanAccent : Colors.white38,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.5,
+                      shadows: [
+                        if (isSelected)
+                          Shadow(
+                            color: AppColors.primaryButton,
+                            blurRadius: 10,
+                          ),
+                      ],
                     ),
                   ),
-                ],
-              )
-            else
-              Text(
-                isSelected ? 'SELECTED' : 'OWNED',
-                style: TextStyle(
-                  color: isSelected ? AppColors.primaryButton : Colors.white38,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            const SizedBox(height: 16),
-          ],
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
   Widget _buildCurrencyDisplay(IconData icon, Color color, String amount) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: color, size: 20),
-        const SizedBox(width: 6),
-        Text(
-          amount,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white24, width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 8),
+          Text(
+            amount,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
-}
-
-Widget _buildCurrencyDisplay(IconData icon, Color color, String amount) {
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-    decoration: BoxDecoration(
-      color: Colors.black54,
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: Colors.white24),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: color, size: 16),
-        const SizedBox(width: 6),
-        Text(
-          amount,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
-          ),
-        ),
-      ],
-    ),
-  );
 }

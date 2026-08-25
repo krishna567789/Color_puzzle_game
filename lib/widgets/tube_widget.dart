@@ -220,31 +220,16 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
                                                   : 0.0,
                                             )
                                           : null,
-                                      child: Container(
-                                        width: double.infinity,
-                                        margin: const EdgeInsets.symmetric(
-                                          vertical: 0.1,
+                                      child: CustomPaint(
+                                        painter: LiquidSegmentPainter(
+                                          widget.tube.colors[i],
+                                          isTopSegment: i == widget.tube.colors.length - 1,
+                                          splashValue: widget.isReceiving ? _splashController.value : 0.0,
                                         ),
-                                        decoration: BoxDecoration(
-                                          color: widget.tube.colors[i],
-                                          gradient: LinearGradient(
-                                            begin: Alignment.centerLeft,
-                                            end: Alignment.centerRight,
-                                            colors: [
-                                              Color.lerp(
-                                                widget.tube.colors[i],
-                                                Colors.white,
-                                                0.1,
-                                              )!,
-                                              widget.tube.colors[i],
-                                              widget.tube.colors[i],
-                                              Color.lerp(
-                                                widget.tube.colors[i],
-                                                Colors.black,
-                                                0.25,
-                                              )!,
-                                            ],
-                                            stops: const [0.0, 0.1, 0.8, 1.0],
+                                        child: Container(
+                                          width: double.infinity,
+                                          margin: const EdgeInsets.symmetric(
+                                            vertical: 0.1,
                                           ),
                                         ),
                                       ),
@@ -660,4 +645,57 @@ class CorkCapPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class LiquidSegmentPainter extends CustomPainter {
+  final Color baseColor;
+  final bool isTopSegment;
+  final double splashValue;
+
+  LiquidSegmentPainter(this.baseColor, {this.isTopSegment = false, this.splashValue = 0.0});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
+    
+    // Cylindrical gradient
+    final gradient = LinearGradient(
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+      colors: [
+        Color.lerp(baseColor, Colors.black, 0.4)!,
+        baseColor,
+        Color.lerp(baseColor, Colors.white, 0.3)!,
+        baseColor,
+        Color.lerp(baseColor, Colors.black, 0.6)!,
+      ],
+      stops: const [0.0, 0.2, 0.7, 0.9, 1.0],
+    );
+    
+    final paint = Paint()..shader = gradient.createShader(rect);
+    canvas.drawRect(rect, paint);
+    
+    // Top surface ellipse for 3D depth
+    if (isTopSegment && splashValue == 0) {
+      final ellipseRect = Rect.fromLTWH(0, -6, size.width, 12);
+      final topSurfaceColor = Color.lerp(baseColor, Colors.white, 0.4)!;
+      
+      final topPaint = Paint()
+        ..color = topSurfaceColor
+        ..style = PaintingStyle.fill;
+        
+      canvas.drawOval(ellipseRect, topPaint);
+      
+      // Inner shadow/rim on the ellipse
+      final rimPaint = Paint()
+        ..color = Color.lerp(baseColor, Colors.black, 0.2)!
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0;
+      canvas.drawOval(ellipseRect, rimPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant LiquidSegmentPainter oldDelegate) => 
+    oldDelegate.baseColor != baseColor || oldDelegate.splashValue != splashValue;
 }

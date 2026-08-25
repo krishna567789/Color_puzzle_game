@@ -186,6 +186,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
               ]
             : [],
       ),
+
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
         child: BackdropFilter(

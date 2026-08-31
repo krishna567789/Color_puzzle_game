@@ -27,42 +27,55 @@ class _HandIndicatorState extends State<HandIndicator> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            // Ripple 1
-            _buildRipple(1.0, 0.5, Colors.cyanAccent),
-            // Ripple 2
-            _buildRipple(0.6, 0.8, Colors.white70),
-            // Hand (Static Position with Glow)
-            const Icon(
-              Icons.touch_app,
-              color: Colors.white,
-              size: 50,
-              shadows: [
-                Shadow(color: Colors.cyanAccent, blurRadius: 15),
-                Shadow(color: Colors.black45, blurRadius: 10, offset: Offset(0, 4))
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            return Stack(
+              alignment: Alignment.center,
+              children: [
+                // Ripple 1
+                _buildRipple(1.0, 0.5, Colors.cyanAccent),
+                // Ripple 2
+                _buildRipple(0.6, 0.8, Colors.white70),
               ],
-            ),
+            );
+          },
+        ),
+        // Hand (Static Position with Glow)
+        const Icon(
+          Icons.pan_tool_alt,
+          color: Colors.white,
+          size: 50,
+          shadows: [
+            Shadow(color: Colors.cyanAccent, blurRadius: 15),
+            Shadow(color: Colors.black45, blurRadius: 10, offset: Offset(0, 4))
           ],
-        );
-      },
+        ),
+      ],
     );
   }
 
-  Widget _buildRipple(double startAt, double opacity, Color color) {
-    double progress = (_controller.value + startAt) % 1.0;
+  Widget _buildRipple(double startDelay, double maxOpacity, Color color) {
+    double rawProgress = (_controller.value + startDelay) % 1.0;
+    
+    // Apply easing curves for smooth, natural animation
+    double sizeProgress = Curves.easeOutQuart.transform(rawProgress);
+    double fadeProgress = Curves.easeOut.transform(1 - rawProgress);
+    
     return Opacity(
-      opacity: (1 - progress) * opacity,
+      opacity: fadeProgress * maxOpacity,
       child: Container(
-        width: 30 + (progress * 100),
-        height: 30 + (progress * 100),
+        width: 40 + (sizeProgress * 100),
+        height: 40 + (sizeProgress * 100),
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(color: color, width: 3),
+          border: Border.all(
+            color: color, 
+            width: 2.0 + (fadeProgress * 3.0), // Border gets thinner as it expands
+          ),
         ),
       ),
     );

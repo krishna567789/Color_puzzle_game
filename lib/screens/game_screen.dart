@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../controllers/game_controller.dart';
 import '../core/storage_service.dart';
+import '../core/ad_manager.dart';
 import '../widgets/tube_widget.dart';
 import '../core/app_colors.dart';
 import '../widgets/common/hand_indicator.dart';
@@ -216,12 +217,17 @@ class _GameScreenState extends State<GameScreen> {
                         GameButton(
                           width: 120,
                           onTap: () {
-                            // Simulate Ad Watch
-                            Navigator.pop(context);
-                            _controller.useExtraChance(outOfTime, isAd: true);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Thanks for watching!')),
-                            );
+                            AdManager.showRewardedAd(() {
+                              Navigator.pop(context);
+                              _controller.useExtraChance(outOfTime, isAd: true);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Thanks for watching!')),
+                              );
+                            }, () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Ad is not ready yet. Please try again!')),
+                              );
+                            });
                           },
                           color: const Color(0xFFE91E63), // Pink
                           child: Row(

@@ -39,6 +39,7 @@ dependencies:
   rive: ^0.13.15
   video_player: ^2.11.1
   image: ^4.9.2
+  google_mobile_ads: ^9.1.0
 
 dev_dependencies:
   flutter_test:
@@ -51,6 +52,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
+  change_app_package_name: ^1.5.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -71,7 +73,6 @@ flutter:
     - assets/audio/
     - assets/rive/
     - assets/blender/
-    - assets/blender/complete_level/
     - assets/video/
 
   # An image asset can refer to one or more resolution-specific "variants", see

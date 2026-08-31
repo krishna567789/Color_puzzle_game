@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../core/ad_manager.dart';
 
 class LevelCompleteDialog extends StatefulWidget {
   final int stars; // 1, 2, or 3 stars earned
@@ -305,7 +306,10 @@ class _LevelCompleteDialogState extends State<LevelCompleteDialog>
 
                     // NEXT Button
                     ElevatedButton(
-                      onPressed: widget.onNext,
+                      onPressed: () {
+                        AdManager.showInterstitialAd();
+                        widget.onNext();
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF64D224),
                         minimumSize: const Size(220, 55),
@@ -328,7 +332,10 @@ class _LevelCompleteDialogState extends State<LevelCompleteDialog>
 
                     // HOME Button
                     ElevatedButton(
-                      onPressed: widget.onHome,
+                      onPressed: () {
+                        AdManager.showInterstitialAd();
+                        widget.onHome();
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF2490D2),
                         minimumSize: const Size(220, 55),

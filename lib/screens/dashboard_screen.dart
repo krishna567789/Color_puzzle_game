@@ -1,8 +1,10 @@
 import 'dart:math' as math;
 import 'dart:ui';
-
+import 'package:flutter/foundation.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../core/ad_manager.dart';
 import '../widgets/dashboard/top_player_bar.dart';
 import '../widgets/dashboard/mode_card.dart';
 import '../controllers/game_controller.dart';
@@ -32,11 +34,15 @@ class _DashboardScreenState extends State<DashboardScreen>
   late AnimationController _entranceController;
   late AnimationController _bubbleController;
 
+  BannerAd? _bannerAd;
+  bool _isBannerAdLoaded = false;
+
   @override
   void initState() {
     super.initState();
     _loadUserData();
     AudioService.playBGM();
+    _loadBannerAd();
 
     _entranceController = AnimationController(
       vsync: this,
@@ -61,8 +67,29 @@ class _DashboardScreenState extends State<DashboardScreen>
     });
   }
 
+  void _loadBannerAd() {
+    if (kIsWeb) return;
+    _bannerAd = BannerAd(
+      adUnitId: AdManager.bannerAdUnitId,
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (_) {
+          setState(() {
+            _isBannerAdLoaded = true;
+          });
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+          debugPrint('Banner ad failed to load: $error');
+        },
+      ),
+    )..load();
+  }
+
   @override
   void dispose() {
+    _bannerAd?.dispose();
     _entranceController.dispose();
     _bubbleController.dispose();
     super.dispose();
@@ -400,7 +427,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
                 // Bottom Row (Lucky Spin, Events, Shop, Achievements)
                 Positioned(
-                  bottom: 5,
+                  bottom: _isBannerAdLoaded ? 60 : 5,
                   left: 10,
                   right: 10,
                   child: _buildAnimatedItem(
@@ -466,6 +493,23 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ),
                   ),
                 ),
+
+                if (_isBannerAdLoaded && _bannerAd != null)
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: SafeArea(
+                        child: SizedBox(
+                          width: _bannerAd!.size.width.toDouble(),
+                          height: _bannerAd!.size.height.toDouble(),
+                          child: AdWidget(ad: _bannerAd!),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),

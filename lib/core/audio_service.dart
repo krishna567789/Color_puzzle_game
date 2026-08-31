@@ -29,6 +29,16 @@ class AudioService {
     await _bgmPlayer.stop();
   }
 
+  static Future<void> pauseBGM() async {
+    await _bgmPlayer.pause();
+  }
+
+  static Future<void> resumeBGM() async {
+    if (_musicEnabled) {
+      await _bgmPlayer.resume();
+    }
+  }
+
   static Future<void> playSfx(String fileName) async {
     if (!_sfxEnabled) return;
     try {

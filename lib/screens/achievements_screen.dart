@@ -4,6 +4,7 @@ import '../core/app_colors.dart';
 import '../core/storage_service.dart';
 import '../models/achievement_model.dart';
 import '../core/audio_service.dart';
+import '../widgets/common/coin_animation_overlay.dart';
 
 class AchievementsScreen extends StatefulWidget {
   const AchievementsScreen({super.key});
@@ -79,7 +80,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
     });
   }
 
-  Future<void> _claimReward(Achievement achievement) async {
+  Future<void> _claimReward(BuildContext buttonContext, Achievement achievement) async {
     if (achievement.isClaimed || !achievement.isCompleted) return;
 
     setState(() {
@@ -97,6 +98,23 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
     );
 
     AudioService.playWinSfx();
+    
+    if (achievement.rewardCoins > 0) {
+      final renderBox = buttonContext.findRenderObject() as RenderBox?;
+      Offset startOffset = Offset(MediaQuery.of(context).size.width / 2, MediaQuery.of(context).size.height / 2);
+      if (renderBox != null) {
+        final pos = renderBox.localToGlobal(Offset.zero);
+        final size = renderBox.size;
+        startOffset = Offset(pos.dx + size.width / 2, pos.dy + size.height / 2);
+      }
+      
+      CoinAnimationUtils.showCoinAnimation(
+        context: context,
+        startOffset: startOffset,
+        endOffset: const Offset(40, 50),
+        coinCount: 10,
+      );
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -285,26 +303,28 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                         ),
                       )
                     else if (canClaim)
-                      ElevatedButton(
-                        onPressed: () => _claimReward(a),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.goldCoin,
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
+                      Builder(
+                        builder: (btnContext) => ElevatedButton(
+                          onPressed: () => _claimReward(btnContext, a),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.goldCoin,
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            elevation: 10,
+                            shadowColor: AppColors.goldCoin,
                           ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          elevation: 10,
-                          shadowColor: AppColors.goldCoin,
-                        ),
-                        child: const Text(
-                          'CLAIM',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1,
+                          child: const Text(
+                            'CLAIM',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1,
+                            ),
                           ),
                         ),
                       ),

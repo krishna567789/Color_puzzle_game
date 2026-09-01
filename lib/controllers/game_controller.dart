@@ -24,6 +24,7 @@ class GameController extends ChangeNotifier {
   int gems = 0;
   int maxUnlockedLevel = 1;
   String selectedSkinId = 'default_tube';
+  String selectedThemeId = 'default_theme';
 
   // Pouring animation states
   int? pouringFromIndex;
@@ -44,10 +45,8 @@ class GameController extends ChangeNotifier {
   int? movesLimit; // for all modes
   int extraChancesUsed = 0;
   
-  // Powerups / Tools
-  int undoUsesLeft = 3;
-  int shuffleUsesLeft = 2;
-  int addTubeUsesLeft = 1;
+  // Powerups / Tools (Using coins now, no hard limits)
+  HintMove? activeHint;
   
   Timer? _timer;
   bool _isDisposed = false;
@@ -87,6 +86,7 @@ class GameController extends ChangeNotifier {
     coins = await StorageService.getCoins();
     gems = await StorageService.getGems();
     selectedSkinId = await StorageService.getSelectedSkin();
+    selectedThemeId = await StorageService.getSelectedTheme();
     if (activeMode == GameMode.classic) {
       // Keep currentLevel if targetLevel was passed via constructor, else use maxUnlockedLevel
       currentLevel = (currentLevel > 0) ? currentLevel : maxUnlockedLevel;
@@ -109,15 +109,14 @@ class GameController extends ChangeNotifier {
     pourOffset = Offset.zero;
     selectedTubeIndex = null;
     wrongMoveIndex = null;
+    activeHint = null;
     isLevelComplete = false;
     isGameOver = false;
     movesCount = 0;
     extraChancesUsed = 0;
     
-    // Reset Tools Limits
-    undoUsesLeft = 3;
-    shuffleUsesLeft = 2;
-    addTubeUsesLeft = 1;
+    // Tools reset
+    activeHint = null;
     
     _history.clear();
 
@@ -339,12 +338,14 @@ class GameController extends ChangeNotifier {
 
   void undo() {
     if (isGameOver || isLevelComplete || pouringFromIndex != null) return;
-    if (undoUsesLeft <= 0) return; // Cannot undo if no uses left
+    if (coins < 50) return; // Not enough coins
     if (_history.isNotEmpty) {
+      coins -= 50;
+      StorageService.saveCoins(coins);
+      
       tubes = _history.removeLast();
       selectedTubeIndex = null;
-      undoUsesLeft--; // Consume 1 use
-      // Decrease moves count if we undo
+      activeHint = null;
       movesCount = max(0, movesCount - 1);
       _notifySafely();
       HapticFeedback.mediumImpact();
@@ -353,6 +354,8 @@ class GameController extends ChangeNotifier {
 
   void selectTube(int index) {
     if (isLevelComplete || isGameOver || pouringFromIndex != null) return;
+
+    activeHint = null; // Clear hint on interaction
 
     if (selectedTubeIndex == null) {
       if (tubes[index].isEmpty) {
@@ -390,7 +393,10 @@ class GameController extends ChangeNotifier {
   }
 
   void shuffleTubes() {
-    if (isGameOver || isLevelComplete || shuffleUsesLeft <= 0) return;
+    if (isGameOver || isLevelComplete || coins < 50) return;
+    
+    coins -= 50;
+    StorageService.saveCoins(coins);
 
     List<Color> topColors = [];
     List<int> validIndices = [];
@@ -424,21 +430,23 @@ class GameController extends ChangeNotifier {
         _handleGameOver();
       }
       
-      // Consume 1 use
-      shuffleUsesLeft--;
-      
+      // Note: Shuffle uses coins now, if we want to keep it. 
+      // But the plan replaced Shuffle with Hint. We can leave it for now.
       _notifySafely();
     }
   }
   
   void addExtraTube() {
-    if (isGameOver || isLevelComplete || addTubeUsesLeft <= 0) return;
+    if (isGameOver || isLevelComplete) return;
+    if (coins < 100) return;
+    
+    coins -= 100;
+    StorageService.saveCoins(coins);
     
     // Add an empty tube with standard capacity
     tubes.add(Tube(capacity: 4));
-    addTubeUsesLeft--;
     
-    AudioService.playPourSfx(); // Optional: play a different sound
+    AudioService.playPourSfx();
     _notifySafely();
   }
 
@@ -467,8 +475,10 @@ class GameController extends ChangeNotifier {
     _notifySafely();
   }
 
-  HintMove? requestHint() {
-    if (isLevelComplete || isGameOver || pouringFromIndex != null) return null;
+  void requestHint() {
+    if (isLevelComplete || isGameOver || pouringFromIndex != null) return;
+    if (coins < 50) return; // Not enough coins
+    
     for (var fromIndex = 0; fromIndex < tubes.length; fromIndex++) {
       final source = tubes[fromIndex];
       final isSolved =
@@ -478,11 +488,14 @@ class GameController extends ChangeNotifier {
       if (source.isEmpty || isSolved) continue;
       for (var toIndex = 0; toIndex < tubes.length; toIndex++) {
         if (canPour(fromIndex, toIndex)) {
-          return HintMove(fromIndex: fromIndex, toIndex: toIndex);
+          coins -= 50;
+          StorageService.saveCoins(coins);
+          activeHint = HintMove(fromIndex: fromIndex, toIndex: toIndex);
+          _notifySafely();
+          return;
         }
       }
     }
-    return null;
   }
 
   Future<void> _startPouring(int fromIndex, int toIndex) async {

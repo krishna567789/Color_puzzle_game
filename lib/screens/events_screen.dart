@@ -4,6 +4,8 @@ import '../core/app_colors.dart';
 import '../core/storage_service.dart';
 import '../models/event_model.dart';
 import '../core/audio_service.dart';
+import '../widgets/common/coin_animation_overlay.dart';
+
 class EventsScreen extends StatefulWidget {
   const EventsScreen({super.key});
 
@@ -67,7 +69,7 @@ class _EventsScreenState extends State<EventsScreen> {
     });
   }
 
-  Future<void> _claimReward(GameEvent event) async {
+  Future<void> _claimReward(BuildContext buttonContext, GameEvent event) async {
     if (event.isClaimed || !event.isCompleted) return;
 
     setState(() {
@@ -81,6 +83,23 @@ class _EventsScreenState extends State<EventsScreen> {
     await StorageService.saveEventProgress(event.id, true, event.currentProgress);
     
     AudioService.playWinSfx();
+    
+    if (event.rewardCoins > 0) {
+      final renderBox = buttonContext.findRenderObject() as RenderBox?;
+      Offset startOffset = Offset(MediaQuery.of(context).size.width / 2, MediaQuery.of(context).size.height / 2);
+      if (renderBox != null) {
+        final pos = renderBox.localToGlobal(Offset.zero);
+        final size = renderBox.size;
+        startOffset = Offset(pos.dx + size.width / 2, pos.dy + size.height / 2);
+      }
+      
+      CoinAnimationUtils.showCoinAnimation(
+        context: context,
+        startOffset: startOffset,
+        endOffset: const Offset(40, 50),
+        coinCount: 15,
+      );
+    }
     
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -300,34 +319,36 @@ class _EventsScreenState extends State<EventsScreen> {
                     SizedBox(
                       width: double.infinity,
                       height: 55,
-                      child: GestureDetector(
-                        onTap: canClaim ? () => _claimReward(event) : (isActive ? () => Navigator.pop(context) : null),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: canClaim 
-                                ? [Colors.green, Colors.lightGreen] 
-                                : (isActive ? [AppColors.primaryButton, Colors.cyan] : [Colors.white10, Colors.black26]),
+                      child: Builder(
+                        builder: (btnContext) => GestureDetector(
+                          onTap: canClaim ? () => _claimReward(btnContext, event) : (isActive ? () => Navigator.pop(context) : null),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: canClaim 
+                                  ? [Colors.green, Colors.lightGreen] 
+                                  : (isActive ? [AppColors.primaryButton, Colors.cyan] : [Colors.white10, Colors.black26]),
+                              ),
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                if (isActive || canClaim)
+                                  BoxShadow(
+                                    color: (canClaim ? Colors.green : AppColors.primaryButton).withValues(alpha: 0.4),
+                                    blurRadius: 15,
+                                    offset: const Offset(0, 5),
+                                  ),
+                              ],
+                              border: Border.all(color: isActive ? Colors.white30 : Colors.white12, width: 1),
                             ),
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              if (isActive || canClaim)
-                                BoxShadow(
-                                  color: (canClaim ? Colors.green : AppColors.primaryButton).withValues(alpha: 0.4),
-                                  blurRadius: 15,
-                                  offset: const Offset(0, 5),
+                            child: Center(
+                              child: Text(
+                                canClaim ? 'CLAIM REWARD' : (isActive ? 'PLAY NOW' : 'FINISHED'),
+                                style: TextStyle(
+                                  color: isActive || canClaim ? Colors.black87 : Colors.white54, 
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 16,
+                                  letterSpacing: 1.2,
                                 ),
-                            ],
-                            border: Border.all(color: isActive ? Colors.white30 : Colors.white12, width: 1),
-                          ),
-                          child: Center(
-                            child: Text(
-                              canClaim ? 'CLAIM REWARD' : (isActive ? 'PLAY NOW' : 'FINISHED'),
-                              style: TextStyle(
-                                color: isActive || canClaim ? Colors.black87 : Colors.white54, 
-                                fontWeight: FontWeight.w900,
-                                fontSize: 16,
-                                letterSpacing: 1.2,
                               ),
                             ),
                           ),

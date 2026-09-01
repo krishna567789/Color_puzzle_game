@@ -8,6 +8,7 @@ import '../widgets/common/hand_indicator.dart';
 import '../widgets/common/game_button.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../widgets/common/level_complete_dialog.dart';
+import '../widgets/common/pouring_stream_effect.dart';
 
 class GameScreen extends StatefulWidget {
   final GameMode mode;
@@ -447,21 +448,8 @@ class _GameScreenState extends State<GameScreen> {
       appBar: null,
       body: Stack(
         children: [
-          // Background Gradient (Space theme)
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.topCenter,
-                  radius: 1.5,
-                  colors: [
-                    Color(0xFF2B1B54), // Lighter purple top
-                    Color(0xFF0F0524), // Dark deep space bottom
-                  ],
-                ),
-              ),
-            ),
-          ),
+          // Dynamic Background based on selected theme
+          _buildBackground(),
           
           // Top UI Overlay
           Positioned(
@@ -601,9 +589,20 @@ class _GameScreenState extends State<GameScreen> {
                           _controller.selectTube(index);
                         },
                             skinId: _controller.selectedSkinId,
+                            isHinted: _controller.activeHint != null && 
+                                (_controller.activeHint!.fromIndex == index || 
+                                 _controller.activeHint!.toIndex == index),
                           ),
                         );
                       }),
+                    ),
+                    
+                    // Liquid Pouring Stream Overlay
+                    Positioned.fill(
+                      child: PouringStreamEffect(
+                        controller: _controller,
+                        tubeKeys: _tubeKeys,
+                      ),
                     ),
                     ],
                   ),
@@ -620,6 +619,49 @@ class _GameScreenState extends State<GameScreen> {
           
           if (_showTutorial) _buildTutorialOverlay(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBackground() {
+    if (_controller.selectedThemeId == 'forest_theme') {
+      return Positioned.fill(
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment.topCenter,
+              radius: 1.5,
+              colors: [
+                Color(0xFF2E7D32), // Lighter green top
+                Color(0xFF1B5E20), // Dark green
+                Color(0xFF051205), // Very dark bottom
+              ],
+            ),
+          ),
+        ),
+      );
+    } else if (_controller.selectedThemeId == 'space_theme') {
+      return Positioned.fill(
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment.topCenter,
+              radius: 1.5,
+              colors: [
+                Color(0xFF2B1B54), // Lighter purple top
+                Color(0xFF0F0524), // Dark deep space bottom
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Default theme (Wizard Room)
+    return Positioned.fill(
+      child: Image.asset(
+        'assets/images/wizard_room_bg.jpg',
+        fit: BoxFit.cover,
       ),
     );
   }
@@ -738,19 +780,19 @@ class _GameScreenState extends State<GameScreen> {
         children: [
           _buildActionBtn(
             imagePath: 'assets/images/icon_undo.jpg',
-            count: _controller.undoUsesLeft,
+            cost: 50,
             onTap: () => _controller.undo(),
           ),
           const SizedBox(width: 20),
           _buildActionBtn(
-            imagePath: 'assets/images/icon_shuffle.jpg',
-            count: _controller.shuffleUsesLeft,
-            onTap: () => _controller.shuffleTubes(),
+            icon: Icons.lightbulb_outline,
+            cost: 50,
+            onTap: () => _controller.requestHint(),
           ),
           const SizedBox(width: 20),
           _buildActionBtn(
             imagePath: 'assets/images/icon_add_tube.jpg',
-            count: _controller.addTubeUsesLeft,
+            cost: 100,
             onTap: () => _controller.addExtraTube(),
           ),
         ],
@@ -758,12 +800,16 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Widget _buildActionBtn({required String imagePath, required int count, required VoidCallback onTap}) {
-    bool isEmpty = count <= 0;
+  Widget _buildActionBtn({String? imagePath, IconData? icon, required int cost, required VoidCallback onTap}) {
+    bool canAfford = _controller.coins >= cost;
     return GestureDetector(
-      onTap: isEmpty ? null : onTap,
+      onTap: canAfford ? onTap : () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Not enough coins!')),
+        );
+      },
       child: Opacity(
-        opacity: isEmpty ? 0.5 : 1.0,
+        opacity: canAfford ? 1.0 : 0.5,
         child: Stack(
           clipBehavior: Clip.none,
           children: [
@@ -780,29 +826,39 @@ class _GameScreenState extends State<GameScreen> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(13),
-                child: Image.asset(
-                  imagePath,
-                  fit: BoxFit.cover,
-                  colorBlendMode: BlendMode.screen,
-                ),
+                child: imagePath != null
+                  ? Image.asset(
+                      imagePath,
+                      fit: BoxFit.cover,
+                      colorBlendMode: BlendMode.screen,
+                    )
+                  : Icon(icon, color: Colors.amberAccent, size: 32),
               ),
             ),
             Positioned(
               right: -5,
               bottom: -5,
               child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFF0055), // Pink/Red badge
-                  shape: BoxShape.circle,
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF0055), // Pink/Red badge
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white, width: 1.5),
                 ),
-                child: Text(
-                  '$count',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '$cost',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    const Icon(Icons.monetization_on, color: Colors.yellow, size: 10),
+                  ],
                 ),
               ),
             ),
@@ -810,15 +866,5 @@ class _GameScreenState extends State<GameScreen> {
         ),
       ),
     );
-  }
-
-  void _showHint() {
-    final hint = _controller.requestHint();
-    final message = hint == null
-        ? 'No hint available right now.'
-        : 'Hint: pour tube ${hint.fromIndex + 1} into tube ${hint.toIndex + 1}.';
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../core/app_colors.dart';
 import '../core/storage_service.dart';
 import '../core/audio_service.dart';
+import '../widgets/common/coin_animation_overlay.dart';
 
 class Reward {
   final String name;
@@ -127,10 +128,10 @@ class _LuckySpinScreenState extends State<LuckySpinScreen>
     });
 
     AudioService.playWinSfx();
-    _showRewardDialog(reward);
+    _showRewardDialog(context, reward);
   }
 
-  void _showRewardDialog(Reward reward) {
+  void _showRewardDialog(BuildContext outerContext, Reward reward) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -163,7 +164,20 @@ class _LuckySpinScreenState extends State<LuckySpinScreen>
         actions: [
           Center(
             child: ElevatedButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                Navigator.pop(context);
+                if (reward.value > 0 && reward.name.contains('Coins')) {
+                  CoinAnimationUtils.showCoinAnimation(
+                    context: outerContext,
+                    startOffset: Offset(
+                      MediaQuery.of(outerContext).size.width / 2,
+                      MediaQuery.of(outerContext).size.height / 2,
+                    ),
+                    endOffset: const Offset(40, 50),
+                    coinCount: 10,
+                  );
+                }
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryButton,
                 shape: RoundedRectangleBorder(

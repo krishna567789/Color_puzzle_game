@@ -13,6 +13,7 @@ class TubeWidget extends StatefulWidget {
   final Color? pouringColor;
   final Offset? targetOffset;
   final String skinId;
+  final bool isHinted;
 
   const TubeWidget({
     super.key,
@@ -26,6 +27,7 @@ class TubeWidget extends StatefulWidget {
     this.pouringColor,
     this.targetOffset,
     this.skinId = 'default_tube',
+    this.isHinted = false,
   });
 
   @override
@@ -245,6 +247,7 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
                         painter: BottlePainter(
                           isSelected: widget.isSelected,
                           skinId: widget.skinId,
+                          isHinted: widget.isHinted,
                         ),
                       ),
 
@@ -273,29 +276,6 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
                           ),
                         ),
 
-                      // Pour stream
-                      if ((isPouring || _streamController.value > 1.0) &&
-                          widget.pouringColor != null)
-                        Positioned(
-                          top: 10,
-                          left: _lastTiltAngle > 0 ? 55 : -5,
-                          child: Transform.rotate(
-                            angle: -_lastTiltAngle,
-                            alignment: Alignment.topCenter,
-                            child: CustomPaint(
-                              size: Size(
-                                12,
-                                _lastTargetOffset != null
-                                    ? _lastTargetOffset!.distance
-                                    : 0,
-                              ),
-                              painter: StreamPainter(
-                                progress: _streamController.value,
-                                color: widget.pouringColor!,
-                              ),
-                            ),
-                          ),
-                        ),
                     ],
                   ),
                 ),
@@ -308,62 +288,12 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
   }
 }
 
-class StreamPainter extends CustomPainter {
-  final double progress;
-  final Color color;
-
-  StreamPainter({required this.progress, required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (progress <= 0 || progress >= 2.0 || size.height == 0) return;
-
-    double topY = 0;
-    double bottomY = size.height;
-
-    if (progress <= 1.0) {
-      topY = 0;
-      bottomY = size.height * progress;
-    } else {
-      topY = size.height * (progress - 1.0);
-      bottomY = size.height;
-    }
-
-    final path = Path();
-    path.moveTo(4, topY);
-    path.lineTo(8, topY);
-
-    double taperPoint = bottomY - 15;
-    if (taperPoint < topY) taperPoint = topY;
-
-    path.lineTo(8, taperPoint);
-    path.quadraticBezierTo(6, bottomY, 4, taperPoint);
-    path.close();
-
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    final shadowPaint = Paint()
-      ..color = color.withOpacity(0.4)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
-
-    canvas.drawLine(Offset(6, topY), Offset(6, bottomY), shadowPaint);
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant StreamPainter oldDelegate) =>
-      oldDelegate.progress != progress;
-}
 
 class BottlePainter extends CustomPainter {
   final bool isSelected;
   final String skinId;
-  BottlePainter({required this.isSelected, this.skinId = 'default_tube'});
+  final bool isHinted;
+  BottlePainter({required this.isSelected, this.skinId = 'default_tube', this.isHinted = false});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -392,11 +322,12 @@ class BottlePainter extends CustomPainter {
 
     final path = _getBottlePath(size);
 
-    if (isSelected || skinId == 'neon_tube') {
+    if (isSelected || skinId == 'neon_tube' || isHinted) {
+      Color glowColor = isHinted ? Colors.amberAccent : _getGlowColor();
       canvas.drawShadow(
         path,
-        _getGlowColor().withOpacity(0.6),
-        isSelected ? 12 : 6,
+        glowColor.withOpacity(0.6),
+        (isSelected || isHinted) ? 12 : 6,
         true,
       );
     }
@@ -495,7 +426,7 @@ class BottlePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant BottlePainter oldDelegate) =>
-      oldDelegate.isSelected != isSelected || oldDelegate.skinId != skinId;
+      oldDelegate.isSelected != isSelected || oldDelegate.skinId != skinId || oldDelegate.isHinted != isHinted;
 }
 
 class BottleClipper extends CustomClipper<Path> {

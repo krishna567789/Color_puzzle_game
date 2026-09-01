@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../core/ad_manager.dart';
+import 'coin_animation_overlay.dart';
 
 class LevelCompleteDialog extends StatefulWidget {
   final int stars; // 1, 2, or 3 stars earned
@@ -28,6 +29,8 @@ class LevelCompleteDialog extends StatefulWidget {
 class _LevelCompleteDialogState extends State<LevelCompleteDialog>
     with SingleTickerProviderStateMixin {
   late AnimationController _starController;
+  final GlobalKey _coinIconKey = GlobalKey();
+  bool _isAnimatingCoin = false;
 
   @override
   void initState() {
@@ -45,6 +48,29 @@ class _LevelCompleteDialogState extends State<LevelCompleteDialog>
   void dispose() {
     _starController.dispose();
     super.dispose();
+  }
+
+  void _onCollect(VoidCallback action) {
+    if (_isAnimatingCoin) return;
+    setState(() => _isAnimatingCoin = true);
+
+    final startOffset = CoinAnimationUtils.getOffsetFromKey(_coinIconKey,
+        fallback: Offset(MediaQuery.of(context).size.width / 2,
+            MediaQuery.of(context).size.height / 2));
+    final endOffset = const Offset(40, 50); // Target top left for game screen
+
+    CoinAnimationUtils.showCoinAnimation(
+      context: context,
+      startOffset: startOffset,
+      endOffset: endOffset,
+      coinCount: 12,
+      onComplete: () {
+        if (mounted) {
+          setState(() => _isAnimatingCoin = false);
+          action();
+        }
+      },
+    );
   }
 
   Widget _buildAnimatedStar(int starIndex, {bool isCenter = false}) {
@@ -271,6 +297,7 @@ class _LevelCompleteDialogState extends State<LevelCompleteDialog>
                         children: [
                           Image.asset(
                             'assets/blender/coin.png',
+                            key: _coinIconKey,
                             width: 28,
                             height: 28,
                           ),
@@ -308,7 +335,7 @@ class _LevelCompleteDialogState extends State<LevelCompleteDialog>
                     ElevatedButton(
                       onPressed: () {
                         AdManager.showInterstitialAd();
-                        widget.onNext();
+                        _onCollect(() => widget.onNext());
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF64D224),
@@ -334,7 +361,7 @@ class _LevelCompleteDialogState extends State<LevelCompleteDialog>
                     ElevatedButton(
                       onPressed: () {
                         AdManager.showInterstitialAd();
-                        widget.onHome();
+                        _onCollect(() => widget.onHome());
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF2490D2),

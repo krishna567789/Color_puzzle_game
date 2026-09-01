@@ -17,6 +17,7 @@ import 'lucky_spin_screen.dart';
 import 'achievements_screen.dart';
 import 'events_screen.dart';
 import 'level_map_screen.dart';
+import 'quests_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -432,12 +433,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                   right: 10,
                   child: _buildAnimatedItem(
                     index: 4,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _buildBottomButton(
-                          title: 'Lucky Spin',
-                          icon: 'assets/icon/lucky_spin.png',
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildBottomButton(
+                            title: 'Lucky Spin',
+                            icon: 'assets/icon/lucky_spin.png',
                           onTap: () async {
                             await Navigator.push(
                               context,
@@ -448,6 +451,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                             _loadUserData();
                           },
                         ),
+                        const SizedBox(width: 8),
                         _buildBottomButton(
                           title: 'Events',
                           icon: 'assets/icon/events.png',
@@ -461,6 +465,22 @@ class _DashboardScreenState extends State<DashboardScreen>
                             _loadUserData();
                           },
                         ),
+                        const SizedBox(width: 8),
+                        _buildBottomButton(
+                          title: 'Quests',
+                          icon: 'assets/icon/daily chalenge.png',
+                          hasBadge: true,
+                          onTap: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const QuestsScreen(),
+                              ),
+                            );
+                            _loadUserData();
+                          },
+                        ),
+                        const SizedBox(width: 8),
                         _buildBottomButton(
                           title: 'Shop',
                           icon: 'assets/icon/shop.png',
@@ -475,6 +495,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                             _loadUserData();
                           },
                         ),
+                        const SizedBox(width: 8),
                         _buildBottomButton(
                           title: 'Trophies',
                           icon: 'assets/icon/achivement.png',
@@ -490,6 +511,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           },
                         ),
                       ],
+                    ),
                     ),
                   ),
                 ),

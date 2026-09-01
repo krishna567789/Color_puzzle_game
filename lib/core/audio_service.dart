@@ -61,6 +61,11 @@ class AudioService {
     await playSfx('lock.wav');
   }
 
+  static Future<void> playCoinSfx() async {
+    // Play lock.wav as coin sound if coin.wav is not present.
+    await playSfx('lock.wav');
+  }
+
   static void toggleMusic(bool enabled) {
     _musicEnabled = enabled;
     StorageService.setMusic(enabled);

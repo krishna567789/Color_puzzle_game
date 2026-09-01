@@ -18,6 +18,9 @@ class StorageService {
   static const String _keyTotalLevelsWon = 'total_levels_won';
   static const String _keyEventProgress = 'event_progress';
   static const String _keyTutorialCompleted = 'tutorial_completed';
+  static const String _keyQuestProgress = 'quest_progress';
+  static const String _keyLoginStreak = 'login_streak';
+  static const String _keyLastLoginDate = 'last_login_date';
 
   static Future<Box<dynamic>>? _boxFuture;
 
@@ -202,5 +205,38 @@ class StorageService {
   static Future<bool> isTutorialCompleted() async {
     final box = await _getBox();
     return box.get(_keyTutorialCompleted, defaultValue: false) as bool;
+  }
+
+  static Future<void> saveQuestProgress(String questId, bool claimed, int progress) async {
+    final box = await _getBox();
+    Map<String, dynamic> data = Map<String, dynamic>.from(box.get(_keyQuestProgress, defaultValue: <String, dynamic>{}) as Map);
+    data[questId] = {'claimed': claimed, 'progress': progress};
+    await box.put(_keyQuestProgress, data);
+  }
+
+  static Future<Map<String, dynamic>> getQuestData(String questId) async {
+    final box = await _getBox();
+    Map<String, dynamic> data = Map<String, dynamic>.from(box.get(_keyQuestProgress, defaultValue: <String, dynamic>{}) as Map);
+    return Map<String, dynamic>.from(data[questId] as Map? ?? {'claimed': false, 'progress': 0});
+  }
+
+  static Future<void> setLoginStreak(int streak) async {
+    final box = await _getBox();
+    await box.put(_keyLoginStreak, streak);
+  }
+
+  static Future<int> getLoginStreak() async {
+    final box = await _getBox();
+    return box.get(_keyLoginStreak, defaultValue: 0) as int;
+  }
+
+  static Future<void> setLastLoginDate(String date) async {
+    final box = await _getBox();
+    await box.put(_keyLastLoginDate, date);
+  }
+
+  static Future<String?> getLastLoginDate() async {
+    final box = await _getBox();
+    return box.get(_keyLastLoginDate) as String?;
   }
 }

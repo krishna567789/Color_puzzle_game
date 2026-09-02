@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'core/storage_service.dart';
 import 'core/audio_service.dart';
 import 'core/ad_manager.dart';
+import 'core/play_games_service.dart';
 import 'screens/splash_screen.dart';
 
 Future<void> main() async {
@@ -10,6 +11,7 @@ Future<void> main() async {
   await StorageService.init();
   await AudioService.init();
   await AdManager.init();
+  await PlayGamesService.init();
   runApp(const ColorPuzzleGameApp());
 }
 

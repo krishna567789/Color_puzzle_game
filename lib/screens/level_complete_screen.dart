@@ -1,6 +1,5 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:rive/rive.dart';
 import '../core/app_colors.dart';
 import '../widgets/common/game_button.dart';
 
@@ -26,22 +25,28 @@ class LevelCompleteScreen extends StatefulWidget {
   State<LevelCompleteScreen> createState() => _LevelCompleteScreenState();
 }
 
-class _LevelCompleteScreenState extends State<LevelCompleteScreen> {
-  SMINumber? _starInput;
+class _LevelCompleteScreenState extends State<LevelCompleteScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _animController;
+  late Animation<double> _scaleAnimation;
 
-  void _onRiveInit(Artboard artboard) {
-    // Standard Rive rating files often use 'State Machine 1' and 'Rating' input
-    final controller = StateMachineController.fromArtboard(artboard, 'State Machine 1');
-    if (controller != null) {
-      artboard.addController(controller);
-      _starInput = controller.findInput<double>('Rating') as SMINumber?;
-      
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted && _starInput != null) {
-          _starInput!.value = widget.stars.toDouble();
-        }
-      });
-    }
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _scaleAnimation = CurvedAnimation(
+      parent: _animController,
+      curve: Curves.elasticOut,
+    );
+    _animController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
   }
 
   @override
@@ -88,17 +93,28 @@ class _LevelCompleteScreenState extends State<LevelCompleteScreen> {
                     style: TextStyle(color: AppColors.primaryButton, fontSize: 14, fontWeight: FontWeight.bold),
                   ),
                   
-                  // Rive Animation
-                  SizedBox(
-                    height: 180,
-                    child: RiveAnimation.asset(
-                      'assets/rive/finalRatingStar.riv',
-                      onInit: _onRiveInit,
-                      fit: BoxFit.contain,
+                  const SizedBox(height: 20),
+                  
+                  // Native Flutter Star Rating Animation
+                  ScaleTransition(
+                    scale: _scaleAnimation,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(3, (index) {
+                        bool isEarned = index < widget.stars;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                          child: Icon(
+                            isEarned ? Icons.star : Icons.star_border,
+                            color: isEarned ? Colors.amberAccent : Colors.white24,
+                            size: index == 1 ? 64 : 48, // Make center star slightly larger
+                          ),
+                        );
+                      }),
                     ),
                   ),
                   
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 30),
                   
                   // Reward
                   Container(

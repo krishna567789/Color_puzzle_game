@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../core/app_colors.dart';
 import '../core/audio_service.dart';
 import '../core/storage_service.dart';
+import '../core/play_games_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -21,6 +22,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadSettings();
   }
 
+  bool _isSignedIn = false;
+
   Future<void> _loadSettings() async {
     final music = await StorageService.getMusic();
     final sfx = await StorageService.getSfx();
@@ -29,6 +32,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _musicEnabled = music;
       _sfxEnabled = sfx;
       _vibrationEnabled = vibration;
+      _isSignedIn = PlayGamesService.isSignedIn;
     });
   }
 
@@ -82,6 +86,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 StorageService.setVibration(val);
               },
             ),
+            const SizedBox(height: 16),
+            _buildActionTile(
+              _isSignedIn ? 'Play Games Connected' : 'Sign in to Play Games',
+              Icons.games,
+              _isSignedIn ? Colors.green : AppColors.primaryButton,
+              () async {
+                if (!_isSignedIn) {
+                  bool success = await PlayGamesService.signIn();
+                  if (success) {
+                    setState(() {
+                      _isSignedIn = true;
+                    });
+                  }
+                }
+              },
+            ),
+            if (_isSignedIn) ...[
+              const SizedBox(height: 16),
+              _buildActionTile(
+                'Leaderboard',
+                Icons.leaderboard,
+                AppColors.primaryButton,
+                () {
+                  PlayGamesService.showLeaderboards();
+                },
+              ),
+            ],
             const Spacer(),
             const Text(
               'Version 1.0.0',
@@ -120,6 +151,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
             inactiveTrackColor: Colors.white10,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildActionTile(String title, IconData icon, Color iconColor, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: AppColors.cardBackground,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.cardBorder),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: iconColor, size: 28),
+            const SizedBox(width: 20),
+            Text(
+              title,
+              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const Spacer(),
+            const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 18),
+          ],
+        ),
       ),
     );
   }

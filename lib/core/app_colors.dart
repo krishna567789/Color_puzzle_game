@@ -10,6 +10,7 @@ class AppColors {
   // Theme Colors for Cards
   static const List<Color> classicGradient = [Color(0xFF0066FF), Color(0xFF003399)];
   static const List<Color> challengeGradient = [Color(0xFF9900FF), Color(0xFF6600CC)];
+  static const List<Color> timeAttackGradient = [Color(0xFFFF0066), Color(0xFFCC0033)];
   static const List<Color> dailyGradient = [Color(0xFFFF6600), Color(0xFF993300)];
   
   static const Color primaryButton = Color(0xFF00C2FF);

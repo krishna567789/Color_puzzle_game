@@ -4,6 +4,10 @@ import 'package:flutter/material.dart';
 import '../core/app_colors.dart';
 import '../core/storage_service.dart';
 import '../core/audio_service.dart';
+import '../core/play_games_service.dart';
+import 'package:games_services/games_services.dart';
+import 'dart:convert';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'game_screen.dart';
 
 class LevelMapScreen extends StatefulWidget {
@@ -19,6 +23,8 @@ class _LevelMapScreenState extends State<LevelMapScreen>
   final int _totalLevels = 100;
   late AnimationController _pulseController;
   final ScrollController _scrollController = ScrollController();
+  String? _playerImageBase64;
+  Map<int, List<LeaderboardScoreData>> _friendsScoresByLevel = {};
 
   @override
   void initState() {
@@ -32,9 +38,30 @@ class _LevelMapScreenState extends State<LevelMapScreen>
 
   Future<void> _loadData() async {
     final level = await StorageService.getLevel();
-    setState(() {
-      _userLevel = level;
-    });
+    String? playerImg;
+    Map<int, List<LeaderboardScoreData>> friendsMap = {};
+    
+    if (PlayGamesService.isSignedIn) {
+      playerImg = await PlayGamesService.getPlayerIconImage();
+      final friendsScores = await PlayGamesService.loadFriendsScores();
+      if (friendsScores != null) {
+        for (var scoreData in friendsScores) {
+          final int friendLevel = scoreData.rawScore;
+          if (!friendsMap.containsKey(friendLevel)) {
+            friendsMap[friendLevel] = [];
+          }
+          friendsMap[friendLevel]!.add(scoreData);
+        }
+      }
+    }
+    
+    if (mounted) {
+      setState(() {
+        _userLevel = level;
+        _playerImageBase64 = playerImg;
+        _friendsScoresByLevel = friendsMap;
+      });
+    }
 
     // Auto-scroll to current level after a short delay
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -158,11 +185,14 @@ class _LevelMapScreenState extends State<LevelMapScreen>
                           isCompleted,
                           isCurrent,
                           isLocked,
+                          _friendsScoresByLevel[levelNumber],
                         ),
                       ),
                     ],
                   ),
-                ),
+                ).animate(delay: (index * 50).ms)
+                 .fadeIn(duration: 400.ms)
+                 .slideY(begin: 0.2, end: 0, duration: 400.ms, curve: Curves.easeOutQuad),
               );
             },
           ),
@@ -176,6 +206,7 @@ class _LevelMapScreenState extends State<LevelMapScreen>
     bool isCompleted,
     bool isCurrent,
     bool isLocked,
+    List<LeaderboardScoreData>? friends,
   ) {
     Widget node = GestureDetector(
       onTap: () {
@@ -255,12 +286,75 @@ class _LevelMapScreenState extends State<LevelMapScreen>
           children: [
             node,
             Positioned(top: -40, child: _buildPlayerAvatar()),
+            if (friends != null && friends.isNotEmpty)
+              Positioned(right: -30, top: -20, child: _buildFriendsAvatars(friends)),
           ],
         ),
       );
     }
 
+    if (friends != null && friends.isNotEmpty) {
+      return Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          node,
+          Positioned(right: -30, top: -20, child: _buildFriendsAvatars(friends)),
+        ],
+      );
+    }
+
     return node;
+  }
+
+  Widget _buildFriendsAvatars(List<LeaderboardScoreData> friends) {
+    // Show max 3 friends to avoid crowding
+    final displayFriends = friends.take(3).toList();
+    return SizedBox(
+      width: 30.0 + (displayFriends.length - 1) * 20.0,
+      height: 30,
+      child: Stack(
+        children: List.generate(displayFriends.length, (index) {
+          final friend = displayFriends[index];
+          final imgBase64 = friend.scoreHolder.iconImage;
+          
+          return Positioned(
+            left: index * 20.0,
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    blurRadius: 4,
+                  ),
+                ],
+              ),
+              child: imgBase64 != null && imgBase64.isNotEmpty
+                  ? ClipOval(
+                      child: Image.memory(
+                        base64Decode(imgBase64.replaceAll('\n', '')),
+                        width: 26,
+                        height: 26,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, err, stack) => const CircleAvatar(
+                          radius: 13,
+                          backgroundColor: Colors.blueAccent,
+                          child: Icon(Icons.person, color: Colors.white, size: 16),
+                        ),
+                      ),
+                    )
+                  : const CircleAvatar(
+                      radius: 13,
+                      backgroundColor: Colors.blueAccent,
+                      child: Icon(Icons.person, color: Colors.white, size: 16),
+                    ),
+            ),
+          );
+        }),
+      ),
+    );
   }
 
   Widget _buildPlayerAvatar() {
@@ -277,11 +371,25 @@ class _LevelMapScreenState extends State<LevelMapScreen>
           ),
         ],
       ),
-      child: const CircleAvatar(
-        radius: 16,
-        backgroundColor: AppColors.background,
-        child: Icon(Icons.person, color: Colors.white, size: 20),
-      ),
+      child: _playerImageBase64 != null
+          ? ClipOval(
+              child: Image.memory(
+                base64Decode(_playerImageBase64!.replaceAll('\n', '')),
+                width: 32,
+                height: 32,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => const CircleAvatar(
+                  radius: 16,
+                  backgroundColor: AppColors.background,
+                  child: Icon(Icons.person, color: Colors.white, size: 20),
+                ),
+              ),
+            )
+          : const CircleAvatar(
+              radius: 16,
+              backgroundColor: AppColors.background,
+              child: Icon(Icons.person, color: Colors.white, size: 20),
+            ),
     );
   }
 }

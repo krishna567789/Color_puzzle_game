@@ -1,18 +1,20 @@
 import 'dart:math' as math;
 import 'dart:ui';
+import 'dart:ui' as ui;
+import 'package:color_puzzle_game/core/audio_service.dart';
 import 'package:flutter/material.dart';
 import '../core/app_colors.dart';
 import '../core/storage_service.dart';
-import '../core/audio_service.dart';
 import '../widgets/common/coin_animation_overlay.dart';
+import 'package:flutter/services.dart';
 
 class Reward {
   final String name;
   final int value;
-  final IconData icon;
+  final String imageType; // 'coin', 'gem', or 'try_again'
   final Color color;
 
-  Reward(this.name, this.value, this.icon, this.color);
+  Reward(this.name, this.value, this.imageType, this.color);
 }
 
 class LuckySpinScreen extends StatefulWidget {
@@ -32,15 +34,19 @@ class _LuckySpinScreenState extends State<LuckySpinScreen>
   double _currentRotation = 0.0;
 
   final List<Reward> _rewards = [
-    Reward('50 Coins', 50, Icons.monetization_on, Colors.amber),
-    Reward('100 Coins', 100, Icons.monetization_on, Colors.orange),
-    Reward('1 Gem', 1, Icons.diamond, Colors.purpleAccent),
-    Reward('200 Coins', 200, Icons.monetization_on, Colors.amberAccent),
-    Reward('2 Gems', 2, Icons.diamond, Colors.deepPurpleAccent),
-    Reward('500 Coins', 500, Icons.monetization_on, Colors.yellowAccent),
-    Reward('Try Again', 0, Icons.refresh, Colors.grey),
-    Reward('50 Coins', 50, Icons.monetization_on, Colors.amber),
+    Reward('50 Coins', 50, 'coin', Colors.amber),
+    Reward('100 Coins', 100, 'coin', Colors.orange),
+    Reward('1 Gem', 1, 'gem', Colors.purpleAccent),
+    Reward('200 Coins', 200, 'coin', Colors.amberAccent),
+    Reward('2 Gems', 2, 'gem', Colors.deepPurpleAccent),
+    Reward('500 Coins', 500, 'coin', Colors.yellowAccent),
+    Reward('Try Again', 0, 'try_again', Colors.grey),
+    Reward('50 Coins', 50, 'coin', Colors.amber),
   ];
+
+  ui.Image? _coinImg;
+  ui.Image? _gemImg;
+  ui.Image? _tryAgainImg;
 
   @override
   void initState() {
@@ -62,6 +68,28 @@ class _LuckySpinScreenState extends State<LuckySpinScreen>
         _onSpinEnd();
       }
     });
+
+    _loadImages();
+  }
+
+  Future<void> _loadImages() async {
+    try {
+      final coinData = await rootBundle.load('assets/icon/spin_coin.png');
+      final gemData = await rootBundle.load('assets/icon/spin_gem.png');
+      final tryAgainData = await rootBundle.load(
+        'assets/icon/spin_try_again.png',
+      );
+
+      _coinImg = await decodeImageFromList(coinData.buffer.asUint8List());
+      _gemImg = await decodeImageFromList(gemData.buffer.asUint8List());
+      _tryAgainImg = await decodeImageFromList(
+        tryAgainData.buffer.asUint8List(),
+      );
+
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('Error loading spin images: $e');
+    }
   }
 
   Future<void> _checkSpinAvailability() async {
@@ -146,7 +174,18 @@ class _LuckySpinScreenState extends State<LuckySpinScreen>
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(reward.icon, color: reward.color, size: 80),
+            ClipOval(
+              child: Image.asset(
+                reward.imageType == 'coin'
+                    ? 'assets/icon/spin_coin.png'
+                    : (reward.imageType == 'gem'
+                          ? 'assets/icon/spin_gem.png'
+                          : 'assets/icon/spin_try_again.png'),
+                width: 90,
+                height: 90,
+                fit: BoxFit.cover,
+              ),
+            ),
             const SizedBox(height: 16),
             Text(
               reward.value > 0
@@ -291,7 +330,12 @@ class _LuckySpinScreenState extends State<LuckySpinScreen>
                             angle: _animation.value,
                             child: CustomPaint(
                               size: const Size(310, 310),
-                              painter: WheelPainter(rewards: _rewards),
+                              painter: WheelPainter(
+                                rewards: _rewards,
+                                coinImg: _coinImg,
+                                gemImg: _gemImg,
+                                tryAgainImg: _tryAgainImg,
+                              ),
                             ),
                           );
                         },
@@ -414,7 +458,16 @@ class _LuckySpinScreenState extends State<LuckySpinScreen>
 
 class WheelPainter extends CustomPainter {
   final List<Reward> rewards;
-  WheelPainter({required this.rewards});
+  final ui.Image? coinImg;
+  final ui.Image? gemImg;
+  final ui.Image? tryAgainImg;
+
+  WheelPainter({
+    required this.rewards,
+    required this.coinImg,
+    required this.gemImg,
+    required this.tryAgainImg,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -465,53 +518,56 @@ class WheelPainter extends CustomPainter {
       canvas.translate(center.dx, center.dy);
       canvas.rotate(i * arcAngle - math.pi / 2 + arcAngle / 2);
 
-      // Draw Icon
-      final iconPainter = TextPainter(
-        text: TextSpan(
-          text: String.fromCharCode(rewards[i].icon.codePoint),
-          style: TextStyle(
-            fontSize: 28,
-            fontFamily: rewards[i].icon.fontFamily,
-            color: Colors.white,
-            shadows: const [
-              Shadow(
-                color: Colors.black54,
-                blurRadius: 4,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      );
-      iconPainter.layout();
-      iconPainter.paint(
-        canvas,
-        Offset(radius * 0.45, -iconPainter.height / 2 - 15),
-      );
+      // Draw Icon Image
+      ui.Image? img;
+      if (rewards[i].imageType == 'coin')
+        img = coinImg;
+      else if (rewards[i].imageType == 'gem')
+        img = gemImg;
+      else
+        img = tryAgainImg;
 
-      // Draw Value Text
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: rewards[i].value > 0 ? '${rewards[i].value}' : 'TRY AGAIN',
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w900,
-            fontSize: 14,
-            shadows: [Shadow(color: Colors.black87, blurRadius: 3)],
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      );
-      textPainter.layout();
-      textPainter.paint(
-        canvas,
-        Offset(
-          radius * 0.45 + (iconPainter.width / 2) - (textPainter.width / 2),
-          5,
-        ),
-      );
+      if (img != null) {
+        // Draw the image perfectly centered on the slice axis
+        final rect = Rect.fromCenter(
+          center: Offset(radius * 0.45, 0),
+          width: 60,
+          height: 60,
+        );
+        canvas.save();
+        // Use screen blend mode to perfectly drop any faint dark artifacts
+        canvas.drawImageRect(
+          img,
+          Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
+          rect,
+          Paint()..blendMode = BlendMode.screen,
+        );
+        canvas.restore();
+      }
 
+      // Draw Value Text only if value > 0 (Remove 'TRY AGAIN' text)
+      if (rewards[i].value > 0) {
+        final textPainter = TextPainter(
+          text: TextSpan(
+            text: '${rewards[i].value}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontSize: 18,
+              shadows: [Shadow(color: Colors.black87, blurRadius: 4)],
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        );
+        textPainter.layout();
+        textPainter.paint(
+          canvas,
+          Offset(
+            radius * 0.75 - (textPainter.width / 2),
+            -textPainter.height / 2, // Centered vertically on the slice axis
+          ),
+        );
+      }
       canvas.restore();
     }
 

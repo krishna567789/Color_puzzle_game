@@ -34,7 +34,8 @@ class _PouringStreamEffectState extends State<PouringStreamEffect>
   }
 
   void _onGameStateChanged() {
-    if (widget.controller.pouringFromIndex != null &&
+    if (widget.controller.isPouringLiquid &&
+        widget.controller.pouringFromIndex != null &&
         widget.controller.pouringToIndex != null &&
         widget.controller.pouringColor != null) {
       if (_lastFromIndex == null) {
@@ -44,7 +45,7 @@ class _PouringStreamEffectState extends State<PouringStreamEffect>
         _lastColor = widget.controller.pouringColor;
         _animationController.forward(from: 0.0);
       }
-    } else {
+    } else if (!widget.controller.isPouringLiquid) {
       if (_lastFromIndex != null) {
         // Just stopped pouring
         _animationController
@@ -96,17 +97,23 @@ class _PouringStreamEffectState extends State<PouringStreamEffect>
            final localSource = localRenderBox.globalToLocal(sourceGlobal);
            final localTarget = localRenderBox.globalToLocal(targetGlobal);
            
-           // Calculate mouth positions
-           double tiltDir = _lastToIndex! > _lastFromIndex! ? 1.0 : -1.0;
+           // The source tube jumps to hover over the target tube!
+           // The jump offset in GameScreen is roughly: targetPos.dy - 160 * scale
+           // The tilt direction from GameScreen was:
+           double tiltDir = _lastToIndex! > _lastFromIndex! ? -20.0 : 20.0;
+           
+           // Target tube width is roughly 55 * scale, so center is +27 * scale.
+           // Since we don't have scale here directly, we can estimate it based on targetBox size.
+           double width = targetBox.size.width;
            
            startPos = Offset(
-             localSource.dx + (tiltDir > 0 ? 50 : 5) + (tiltDir > 0 ? 30 : -30),
-             localSource.dy - 120, // Adjust for the jump height during animation
+             localTarget.dx + (width / 2) + tiltDir + (tiltDir < 0 ? -10 : 10),
+             localTarget.dy - targetBox.size.height + 20, 
            );
            
            endPos = Offset(
-             localTarget.dx + 27, // Center of target tube
-             localTarget.dy + 5,  // Top of target tube
+             localTarget.dx + (width / 2),
+             localTarget.dy + 15, 
            );
         }
       }
@@ -127,6 +134,7 @@ class _PouringStreamEffectState extends State<PouringStreamEffect>
               endPoint: endPos,
               color: _lastColor!,
               animationProgress: _animationController.value,
+              isTiltingRight: _lastToIndex! > _lastFromIndex!,
             ),
           ),
         );

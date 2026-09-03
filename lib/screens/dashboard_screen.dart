@@ -11,6 +11,7 @@ import '../controllers/game_controller.dart';
 import '../core/storage_service.dart';
 import '../core/audio_service.dart';
 import '../widgets/common/game_button.dart';
+import '../widgets/common/bouncing_button.dart';
 import 'game_screen.dart';
 import 'shop_screen.dart';
 import 'lucky_spin_screen.dart';
@@ -34,6 +35,8 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   late AnimationController _entranceController;
   late AnimationController _bubbleController;
+  late AnimationController _floatingController;
+  late AnimationController _pulseController;
 
   BannerAd? _bannerAd;
   bool _isBannerAdLoaded = false;
@@ -55,6 +58,16 @@ class _DashboardScreenState extends State<DashboardScreen>
       vsync: this,
       duration: const Duration(seconds: 4),
     )..repeat();
+
+    _floatingController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat(reverse: true);
+
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
   }
 
   Future<void> _loadUserData() async {
@@ -93,6 +106,8 @@ class _DashboardScreenState extends State<DashboardScreen>
     _bannerAd?.dispose();
     _entranceController.dispose();
     _bubbleController.dispose();
+    _floatingController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
@@ -145,7 +160,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     required List<Color> gradient,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
+    return BouncingButton(
       onTap: onTap,
       child: SizedBox(
         width: 75,
@@ -213,7 +228,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     required VoidCallback onTap,
     bool hasBadge = false,
   }) {
-    return GestureDetector(
+    return BouncingButton(
       onTap: onTap,
       child: Stack(
         clipBehavior: Clip.none,
@@ -353,10 +368,19 @@ class _DashboardScreenState extends State<DashboardScreen>
                   child: _buildAnimatedItem(
                     index: 0,
                     child: Center(
-                      child: Image.asset(
-                        'assets/images/splash.png',
-                        height: 200,
-                        fit: BoxFit.cover,
+                      child: AnimatedBuilder(
+                        animation: _floatingController,
+                        builder: (context, child) {
+                          return Transform.translate(
+                            offset: Offset(0, math.sin(_floatingController.value * math.pi) * 10),
+                            child: child,
+                          );
+                        },
+                        child: Image.asset(
+                          'assets/images/splash.png',
+                          height: 200,
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
                   ),
@@ -369,10 +393,25 @@ class _DashboardScreenState extends State<DashboardScreen>
                   child: _buildAnimatedItem(
                     index: 1,
                     child: _buildSideIcon(
-                      title: 'Challenge',
+                      title: 'Challenge\n(Moves)',
                       icon: 'assets/icon/challengeMode.png',
                       gradient: AppColors.challengeGradient,
                       onTap: () => _navigateToGame(GameMode.challenge),
+                    ),
+                  ),
+                ),
+
+                // Right Side (Time Attack)
+                Positioned(
+                  right: 16,
+                  top: MediaQuery.of(context).size.height * 0.28,
+                  child: _buildAnimatedItem(
+                    index: 1,
+                    child: _buildSideIcon(
+                      title: 'Time\nAttack',
+                      icon: 'assets/icon/classicMode.png',
+                      gradient: AppColors.timeAttackGradient,
+                      onTap: () => _navigateToGame(GameMode.timeAttack),
                     ),
                   ),
                 ),
@@ -400,25 +439,46 @@ class _DashboardScreenState extends State<DashboardScreen>
                   child: _buildAnimatedItem(
                     index: 3,
                     child: Center(
-                      child: GameButton(
-                        width: 240,
-                        height: 75,
-                        color: const Color(0xFF5CD615), // Magical vibrant green
-                        onTap: () => _navigateToGame(GameMode.classic),
-                        child: const Text(
-                          'PLAY CLASSIC',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
-                            letterSpacing: 1.5,
-                            shadows: [
-                              Shadow(
-                                color: Colors.black54,
-                                offset: Offset(0, 2),
-                                blurRadius: 4,
-                              ),
-                            ],
+                      child: AnimatedBuilder(
+                        animation: _pulseController,
+                        builder: (context, child) {
+                          return Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(37.5),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF5CD615).withValues(alpha: 0.6 * _pulseController.value),
+                                  blurRadius: 20 * _pulseController.value,
+                                  spreadRadius: 5 * _pulseController.value,
+                                ),
+                              ],
+                            ),
+                            child: Transform.scale(
+                              scale: 1.0 + (_pulseController.value * 0.03),
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: GameButton(
+                          width: 240,
+                          height: 75,
+                          color: const Color(0xFF5CD615), // Magical vibrant green
+                          onTap: () => _navigateToGame(GameMode.classic),
+                          child: const Text(
+                            'PLAY CLASSIC',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: 1.5,
+                              shadows: [
+                                Shadow(
+                                  color: Colors.black54,
+                                  offset: Offset(0, 2),
+                                  blurRadius: 4,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),

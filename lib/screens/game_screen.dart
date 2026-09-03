@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import '../controllers/game_controller.dart';
 import '../core/storage_service.dart';
@@ -6,9 +8,11 @@ import '../widgets/tube_widget.dart';
 import '../core/app_colors.dart';
 import '../widgets/common/hand_indicator.dart';
 import '../widgets/common/game_button.dart';
+import '../widgets/common/bouncing_button.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../widgets/common/level_complete_dialog.dart';
 import '../widgets/common/pouring_stream_effect.dart';
+import 'package:confetti/confetti.dart';
 
 class GameScreen extends StatefulWidget {
   final GameMode mode;
@@ -30,19 +34,26 @@ class _GameScreenState extends State<GameScreen> {
   bool _showTutorial = false;
   int _tutorialStep = 0;
   int _currentLevelForKeys = 0;
-  
+  late ConfettiController _confettiController;
+
   // Performance Tracking
   final Stopwatch _levelStopwatch = Stopwatch();
 
   @override
   void initState() {
     super.initState();
-    _controller = GameController(mode: widget.mode, targetLevel: widget.targetLevel);
+    _controller = GameController(
+      mode: widget.mode,
+      targetLevel: widget.targetLevel,
+    );
     _controller.addListener(_onGameStateChanged);
     _audioPlayer = AudioPlayer();
     _lockAudioPlayer = AudioPlayer();
     _currentLevelForKeys = _controller.currentLevel;
     _tubeKeys = List.generate(20, (_) => GlobalKey());
+    _confettiController = ConfettiController(
+      duration: const Duration(seconds: 3),
+    );
     _checkTutorial();
     _levelStopwatch.start();
   }
@@ -100,6 +111,7 @@ class _GameScreenState extends State<GameScreen> {
     if (_isEndDialogVisible) return;
     if (_controller.isLevelComplete) {
       _isEndDialogVisible = true;
+      _confettiController.play();
       Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted) _showWinDialog();
       });
@@ -115,6 +127,8 @@ class _GameScreenState extends State<GameScreen> {
         return 'Level ${_controller.currentLevel}';
       case GameMode.challenge:
         return 'Challenge';
+      case GameMode.timeAttack:
+        return 'Time Attack';
       case GameMode.daily:
         return 'Daily Challenge';
     }
@@ -143,7 +157,9 @@ class _GameScreenState extends State<GameScreen> {
             // Main Card
             Container(
               padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
-              margin: const EdgeInsets.only(top: 40), // Space for the overlapping icon
+              margin: const EdgeInsets.only(
+                top: 40,
+              ), // Space for the overlapping icon
               decoration: BoxDecoration(
                 color: const Color(0xFF1E153A),
                 borderRadius: BorderRadius.circular(24),
@@ -163,15 +179,19 @@ class _GameScreenState extends State<GameScreen> {
                   Text(
                     canUseExtraChance ? 'KEEP GOING?' : 'GAME OVER',
                     style: TextStyle(
-                      color: canUseExtraChance ? Colors.orangeAccent : Colors.redAccent,
+                      color: canUseExtraChance
+                          ? Colors.orangeAccent
+                          : Colors.redAccent,
                       fontSize: 26,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 2.0,
                       shadows: [
                         Shadow(
-                          color: (canUseExtraChance ? Colors.orange : Colors.red).withOpacity(0.5),
+                          color:
+                              (canUseExtraChance ? Colors.orange : Colors.red)
+                                  .withOpacity(0.5),
                           blurRadius: 10,
-                        )
+                        ),
                       ],
                     ),
                   ),
@@ -179,7 +199,9 @@ class _GameScreenState extends State<GameScreen> {
                   // Description
                   Text(
                     canUseExtraChance
-                        ? (outOfTime ? 'You ran out of time!\nGet 30 seconds to continue?' : 'You ran out of moves!\nGet 5 moves to continue?')
+                        ? (outOfTime
+                              ? 'You ran out of time!\nGet 30 seconds to continue?'
+                              : 'You ran out of moves!\nGet 5 moves to continue?')
                         : 'You used all extra chances.\nTry again?',
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: Colors.white70, fontSize: 16),
@@ -200,7 +222,9 @@ class _GameScreenState extends State<GameScreen> {
                               _controller.useExtraChance(outOfTime);
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Not enough coins!')),
+                                const SnackBar(
+                                  content: Text('Not enough coins!'),
+                                ),
                               );
                             }
                           },
@@ -208,9 +232,20 @@ class _GameScreenState extends State<GameScreen> {
                           child: const Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Text('50', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                              Text(
+                                '50',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
                               SizedBox(width: 6),
-                              Icon(Icons.monetization_on, color: Colors.yellow, size: 20),
+                              Icon(
+                                Icons.monetization_on,
+                                color: Colors.yellow,
+                                size: 20,
+                              ),
                             ],
                           ),
                         ),
@@ -218,17 +253,29 @@ class _GameScreenState extends State<GameScreen> {
                         GameButton(
                           width: 120,
                           onTap: () {
-                            AdManager.showRewardedAd(() {
-                              Navigator.pop(context);
-                              _controller.useExtraChance(outOfTime, isAd: true);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Thanks for watching!')),
-                              );
-                            }, () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Ad is not ready yet. Please try again!')),
-                              );
-                            });
+                            AdManager.showRewardedAd(
+                              () {
+                                Navigator.pop(context);
+                                _controller.useExtraChance(
+                                  outOfTime,
+                                  isAd: true,
+                                );
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Thanks for watching!'),
+                                  ),
+                                );
+                              },
+                              () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Ad is not ready yet. Please try again!',
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
                           },
                           color: const Color(0xFFE91E63), // Pink
                           child: Row(
@@ -244,7 +291,14 @@ class _GameScreenState extends State<GameScreen> {
                                 ),
                               ),
                               const SizedBox(width: 6),
-                              const Text('WATCH AD', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                              const Text(
+                                'WATCH AD',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -256,7 +310,14 @@ class _GameScreenState extends State<GameScreen> {
                         Navigator.pop(context);
                         _controller.restartLevel();
                       },
-                      child: const Text('GIVE UP', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+                      child: const Text(
+                        'GIVE UP',
+                        style: TextStyle(
+                          color: Colors.white54,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
                     ),
                   ] else ...[
                     // Retry Button
@@ -267,7 +328,14 @@ class _GameScreenState extends State<GameScreen> {
                         _controller.restartLevel();
                       },
                       color: Colors.redAccent,
-                      child: const Text('RETRY', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 2.0)),
+                      child: const Text(
+                        'RETRY',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 2.0,
+                        ),
+                      ),
                     ),
                   ],
                 ],
@@ -282,17 +350,22 @@ class _GameScreenState extends State<GameScreen> {
                 height: 80,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.black, // Dark background to make screen blend work
+                  color:
+                      Colors.black, // Dark background to make screen blend work
                   boxShadow: [
                     BoxShadow(
-                      color: outOfTime ? Colors.orange.withOpacity(0.6) : Colors.cyan.withOpacity(0.6),
+                      color: outOfTime
+                          ? Colors.orange.withOpacity(0.6)
+                          : Colors.cyan.withOpacity(0.6),
                       blurRadius: 30,
-                    )
+                    ),
                   ],
                 ),
                 child: ClipOval(
                   child: Image.asset(
-                    outOfTime ? 'assets/images/icon_hourglass.jpg' : 'assets/images/icon_broken_tube.jpg',
+                    outOfTime
+                        ? 'assets/images/icon_hourglass.jpg'
+                        : 'assets/images/icon_broken_tube.jpg',
                     fit: BoxFit.cover,
                     colorBlendMode: BlendMode.screen,
                   ),
@@ -309,7 +382,7 @@ class _GameScreenState extends State<GameScreen> {
     _levelStopwatch.stop();
     final int elapsedSeconds = _levelStopwatch.elapsed.inSeconds;
     final int moves = _controller.movesCount;
-    
+
     // Star Calculation Logic (3 stars = good, 1 star = slow/many moves)
     int stars = 1;
     if (moves <= 15 && elapsedSeconds <= 30) {
@@ -345,6 +418,7 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   void dispose() {
+    _confettiController.dispose();
     _controller.removeListener(_onGameStateChanged);
     _controller.dispose();
     _audioPlayer.dispose();
@@ -356,10 +430,13 @@ class _GameScreenState extends State<GameScreen> {
     int targetIndex = -1;
     if (_tutorialStep == 0) {
       targetIndex = _controller.tubes.indexWhere((t) => t.isNotEmpty);
-    } else {
-      targetIndex = _controller.tubes.indexWhere((t) => t.isEmpty);
+    } else if (_controller.selectedTubeIndex != null) {
+      targetIndex = _controller.tubes.indexWhere((t) {
+        int idx = _controller.tubes.indexOf(t);
+        return _controller.canPour(_controller.selectedTubeIndex!, idx);
+      });
     }
-    
+
     Offset handPos = Offset.zero;
     if (targetIndex != -1 && targetIndex < _tubeKeys.length) {
       final context = _tubeKeys[targetIndex].currentContext;
@@ -397,18 +474,33 @@ class _GameScreenState extends State<GameScreen> {
             child: Padding(
               padding: const EdgeInsets.only(bottom: 140),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFF00C2FF).withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: const Color(0xFF00C2FF), width: 1.5),
+                  border: Border.all(
+                    color: const Color(0xFF00C2FF),
+                    width: 1.5,
+                  ),
                   boxShadow: [
-                    BoxShadow(color: const Color(0xFF00C2FF).withValues(alpha: 0.1), blurRadius: 15, spreadRadius: 2),
+                    BoxShadow(
+                      color: const Color(0xFF00C2FF).withValues(alpha: 0.1),
+                      blurRadius: 15,
+                      spreadRadius: 2,
+                    ),
                   ],
                 ),
                 child: Text(
                   _tutorialStep == 0 ? 'TAP BOTTLE' : 'POUR HERE',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 2),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    letterSpacing: 2,
+                  ),
                 ),
               ),
             ),
@@ -431,7 +523,14 @@ class _GameScreenState extends State<GameScreen> {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: Colors.white24),
               ),
-              child: const Text('SKIP', style: TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.bold)),
+              child: const Text(
+                'SKIP',
+                style: TextStyle(
+                  color: Colors.white60,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
         ),
@@ -443,6 +542,13 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   Widget build(BuildContext context) {
+    double screenWidth = MediaQuery.sizeOf(context).width;
+    double maxScale = screenWidth > 600 ? 1.3 : 1.1; 
+    int estimatedColumns = _controller.tubes.length >= 12 ? 5 : 4;
+    double expectedWidth = (estimatedColumns * 55) + ((estimatedColumns - 1) * 24);
+    double availableWidth = screenWidth - 32; // 16 padding on each side
+    double scale = (availableWidth / expectedWidth).clamp(0.5, maxScale);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: null,
@@ -450,7 +556,7 @@ class _GameScreenState extends State<GameScreen> {
         children: [
           // Dynamic Background based on selected theme
           _buildBackground(),
-          
+
           // Top UI Overlay
           Positioned(
             top: 0,
@@ -458,7 +564,7 @@ class _GameScreenState extends State<GameScreen> {
             right: 0,
             child: SafeArea(child: _buildTopUI()),
           ),
-          
+
           // Game Content
           Center(
             child: SingleChildScrollView(
@@ -471,18 +577,19 @@ class _GameScreenState extends State<GameScreen> {
                 ),
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 500),
-                  transitionBuilder: (Widget child, Animation<double> animation) {
-                    return FadeTransition(
-                      opacity: animation,
-                      child: SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(1, 0),
-                          end: Offset.zero,
-                        ).animate(animation),
-                        child: child,
-                      ),
-                    );
-                  },
+                  transitionBuilder:
+                      (Widget child, Animation<double> animation) {
+                        return FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(1, 0),
+                              end: Offset.zero,
+                            ).animate(animation),
+                            child: child,
+                          ),
+                        );
+                      },
                   child: Stack(
                     key: ValueKey(_controller.currentLevel),
                     clipBehavior: Clip.none,
@@ -508,24 +615,29 @@ class _GameScreenState extends State<GameScreen> {
                         ),
                       ),
                       Wrap(
-                        spacing: 24,
-                        runSpacing: 40,
+                        spacing: 24 * scale,
+                        runSpacing: 40 * scale,
                         alignment: WrapAlignment.center,
-                        children: List.generate(_controller.tubes.length, (index) {
+                        children: List.generate(_controller.tubes.length, (
+                          index,
+                        ) {
                           bool isPouringSource =
                               _controller.pouringFromIndex == index;
-                          bool isReceiving = _controller.pouringToIndex == index;
+                          bool isReceiving =
+                              _controller.pouringToIndex == index;
 
                           Offset moveOffset = Offset.zero;
                           Offset? targetOffset;
 
-                          if (isPouringSource && _controller.pouringToIndex != null) {
+                          if (isPouringSource &&
+                              _controller.pouringToIndex != null) {
                             if (_tubeKeys[index].currentContext != null &&
                                 _tubeKeys[_controller.pouringToIndex!]
                                         .currentContext !=
                                     null) {
                               RenderBox sourceBox =
-                                  _tubeKeys[index].currentContext!.findRenderObject()
+                                  _tubeKeys[index].currentContext!
+                                          .findRenderObject()
                                       as RenderBox;
                               RenderBox targetBox =
                                   _tubeKeys[_controller.pouringToIndex!]
@@ -533,91 +645,110 @@ class _GameScreenState extends State<GameScreen> {
                                           .findRenderObject()
                                       as RenderBox;
 
+                              Offset sourcePos = sourceBox.localToGlobal(
+                                Offset.zero,
+                              );
+                              Offset targetPos = targetBox.localToGlobal(
+                                Offset.zero,
+                              );
 
-                            Offset sourcePos = sourceBox.localToGlobal(Offset.zero);
-                            Offset targetPos = targetBox.localToGlobal(Offset.zero);
+                              double tiltDir = _controller.pourTiltAngle > 0
+                                  ? -20
+                                  : 20;
+                              moveOffset = Offset(
+                                targetPos.dx - sourcePos.dx + tiltDir,
+                                targetPos.dy - sourcePos.dy - (160 * scale) + 10,
+                              );
 
-                            double tiltDir = _controller.pourTiltAngle > 0
-                                ? -20
-                                : 20;
-                            moveOffset = Offset(
-                              targetPos.dx - sourcePos.dx + tiltDir,
-                              targetPos.dy - sourcePos.dy - 160,
-                            );
-
-                            targetOffset = Offset(0, 160);
-                          }
-                        }
-
-                        return Container(
-                          key: _tubeKeys[index],
-                          child: TubeWidget(
-                            tube: _controller.tubes[index],
-                            isSelected: _controller.selectedTubeIndex == index,
-                            isShaking: _controller.wrongMoveIndex == index,
-                            isReceiving: isReceiving,
-                            tiltAngle: isPouringSource
-                                ? _controller.pourTiltAngle
-                                : 0.0,
-                            offset: moveOffset,
-                            targetOffset: targetOffset,
-                            pouringColor: _controller.pouringColor,
-                            onTap: () {
-                          if (_showTutorial) {
-                            bool isCorrect = false;
-                            if (_tutorialStep == 0) {
-                              // Correct if user taps any non-empty tube
-                              isCorrect = _controller.tubes[index].isNotEmpty;
-                            } else {
-                              // Correct if user taps any valid target tube (empty for the first move)
-                              isCorrect = _controller.tubes[index].isEmpty;
+                              targetOffset = Offset(0, 160);
                             }
-                            
-                            if (!isCorrect) {
-                              _controller.triggerWrongMove(index);
-                              return;
-                            }
-                            
-                            setState(() {
-                              _tutorialStep++;
-                              if (_tutorialStep >= 2) {
-                                _showTutorial = false;
-                                StorageService.setTutorialCompleted(true);
-                              }
-                            });
                           }
-                          _controller.selectTube(index);
-                        },
-                            skinId: _controller.selectedSkinId,
-                            isHinted: _controller.activeHint != null && 
-                                (_controller.activeHint!.fromIndex == index || 
-                                 _controller.activeHint!.toIndex == index),
-                          ),
-                        );
-                      }),
-                    ),
-                    
-                    // Liquid Pouring Stream Overlay
-                    Positioned.fill(
-                      child: PouringStreamEffect(
-                        controller: _controller,
-                        tubeKeys: _tubeKeys,
+
+                          return Container(
+                            key: _tubeKeys[index],
+                            child: TubeWidget(
+                              tube: _controller.tubes[index],
+                              isSelected:
+                                  _controller.selectedTubeIndex == index,
+                              isShaking: _controller.wrongMoveIndex == index,
+                              isReceiving: isReceiving,
+                              tiltAngle: isPouringSource
+                                  ? _controller.pourTiltAngle
+                                  : 0.0,
+                              offset: moveOffset,
+                              targetOffset: targetOffset,
+                              pouringColor: _controller.pouringColor,
+                              scale: scale,
+                              onTap: () {
+                                if (_showTutorial) {
+                                  bool isCorrect = false;
+                                  if (_tutorialStep == 0) {
+                                    // Correct if user taps any non-empty tube
+                                    isCorrect = _controller.tubes[index].isNotEmpty;
+                                  } else {
+                                    // Correct if user taps any valid target tube
+                                    if (_controller.selectedTubeIndex != null) {
+                                      isCorrect = _controller.canPour(_controller.selectedTubeIndex!, index);
+                                    }
+                                  }
+
+                                  if (!isCorrect) {
+                                    _controller.triggerWrongMove(index);
+                                    return;
+                                  }
+
+                                  setState(() {
+                                    _tutorialStep++;
+                                    if (_tutorialStep >= 2) {
+                                      _showTutorial = false;
+                                      StorageService.setTutorialCompleted(true);
+                                    }
+                                  });
+                                }
+                                _controller.selectTube(index);
+                              },
+                              skinId: _controller.selectedSkinId,
+                              isHinted:
+                                  _controller.activeHint != null &&
+                                  (_controller.activeHint!.fromIndex == index ||
+                                      _controller.activeHint!.toIndex == index),
+                            ),
+                          );
+                        }),
                       ),
-                    ),
+
+                      // Liquid Pouring Stream Overlay
+                      Positioned.fill(
+                        child: PouringStreamEffect(
+                          controller: _controller,
+                          tubeKeys: _tubeKeys,
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ),
             ),
           ),
-          
+
           // Bottom Tools
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: _buildBottomTools(),
-          ),
-          
+          Align(alignment: Alignment.bottomCenter, child: _buildBottomTools()),
+
           if (_showTutorial) _buildTutorialOverlay(),
+
+          // Confetti Overlay
+          Align(
+            alignment: Alignment.topCenter,
+            child: ConfettiWidget(
+              confettiController: _confettiController,
+              blastDirection: pi / 2, // downwards
+              maxBlastForce: 5,
+              minBlastForce: 2,
+              emissionFrequency: 0.05,
+              numberOfParticles: 30,
+              gravity: 0.1,
+            ),
+          ),
         ],
       ),
     );
@@ -659,10 +790,7 @@ class _GameScreenState extends State<GameScreen> {
 
     // Default theme (Wizard Room)
     return Positioned.fill(
-      child: Image.asset(
-        'assets/images/wizard_room_bg.jpg',
-        fit: BoxFit.cover,
-      ),
+      child: Image.asset('assets/images/wizard_room_bg.jpg', fit: BoxFit.cover),
     );
   }
 
@@ -685,7 +813,11 @@ class _GameScreenState extends State<GameScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.eco, color: Colors.amber, size: 18), // Leaf/Coin icon
+                  const Icon(
+                    Icons.eco,
+                    color: Colors.amber,
+                    size: 18,
+                  ), // Leaf/Coin icon
                   const SizedBox(width: 6),
                   Text(
                     '${_controller.coins}',
@@ -699,15 +831,20 @@ class _GameScreenState extends State<GameScreen> {
               ),
             ),
           ),
-          
+
           // Level Info (Top Center)
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF3B2A6A).withOpacity(0.8), // Purple transparent pill
+                  color: const Color(
+                    0xFF3B2A6A,
+                  ).withOpacity(0.8), // Purple transparent pill
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: const Color(0xFF5E4B9A)),
                 ),
@@ -726,7 +863,11 @@ class _GameScreenState extends State<GameScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (_controller.remainingTime != null) ...[
-                    const Icon(Icons.timer, color: Colors.orangeAccent, size: 12),
+                    const Icon(
+                      Icons.timer,
+                      color: Colors.orangeAccent,
+                      size: 12,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       _formatTime(_controller.remainingTime!),
@@ -738,19 +879,27 @@ class _GameScreenState extends State<GameScreen> {
                     ),
                     const SizedBox(width: 12),
                   ],
-                  const Icon(Icons.touch_app, color: Colors.cyanAccent, size: 12),
+                  const Icon(
+                    Icons.touch_app,
+                    color: Colors.cyanAccent,
+                    size: 12,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     _controller.movesLimit != null
                         ? '${_controller.movesCount} / ${_controller.movesLimit}'
                         : '${_controller.movesCount}',
-                    style: const TextStyle(color: Colors.cyanAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      color: Colors.cyanAccent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
             ],
           ),
-          
+
           // Settings / Pause (Top Right)
           Align(
             alignment: Alignment.centerRight,
@@ -763,7 +912,11 @@ class _GameScreenState extends State<GameScreen> {
                   shape: BoxShape.circle,
                   border: Border.all(color: const Color(0xFFB175FF), width: 2),
                 ),
-                child: const Icon(Icons.settings, color: Colors.white, size: 20),
+                child: const Icon(
+                  Icons.settings,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
             ),
           ),
@@ -800,14 +953,76 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Widget _buildActionBtn({String? imagePath, IconData? icon, required int cost, required VoidCallback onTap}) {
+  Widget _buildActionBtn({
+    String? imagePath,
+    IconData? icon,
+    required int cost,
+    required VoidCallback onTap,
+  }) {
     bool canAfford = _controller.coins >= cost;
-    return GestureDetector(
-      onTap: canAfford ? onTap : () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Not enough coins!')),
-        );
-      },
+    return BouncingButton(
+      onTap: canAfford
+          ? onTap
+          : () {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  backgroundColor: AppColors.cardBackground,
+                  title: const Text(
+                    'Not Enough Coins',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  content: const Text(
+                    'Watch a short video to use this power-up for free?',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(color: Colors.white54),
+                      ),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryButton,
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        AdManager.showRewardedAd(
+                          () {
+                            // Temporarily give coins so the controller check passes
+                            _controller.coins += cost;
+                            onTap();
+                          },
+                          () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Failed to load Ad. Please try again later.',
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.play_arrow, color: Colors.white),
+                          SizedBox(width: 4),
+                          Text(
+                            'Watch Ad',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
       child: Opacity(
         opacity: canAfford ? 1.0 : 0.5,
         child: Stack(
@@ -819,20 +1034,26 @@ class _GameScreenState extends State<GameScreen> {
               decoration: BoxDecoration(
                 color: const Color(0xFF6C20D6), // Purple background
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFFFD700), width: 2.5), // Yellow border
+                border: Border.all(
+                  color: const Color(0xFFFFD700),
+                  width: 2.5,
+                ), // Yellow border
                 boxShadow: [
-                  BoxShadow(color: const Color(0xFFFFD700).withOpacity(0.3), blurRadius: 8),
+                  BoxShadow(
+                    color: const Color(0xFFFFD700).withOpacity(0.3),
+                    blurRadius: 8,
+                  ),
                 ],
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(13),
                 child: imagePath != null
-                  ? Image.asset(
-                      imagePath,
-                      fit: BoxFit.cover,
-                      colorBlendMode: BlendMode.screen,
-                    )
-                  : Icon(icon, color: Colors.amberAccent, size: 32),
+                    ? Image.asset(
+                        imagePath,
+                        fit: BoxFit.cover,
+                        colorBlendMode: BlendMode.screen,
+                      )
+                    : Icon(icon, color: Colors.amberAccent, size: 32),
               ),
             ),
             Positioned(
@@ -857,7 +1078,11 @@ class _GameScreenState extends State<GameScreen> {
                       ),
                     ),
                     const SizedBox(width: 2),
-                    const Icon(Icons.monetization_on, color: Colors.yellow, size: 10),
+                    const Icon(
+                      Icons.monetization_on,
+                      color: Colors.yellow,
+                      size: 10,
+                    ),
                   ],
                 ),
               ),

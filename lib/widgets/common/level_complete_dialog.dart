@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../core/ad_manager.dart';
 import 'coin_animation_overlay.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 class LevelCompleteDialog extends StatefulWidget {
   final int stars; // 1, 2, or 3 stars earned
@@ -388,7 +389,12 @@ class _LevelCompleteDialogState extends State<LevelCompleteDialog>
             ),
           ],
         ),
-      ),
+      ).animate().scaleXY(
+        begin: 0.5,
+        end: 1.0,
+        duration: 700.ms,
+        curve: Curves.elasticOut,
+      ).fadeIn(duration: 300.ms),
     );
   }
 }

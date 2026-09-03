@@ -1,13 +1,28 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'storage_service.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 class AdManager {
+  static bool _hasRemovedAds = false;
+
   static Future<void> init() async {
     if (kIsWeb) return;
+    _hasRemovedAds = await StorageService.getHasRemovedAds();
+    if (_hasRemovedAds) {
+      // Still initialize but only load rewarded ads
+      await MobileAds.instance.initialize();
+      loadRewardedAd();
+      return;
+    }
+    
     await MobileAds.instance.initialize();
     loadInterstitialAd();
     loadRewardedAd();
+  }
+
+  static void updateHasRemovedAds(bool value) {
+    _hasRemovedAds = value;
   }
 
   static String get bannerAdUnitId {
@@ -72,6 +87,8 @@ class AdManager {
   }
 
   static void showInterstitialAd() {
+    if (_hasRemovedAds) return;
+
     if (_interstitialAd != null) {
       _interstitialAd!.show();
       _interstitialAd = null;

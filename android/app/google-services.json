@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "302460434954",
+    "project_id": "color-flow-puzzle-f7453",
+    "storage_bucket": "color-flow-puzzle-f7453.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:302460434954:android:c07f0c8b26dc991c9b3df3",
+        "android_client_info": {
+          "package_name": "com.colorflowpuzzle.game"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB942p-Ypdf1jqs4MGaxbVHZ2fCX1G3zbk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

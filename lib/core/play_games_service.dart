@@ -49,4 +49,90 @@ class PlayGamesService {
       debugPrint("Failed to show achievements: $e");
     }
   }
+
+  // --- NEW: Production Level Integrations ---
+
+  // REPLACE THESE WITH REAL IDs FROM PLAY CONSOLE LATER
+  static const String achievementBeginnerId = "CgkIuO_IqdMbEAIQAQ";
+  static const String achievementMasterId = "PLACEHOLDER_ACHIEVEMENT_MASTER";
+  static const String achievementHundredId = "PLACEHOLDER_ACHIEVEMENT_HUNDRED";
+  static const String leaderboardHighScoreId = "CgkIuO_IqdMbEAIQAw";
+
+  static Future<void> unlockAchievement(String achievementId) async {
+    if (!_isSignedIn) return;
+    if (achievementId.startsWith("PLACEHOLDER")) return;
+    try {
+      await GamesServices.unlock(
+        achievement: Achievement(androidID: achievementId),
+      );
+      debugPrint("Achievement unlocked: $achievementId");
+    } catch (e) {
+      debugPrint("Failed to unlock achievement: $e");
+    }
+  }
+
+  static Future<void> submitScore(int score) async {
+    if (!_isSignedIn) return;
+    try {
+      await GamesServices.submitScore(
+        score: Score(
+          androidLeaderboardID: leaderboardHighScoreId,
+          value: score,
+        ),
+      );
+      debugPrint("Score submitted: $score");
+    } catch (e) {
+      debugPrint("Failed to submit score: $e");
+    }
+  }
+
+  static Future<List<LeaderboardScoreData>?> loadFriendsScores() async {
+    if (!_isSignedIn) return null;
+    try {
+      return await GamesServices.loadLeaderboardScores(
+        androidLeaderboardID: leaderboardHighScoreId,
+        scope: PlayerScope.friendsOnly,
+        timeScope: TimeScope.allTime,
+        maxResults: 20, // Load up to 20 friends
+      );
+    } catch (e) {
+      debugPrint("Failed to load friends scores: $e");
+      return null;
+    }
+  }
+
+  // --- Cloud Save functionality ---
+
+  static Future<void> saveGame(String dataStr) async {
+    if (!_isSignedIn) return;
+    try {
+      await GamesServices.saveGame(data: dataStr, name: "slot1");
+      debugPrint("Game saved to cloud.");
+    } catch (e) {
+      debugPrint("Failed to save game to cloud: $e");
+    }
+  }
+
+  static Future<String?> loadGame() async {
+    if (!_isSignedIn) return null;
+    try {
+      final data = await GamesServices.loadGame(name: "slot1");
+      debugPrint("Game loaded from cloud.");
+      return data;
+    } catch (e) {
+      debugPrint("Failed to load game from cloud: $e");
+      return null;
+    }
+  }
+
+  static Future<String?> getPlayerIconImage() async {
+    if (!_isSignedIn) return null;
+    try {
+      // Returns base64 encoded image string
+      return await GamesServices.getPlayerIconImage();
+    } catch (e) {
+      debugPrint("Failed to get player image: $e");
+      return null;
+    }
+  }
 }

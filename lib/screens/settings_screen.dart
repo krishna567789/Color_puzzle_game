@@ -3,6 +3,10 @@ import '../core/app_colors.dart';
 import '../core/audio_service.dart';
 import '../core/storage_service.dart';
 import '../core/play_games_service.dart';
+import '../core/review_service.dart';
+import '../core/haptic_service.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -49,7 +53,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         title: const Text(
           'SETTINGS',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.5),
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.5,
+          ),
         ),
         centerTitle: true,
       ),
@@ -57,39 +65,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.all(24.0),
         child: Column(
           children: [
-            _buildSettingTile(
-              'Music',
-              Icons.music_note,
-              _musicEnabled,
-              (val) {
-                setState(() => _musicEnabled = val);
-                AudioService.toggleMusic(val);
-              },
-            ),
+            _buildSettingTile('Music', Icons.music_note, _musicEnabled, (val) {
+              setState(() => _musicEnabled = val);
+              AudioService.toggleMusic(val);
+            }),
             const SizedBox(height: 16),
-            _buildSettingTile(
-              'Sound Effects',
-              Icons.volume_up,
-              _sfxEnabled,
-              (val) {
-                setState(() => _sfxEnabled = val);
-                AudioService.toggleSfx(val);
-              },
-            ),
+            _buildSettingTile('Sound Effects', Icons.volume_up, _sfxEnabled, (
+              val,
+            ) {
+              setState(() => _sfxEnabled = val);
+              AudioService.toggleSfx(val);
+            }),
             const SizedBox(height: 16),
-            _buildSettingTile(
-              'Vibration',
-              Icons.vibration,
-              _vibrationEnabled,
-              (val) {
-                setState(() => _vibrationEnabled = val);
-                StorageService.setVibration(val);
-              },
-            ),
+            _buildSettingTile('Vibration', Icons.vibration, _vibrationEnabled, (
+              val,
+            ) {
+              setState(() => _vibrationEnabled = val);
+              HapticService.toggleVibration(val);
+              HapticService.lightImpact(); // Test feedback
+            }),
             const SizedBox(height: 16),
             _buildActionTile(
               _isSignedIn ? 'Play Games Connected' : 'Sign in to Play Games',
-              Icons.games,
+              FontAwesomeIcons.google,
               _isSignedIn ? Colors.green : AppColors.primaryButton,
               () async {
                 if (!_isSignedIn) {
@@ -113,6 +111,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
             ],
+            const SizedBox(height: 16),
+            _buildActionTile('Rate Us', Icons.star_rate, Colors.orange, () {
+              ReviewService.openStoreListing();
+            }),
+            const SizedBox(height: 16),
+            _buildActionTile('Share App', Icons.share, Colors.blueAccent, () {
+              Share.share(
+                'Check out this magical Color Puzzle Game! Can you solve all the levels? Download it now!',
+                subject: 'Color Puzzle Game',
+              );
+            }),
             const Spacer(),
             const Text(
               'Version 1.0.0',
@@ -125,7 +134,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildSettingTile(String title, IconData icon, bool value, Function(bool) onChanged) {
+  Widget _buildSettingTile(
+    String title,
+    IconData icon,
+    bool value,
+    Function(bool) onChanged,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
@@ -139,7 +153,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(width: 20),
           Text(
             title,
-            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const Spacer(),
           Switch(
@@ -155,7 +173,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildActionTile(String title, IconData icon, Color iconColor, VoidCallback onTap) {
+  Widget _buildActionTile(
+    String title,
+    dynamic icon,
+    Color iconColor,
+    VoidCallback onTap,
+  ) {
+    Widget iconWidget;
+    if (icon is IconData) {
+      iconWidget = Icon(icon, color: iconColor, size: 28);
+    } else {
+      iconWidget = FaIcon(icon, color: iconColor, size: 28);
+    }
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -167,14 +197,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         child: Row(
           children: [
-            Icon(icon, color: iconColor, size: 28),
+            iconWidget,
             const SizedBox(width: 20),
             Text(
               title,
-              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const Spacer(),
-            const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 18),
+            const Icon(
+              Icons.arrow_forward_ios,
+              color: Colors.white24,
+              size: 18,
+            ),
           ],
         ),
       ),

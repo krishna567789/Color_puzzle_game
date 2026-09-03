@@ -53,17 +53,19 @@ class AudioService {
   }
 
   static Future<void> playWinSfx() async {
-    // Using lock.wav as fallback if win.wav is missing
-    await playSfx('lock.wav');
+    await playSfx('win.wav');
   }
 
   static Future<void> playClickSfx() async {
-    await playSfx('lock.wav');
+    await playSfx('click.wav');
   }
 
   static Future<void> playCoinSfx() async {
-    // Play lock.wav as coin sound if coin.wav is not present.
-    await playSfx('lock.wav');
+    await playSfx('coin.wav');
+  }
+
+  static Future<void> playErrorSfx() async {
+    await playSfx('error.wav');
   }
 
   static void toggleMusic(bool enabled) {

@@ -1,17 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import 'core/storage_service.dart';
 import 'core/audio_service.dart';
 import 'core/ad_manager.dart';
 import 'core/play_games_service.dart';
+import 'core/iap_service.dart';
+import 'core/haptic_service.dart';
 import 'screens/splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   await StorageService.init();
   await AudioService.init();
   await AdManager.init();
   await PlayGamesService.init();
+  await IapService.init();
+  await HapticService.init();
   runApp(const ColorPuzzleGameApp());
 }
 

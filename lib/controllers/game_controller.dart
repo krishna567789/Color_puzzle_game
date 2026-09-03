@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../models/tube_model.dart';
 import '../core/storage_service.dart';
 import '../core/audio_service.dart';
+import '../core/haptic_service.dart';
+import '../core/review_service.dart';
+import '../core/play_games_service.dart';
+import '../core/analytics_service.dart';
 
-enum GameMode { classic, challenge, daily }
+enum GameMode { classic, challenge, timeAttack, daily }
 
 class HintMove {
   const HintMove({required this.fromIndex, required this.toIndex});
@@ -32,6 +35,7 @@ class GameController extends ChangeNotifier {
   double pourTiltAngle = 0.0;
   Offset pourOffset = Offset.zero;
   Color? pouringColor;
+  bool isPouringLiquid = false;
 
   bool isLevelComplete = false;
   bool isGameOver = false;
@@ -107,6 +111,7 @@ class GameController extends ChangeNotifier {
     pouringToIndex = null;
     pourTiltAngle = 0.0;
     pourOffset = Offset.zero;
+    isPouringLiquid = false;
     selectedTubeIndex = null;
     wrongMoveIndex = null;
     activeHint = null;
@@ -119,6 +124,8 @@ class GameController extends ChangeNotifier {
     activeHint = null;
     
     _history.clear();
+    
+    AnalyticsService.logLevelStart(currentLevel, activeMode.name);
 
     _setupModeConstraints();
     _generateProceduralLevel();
@@ -132,11 +139,11 @@ class GameController extends ChangeNotifier {
 
   void _setupModeConstraints() {
     if (activeMode == GameMode.challenge) {
-      remainingTime = 120;
-      movesLimit = 30;
-    } else if (activeMode == GameMode.classic) {
+      remainingTime = null;
+      movesLimit = 15 + (currentLevel * 2);
+    } else if (activeMode == GameMode.timeAttack) {
       remainingTime = 60 + (currentLevel * 10);
-      movesLimit = 15 + (currentLevel * 5);
+      movesLimit = null;
     } else {
       remainingTime = null;
       movesLimit = null;
@@ -174,7 +181,7 @@ class GameController extends ChangeNotifier {
         : Random();
 
     int baseDifficulty = (currentLevel ~/ 2) + 4;
-    if (activeMode == GameMode.challenge) baseDifficulty += 2;
+    if (activeMode == GameMode.challenge || activeMode == GameMode.timeAttack) baseDifficulty += 2;
     if (activeMode == GameMode.daily) baseDifficulty = 8;
 
     int numColors = min(baseDifficulty, _availableColors.length);
@@ -195,7 +202,22 @@ class GameController extends ChangeNotifier {
         _applyReversibleMixMove(random);
       }
 
-      if (!_isAlreadySolved() && tubes.any(_hasMixedColors)) return;
+      if (!_isAlreadySolved() && tubes.any(_hasMixedColors)) {
+        // Apply Mystery Mode logic (e.g. 1 mystery tube at lvl 4, max 3)
+        if (currentLevel >= 4) {
+          int numMysteryTubes = min(3, (currentLevel ~/ 4));
+          List<int> validIndexes = [];
+          for (int i = 0; i < tubes.length; i++) {
+            if (tubes[i].colors.length >= 3) validIndexes.add(i);
+          }
+          validIndexes.shuffle(random);
+          for (int i = 0; i < min(numMysteryTubes, validIndexes.length); i++) {
+            int idx = validIndexes[i];
+            tubes[idx].hiddenCount = max(0, tubes[idx].colors.length - 1);
+          }
+        }
+        return;
+      }
     }
   }
 
@@ -299,9 +321,9 @@ class GameController extends ChangeNotifier {
   }
 
   Future<void> nextLevel() async {
-    if (activeMode == GameMode.classic) {
+    if (activeMode != GameMode.daily) {
       // Reward and progression
-      coins += 50;
+      coins += (activeMode == GameMode.classic) ? 50 : 75;
       await StorageService.saveCoins(coins);
       await StorageService.incrementTotalLevelsWon();
       
@@ -311,6 +333,7 @@ class GameController extends ChangeNotifier {
       if (currentLevel == maxUnlockedLevel) {
         maxUnlockedLevel++;
         await StorageService.saveLevel(maxUnlockedLevel);
+        await PlayGamesService.submitScore(maxUnlockedLevel);
       }
     } else if (activeMode == GameMode.daily && !hasClaimedDailyReward) {
       if (await StorageService.claimDailyReward(dailyChallengeId)) {
@@ -321,7 +344,7 @@ class GameController extends ChangeNotifier {
         await StorageService.saveGems(gems);
       }
     }
-    if (activeMode == GameMode.classic) currentLevel++;
+    if (activeMode != GameMode.daily) currentLevel++;
     _initLevel();
   }
 
@@ -343,12 +366,13 @@ class GameController extends ChangeNotifier {
       coins -= 50;
       StorageService.saveCoins(coins);
       
+      AnalyticsService.logPowerUpUsed('undo');
       tubes = _history.removeLast();
       selectedTubeIndex = null;
       activeHint = null;
       movesCount = max(0, movesCount - 1);
       _notifySafely();
-      HapticFeedback.mediumImpact();
+      HapticService.mediumImpact();
     }
   }
 
@@ -363,7 +387,7 @@ class GameController extends ChangeNotifier {
         return;
       }
       selectedTubeIndex = index;
-      HapticFeedback.selectionClick();
+      HapticService.selectionClick();
       AudioService.playClickSfx();
       _notifySafely();
     } else {
@@ -443,6 +467,7 @@ class GameController extends ChangeNotifier {
     coins -= 100;
     StorageService.saveCoins(coins);
     
+    AnalyticsService.logPowerUpUsed('add_tube');
     // Add an empty tube with standard capacity
     tubes.add(Tube(capacity: 4));
     
@@ -534,9 +559,13 @@ class GameController extends ChangeNotifier {
       pouringFromIndex = null;
       pouringToIndex = null;
       pourTiltAngle = 0.0;
+      isPouringLiquid = false;
       _notifySafely();
       return;
     }
+
+    isPouringLiquid = true;
+    _notifySafely();
 
     Color pColor = fromTube.topColor!;
     while (fromTube.colors.isNotEmpty &&
@@ -544,12 +573,19 @@ class GameController extends ChangeNotifier {
         !toTube.isFull) {
       Color removedColor = fromTube.colors.removeLast();
       toTube.colors.add(removedColor);
+      
+      // Update hidden status
+      if (fromTube.colors.length <= fromTube.hiddenCount) {
+        fromTube.hiddenCount = max(0, fromTube.colors.length - 1);
+      }
+      
+      HapticService.lightImpact();
       _notifySafely();
-      HapticFeedback.lightImpact();
       await Future.delayed(const Duration(milliseconds: 200));
     }
 
     pourTiltAngle = 0.0;
+    isPouringLiquid = false;
     _notifySafely();
     await Future.delayed(const Duration(milliseconds: 400));
 
@@ -571,7 +607,8 @@ class GameController extends ChangeNotifier {
 
   void triggerWrongMove(int index) {
     wrongMoveIndex = index;
-    HapticFeedback.vibrate();
+    HapticService.vibrate();
+    AudioService.playErrorSfx();
     _notifySafely();
     Future.delayed(const Duration(milliseconds: 500), () {
       if (_isDisposed) return;
@@ -598,6 +635,39 @@ class GameController extends ChangeNotifier {
     if (allSorted) {
       isLevelComplete = true;
       AudioService.playWinSfx();
+      AnalyticsService.logLevelComplete(currentLevel, movesCount, 0);
+      
+      // Production Integrations
+      if (activeMode != GameMode.daily) {
+        _handleProductionIntegrations();
+      }
+    }
+  }
+
+  Future<void> _handleProductionIntegrations() async {
+    // 1. In-App Review
+    await ReviewService.requestReviewIfEligible(currentLevel);
+
+    // 2. Play Games Achievements & Leaderboard
+    if (PlayGamesService.isSignedIn) {
+      // Submit score (e.g. current level reached)
+      await PlayGamesService.submitScore(currentLevel);
+      
+      // Unlock achievements based on level
+      if (currentLevel >= 1) {
+        await PlayGamesService.unlockAchievement(PlayGamesService.achievementBeginnerId);
+      }
+      if (currentLevel >= 10) {
+        await PlayGamesService.unlockAchievement(PlayGamesService.achievementMasterId);
+      }
+      if (currentLevel >= 100) {
+        await PlayGamesService.unlockAchievement(PlayGamesService.achievementHundredId);
+      }
+
+      // 3. Cloud Save
+      // Create a simple string representation of the cloud data
+      String cloudData = "level:$currentLevel,coins:$coins,gems:$gems";
+      await PlayGamesService.saveGame(cloudData);
     }
   }
 

@@ -40,6 +40,14 @@ dependencies:
   image: ^4.9.2
   google_mobile_ads: ^9.1.0
   games_services: ^5.0.0
+  in_app_review: ^2.0.12
+  font_awesome_flutter: ^11.0.0
+  confetti: ^0.8.0
+  firebase_core: ^4.14.0
+  firebase_analytics: ^12.5.0
+  in_app_purchase: ^3.3.0
+  flutter_animate: ^4.5.2
+  share_plus: ^13.3.0
 
 dev_dependencies:
   flutter_test:

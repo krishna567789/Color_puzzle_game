@@ -14,6 +14,7 @@ class TubeWidget extends StatefulWidget {
   final Offset? targetOffset;
   final String skinId;
   final bool isHinted;
+  final double scale;
 
   const TubeWidget({
     super.key,
@@ -28,6 +29,7 @@ class TubeWidget extends StatefulWidget {
     this.targetOffset,
     this.skinId = 'default_tube',
     this.isHinted = false,
+    this.scale = 1.0,
   });
 
   @override
@@ -39,6 +41,8 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
   late AnimationController _splashController;
   late AnimationController _capController;
   late AnimationController _streamController;
+  late AnimationController _waveController;
+  late AnimationController _glowController;
 
   late Animation<double> _shakeAnimation;
   late Animation<double> _capDropAnimation;
@@ -65,9 +69,18 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
     );
 
     _streamController = AnimationController(
-      duration: const Duration(milliseconds: 200),
       vsync: this,
-      upperBound: 2.0,
+      duration: const Duration(milliseconds: 300),
+    );
+
+    _waveController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat();
+
+    _glowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
     );
 
     _shakeAnimation =
@@ -80,8 +93,8 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
         );
 
     _capDropAnimation = Tween<double>(
-      begin: -100,
-      end: -15,
+      begin: -40.0,
+      end: 2.0,
     ).animate(CurvedAnimation(parent: _capController, curve: Curves.bounceOut));
 
     _wasSolved = _isSolved(widget.tube);
@@ -112,8 +125,10 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
     bool isSolved = _isSolved(widget.tube);
     if (!_wasSolved && isSolved) {
       _capController.forward(from: 0.0);
+      _glowController.forward(from: 0.0);
     } else if (_wasSolved && !isSolved) {
       _capController.reset();
+      _glowController.reset();
     }
     _wasSolved = isSolved;
 
@@ -141,6 +156,8 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
     _splashController.dispose();
     _capController.dispose();
     _streamController.dispose();
+    _waveController.dispose();
+    _glowController.dispose();
     super.dispose();
   }
 
@@ -154,10 +171,14 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
           _splashController,
           _capController,
           _streamController,
+          _waveController,
+          _glowController,
         ]),
         builder: (context, child) {
-          double xOffset = widget.isShaking ? _shakeAnimation.value : 0;
-          double yOffset = widget.isSelected ? -30.0 : 0;
+          double scale = widget.scale;
+          double xOffset =
+              (widget.isShaking ? _shakeAnimation.value : 0) * scale;
+          double yOffset = (widget.isSelected ? -30.0 : 0) * scale;
 
           bool isPouring = widget.tiltAngle != 0.0;
           if (isPouring) {
@@ -180,103 +201,116 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
                   ..rotateZ(widget.tiltAngle),
                 transformAlignment: Alignment.topCenter,
                 child: SizedBox(
-                  width: 55,
-                  height: 160,
-                  child: Stack(
-                    alignment: Alignment.bottomCenter,
-                    clipBehavior: Clip.none,
-                    children: [
-                      // Liquid Inside
-                      Positioned(
-                        bottom: 8,
-                        child: ClipPath(
-                          clipper: BottleClipper(),
-                          child: Container(
-                            width: 53,
-                            height: 144,
-                            alignment: Alignment.bottomCenter,
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                if (widget.tube.colors.length <
-                                    widget.tube.capacity)
-                                  Expanded(
-                                    flex:
-                                        widget.tube.capacity -
-                                        widget.tube.colors.length,
-                                    child: Container(color: Colors.transparent),
-                                  ),
-                                for (
-                                  int i = widget.tube.colors.length - 1;
-                                  i >= 0;
-                                  i--
-                                )
-                                  Expanded(
-                                    flex: 1,
-                                    child: ClipPath(
-                                      clipper:
-                                          i == widget.tube.colors.length - 1
-                                          ? WavyTopClipper(
-                                              splashValue: widget.isReceiving
-                                                  ? _splashController.value
-                                                  : 0.0,
-                                            )
-                                          : null,
-                                      child: CustomPaint(
-                                        painter: LiquidSegmentPainter(
-                                          widget.tube.colors[i],
-                                          isTopSegment: i == widget.tube.colors.length - 1,
-                                          splashValue: widget.isReceiving ? _splashController.value : 0.0,
-                                        ),
-                                        child: Container(
-                                          width: double.infinity,
-                                          margin: EdgeInsets.zero,
-                                        ),
+                  width: 55 * scale,
+                  height: 160 * scale,
+                  child: Transform.scale(
+                    scale: scale,
+                    alignment: Alignment.topCenter,
+                    child: SizedBox(
+                      width: 55,
+                      height: 160,
+                      child: Stack(
+                        alignment: Alignment.bottomCenter,
+                        clipBehavior: Clip.none,
+                        children: [
+                          // Magic Glow (Shows when solved)
+                          if (_glowController.value > 0)
+                            Positioned.fill(
+                              child: Opacity(
+                                opacity: math.sin(_glowController.value * math.pi),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.rectangle,
+                                    borderRadius: BorderRadius.circular(20),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: widget.tube.colors.isNotEmpty 
+                                            ? widget.tube.colors.first.withOpacity(0.8)
+                                            : Colors.white,
+                                        blurRadius: 20 * scale,
+                                        spreadRadius: 10 * scale,
                                       ),
-                                    ),
+                                    ],
                                   ),
-                              ],
+                                ),
+                              ),
+                            ),
+
+                          // Tube Background
+                          Image.asset(
+                            'assets/blender/bottol.png',
+                            width: 55,
+                            height: 160,
+                            color: Colors.white.withOpacity(0.1),
+                            colorBlendMode: BlendMode.modulate,
+                          ),
+
+                          // Liquid Inside
+                          Positioned(
+                            bottom: 4,
+                            child: ClipPath(
+                              clipper: BottleClipper(),
+                              child: CustomPaint(
+                                size: const Size(51, 144),
+                                painter: LiquidSegmentPainter(
+                                  colors: widget.tube.colors,
+                                  fillHeight: widget.tube.colors.length * (144.0 / 4),
+                                  animationValue: 1.0,
+                                  hiddenCount: widget.tube.hiddenCount,
+                                  wavePhase: _waveController.value * 2 * math.pi,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
 
-                      // Glass Bottle Body
-                      CustomPaint(
-                        size: const Size(55, 150),
-                        painter: BottlePainter(
-                          isSelected: widget.isSelected,
-                          skinId: widget.skinId,
-                          isHinted: widget.isHinted,
-                        ),
-                      ),
-
-                      // Bottle Glints/Highlights
-                      IgnorePointer(
-                        child: CustomPaint(
-                          size: const Size(55, 150),
-                          painter: BottleHighlightPainter(),
-                        ),
-                      ),
-
-                      // Diamond Cap (Shows when solved)
-                      if (!isPouring && _capController.value > 0)
-                        Positioned(
-                          top: _capDropAnimation.value,
-                          child: Image.asset(
-                            'assets/blender/bottol_cap.png',
-                            width: 36,
-                            height: 32,
-                            errorBuilder: (context, error, stackTrace) {
-                              return CustomPaint(
-                                size: const Size(22, 18),
-                                painter: CorkCapPainter(),
-                              );
-                            },
+                          // Glass Bottle Body
+                          CustomPaint(
+                            size: const Size(55, 150),
+                            painter: BottlePainter(
+                              isSelected: widget.isSelected,
+                              skinId: widget.skinId,
+                              isHinted: widget.isHinted,
+                            ),
                           ),
-                        ),
 
-                    ],
+                          // Bottle Glints/Highlights
+                          IgnorePointer(
+                            child: CustomPaint(
+                              size: const Size(55, 150),
+                              painter: BottleHighlightPainter(),
+                            ),
+                          ),
+
+                          // Diamond Cap (Shows when solved)
+                          if (!isPouring && _capController.value > 0)
+                            Positioned(
+                              top: _capDropAnimation.value,
+                              child: Image.asset(
+                                'assets/blender/bottol_cap.png',
+                                width: 36,
+                                height: 32,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return CustomPaint(
+                                    size: const Size(22, 18),
+                                    painter: CorkCapPainter(),
+                                  );
+                                },
+                              ),
+                            ),
+
+                          // Magic Dust Particles
+                          if (!isPouring && _glowController.value > 0)
+                            Positioned.fill(
+                              child: CustomPaint(
+                                painter: MagicDustPainter(
+                                  progress: _glowController.value,
+                                  color: widget.tube.colors.isNotEmpty ? widget.tube.colors.first : Colors.white,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -288,12 +322,15 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
   }
 }
 
-
 class BottlePainter extends CustomPainter {
   final bool isSelected;
   final String skinId;
   final bool isHinted;
-  BottlePainter({required this.isSelected, this.skinId = 'default_tube', this.isHinted = false});
+  BottlePainter({
+    required this.isSelected,
+    this.skinId = 'default_tube',
+    this.isHinted = false,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -346,7 +383,7 @@ class BottlePainter extends CustomPainter {
           Colors.white.withOpacity(0.9),
           Colors.white.withOpacity(0.4),
           Colors.white.withOpacity(0.8),
-        ]
+        ],
       ).createShader(rect)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.5;
@@ -426,7 +463,9 @@ class BottlePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant BottlePainter oldDelegate) =>
-      oldDelegate.isSelected != isSelected || oldDelegate.skinId != skinId || oldDelegate.isHinted != isHinted;
+      oldDelegate.isSelected != isSelected ||
+      oldDelegate.skinId != skinId ||
+      oldDelegate.isHinted != isHinted;
 }
 
 class BottleClipper extends CustomClipper<Path> {
@@ -503,37 +542,6 @@ class BottleHighlightPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class WavyTopClipper extends CustomClipper<Path> {
-  final double splashValue;
-  WavyTopClipper({this.splashValue = 0.0});
-
-  @override
-  Path getClip(Size size) {
-    final path = Path();
-    path.moveTo(0, 5);
-
-    if (splashValue > 0) {
-      double midX = size.width / 2;
-      double splashDepth = 15.0 * math.sin(splashValue * math.pi * 5);
-      path.quadraticBezierTo(midX / 2, splashDepth, midX, splashDepth);
-      path.quadraticBezierTo(midX + midX / 2, splashDepth, size.width, 5);
-    } else {
-      // Gentle wave for static top liquid
-      path.quadraticBezierTo(size.width * 0.25, 0, size.width * 0.5, 5);
-      path.quadraticBezierTo(size.width * 0.75, 10, size.width, 5);
-    }
-
-    path.lineTo(size.width, size.height);
-    path.lineTo(0, size.height);
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(covariant WavyTopClipper oldClipper) =>
-      oldClipper.splashValue != splashValue;
-}
-
 class CorkCapPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -589,43 +597,152 @@ class CorkCapPainter extends CustomPainter {
 }
 
 class LiquidSegmentPainter extends CustomPainter {
-  final Color baseColor;
-  final bool isTopSegment;
-  final double splashValue;
+  final List<Color> colors;
+  final double fillHeight;
+  final double animationValue;
+  final int hiddenCount;
+  final double wavePhase;
 
-  LiquidSegmentPainter(this.baseColor, {this.isTopSegment = false, this.splashValue = 0.0});
+  LiquidSegmentPainter({
+    required this.colors,
+    required this.fillHeight,
+    required this.animationValue,
+    this.hiddenCount = 0,
+    this.wavePhase = 0.0,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
+    if (colors.isEmpty) return;
+
+    final double segmentHeight = size.height / 4;
+    final double totalHeight = colors.length * segmentHeight;
+    final double startY = size.height - totalHeight;
+
+    for (int i = 0; i < colors.length; i++) {
+      bool isHidden = i < hiddenCount;
+      Color segmentColor = isHidden ? Colors.grey.shade400 : colors[i];
+      
+      final double topY = size.height - ((i + 1) * segmentHeight);
+      
+      // Draw wavy top only for the uppermost segment
+      if (i == colors.length - 1 && colors.length < 4) {
+        Path path = Path();
+        path.moveTo(0, topY + segmentHeight); // Bottom left
+        path.lineTo(size.width, topY + segmentHeight); // Bottom right
+        
+        // Wavy top edge
+        for (double x = size.width; x >= 0; x -= 2) {
+          double waveHeight = 2.0; // small wave
+          double y = topY + math.sin((x / size.width) * math.pi * 2 + wavePhase) * waveHeight;
+          path.lineTo(x, y);
+        }
+        path.close();
+        
+        final paint = Paint()
+          ..color = segmentColor
+          ..style = PaintingStyle.fill;
+        canvas.drawPath(path, paint);
+      } else {
+        // Normal flat segment
+        final rect = Rect.fromLTWH(0, topY, size.width, segmentHeight);
+        final paint = Paint()
+          ..color = segmentColor
+          ..style = PaintingStyle.fill;
+        canvas.drawRect(rect, paint);
+      }
+      
+      // Draw bubbles inside the liquid
+      if (!isHidden) {
+        _drawBubbles(canvas, size, topY, segmentHeight, segmentColor, i);
+      }
+
+      // Draw Mystery '?' Marker
+      if (isHidden) {
+        final textPainter = TextPainter(
+          text: const TextSpan(
+            text: '?',
+            style: TextStyle(
+              color: Colors.white54,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        );
+        textPainter.layout();
+        textPainter.paint(
+          canvas,
+          Offset(
+            (size.width - textPainter.width) / 2,
+            topY + (segmentHeight - textPainter.height) / 2,
+          ),
+        );
+      }
+    }
+  }
+  
+  void _drawBubbles(Canvas canvas, Size size, double topY, double height, Color color, int layerIndex) {
+    final random = math.Random(color.value + layerIndex);
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.3)
+      ..style = PaintingStyle.fill;
+      
+    int bubbleCount = random.nextInt(3) + 2;
     
-    // Cylindrical gradient
-    final gradient = LinearGradient(
-      begin: Alignment.centerLeft,
-      end: Alignment.centerRight,
-      colors: [
-        Color.lerp(baseColor, Colors.black, 0.4)!,
-        baseColor,
-        Color.lerp(baseColor, Colors.white, 0.3)!,
-        baseColor,
-        Color.lerp(baseColor, Colors.black, 0.6)!,
-      ],
-      stops: const [0.0, 0.2, 0.7, 0.9, 1.0],
-    );
-    
-    final paint = Paint()..shader = gradient.createShader(rect);
-    canvas.drawRect(rect, paint);
-    
-    // Top surface ellipse for 3D depth removed to match reference design
-    if (isTopSegment && splashValue == 0) {
-      final topPaint = Paint()
-        ..color = Color.lerp(baseColor, Colors.white, 0.2)!
-        ..style = PaintingStyle.fill;
-      canvas.drawRect(Rect.fromLTWH(0, 0, size.width, 3), topPaint);
+    for (int j = 0; j < bubbleCount; j++) {
+      double startX = random.nextDouble() * size.width;
+      double speed = random.nextDouble() * 1.5 + 0.5;
+      double yOffset = (wavePhase * speed * 15) % height;
+      
+      double bY = (topY + height) - yOffset;
+      double bX = startX + math.sin(wavePhase * 2 + j) * 2;
+      
+      double radius = random.nextDouble() * 2 + 1;
+      
+      canvas.drawCircle(Offset(bX, bY), radius, paint);
     }
   }
 
   @override
-  bool shouldRepaint(covariant LiquidSegmentPainter oldDelegate) => 
-    oldDelegate.baseColor != baseColor || oldDelegate.splashValue != splashValue;
+  bool shouldRepaint(covariant LiquidSegmentPainter oldDelegate) {
+    return oldDelegate.colors != colors ||
+        oldDelegate.fillHeight != fillHeight ||
+        oldDelegate.animationValue != animationValue ||
+        oldDelegate.hiddenCount != hiddenCount ||
+        oldDelegate.wavePhase != wavePhase;
+  }
+}
+
+class MagicDustPainter extends CustomPainter {
+  final double progress;
+  final Color color;
+
+  MagicDustPainter({required this.progress, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final random = math.Random(42);
+    final paint = Paint()
+      ..color = color.withOpacity(1.0 - progress)
+      ..style = PaintingStyle.fill;
+
+    for (int i = 0; i < 15; i++) {
+      double angle = random.nextDouble() * math.pi * 2;
+      double speed = random.nextDouble() * 50 + 20;
+      double distance = speed * progress;
+      
+      double x = size.width / 2 + math.cos(angle) * distance;
+      double y = size.height / 2 + math.sin(angle) * distance - (progress * 40);
+      
+      double radius = random.nextDouble() * 2 + 1;
+      
+      canvas.drawCircle(Offset(x, y), radius, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant MagicDustPainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
 }

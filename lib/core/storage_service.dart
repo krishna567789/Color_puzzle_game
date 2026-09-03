@@ -21,6 +21,9 @@ class StorageService {
   static const String _keyQuestProgress = 'quest_progress';
   static const String _keyLoginStreak = 'login_streak';
   static const String _keyLastLoginDate = 'last_login_date';
+  static const String _keyHasReviewed = 'has_reviewed';
+  static const String _keyHasRemovedAds = 'has_removed_ads';
+  static const String _keyDailyChallengeDate = 'daily_challenge_date';
 
   static Future<Box<dynamic>>? _boxFuture;
 
@@ -36,6 +39,22 @@ class StorageService {
   static Future<Box<dynamic>> _openBox() async {
     await Hive.initFlutter();
     return Hive.openBox<dynamic>(_boxName);
+  }
+
+  static Future<void> resetAllSettings() async {
+    final box = await _getBox();
+    await box.clear();
+  }
+
+  // --- Review Tracking ---
+  static Future<bool> getHasReviewed() async {
+    final box = await _getBox();
+    return box.get(_keyHasReviewed, defaultValue: false) as bool;
+  }
+
+  static Future<void> setHasReviewed(bool value) async {
+    final box = await _getBox();
+    await box.put(_keyHasReviewed, value);
   }
 
   static Future<void> saveLevel(int level) async {
@@ -238,5 +257,25 @@ class StorageService {
   static Future<String?> getLastLoginDate() async {
     final box = await _getBox();
     return box.get(_keyLastLoginDate) as String?;
+  }
+
+  static Future<void> setHasRemovedAds(bool value) async {
+    final box = await _getBox();
+    await box.put(_keyHasRemovedAds, value);
+  }
+
+  static Future<bool> getHasRemovedAds() async {
+    final box = await _getBox();
+    return box.get(_keyHasRemovedAds, defaultValue: false) as bool;
+  }
+
+  static Future<bool> isDailyChallengeCompleted(String dateStr) async {
+    final box = await _getBox();
+    return box.get(_keyDailyChallengeDate) == dateStr;
+  }
+
+  static Future<void> setDailyChallengeCompleted(String dateStr) async {
+    final box = await _getBox();
+    await box.put(_keyDailyChallengeDate, dateStr);
   }
 }

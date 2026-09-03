@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 class Tube {
   final int capacity;
   final List<Color> colors;
+  int hiddenCount;
 
   Tube({
     this.capacity = 4,
     List<Color>? initialColors,
+    this.hiddenCount = 0,
   }) : colors = initialColors ?? [];
 
   bool get isFull => colors.length >= capacity;
@@ -24,10 +26,11 @@ class Tube {
   
   Color? get topColor => colors.isNotEmpty ? colors.last : null;
 
-  Tube copyWith({List<Color>? colors}) {
+  Tube copyWith({List<Color>? colors, int? hiddenCount}) {
     return Tube(
       capacity: capacity,
       initialColors: colors ?? List.from(this.colors),
+      hiddenCount: hiddenCount ?? this.hiddenCount,
     );
   }
 }

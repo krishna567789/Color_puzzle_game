@@ -5,6 +5,8 @@ import '../core/storage_service.dart';
 import '../models/shop_item_model.dart';
 import '../core/audio_service.dart';
 import '../widgets/custom_bottle.dart';
+import '../core/iap_service.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
 
 class ShopScreen extends StatefulWidget {
   const ShopScreen({super.key});
@@ -97,10 +99,98 @@ class _ShopScreenState extends State<ShopScreen> {
           isOwned: ownedIds.contains('space_theme'),
         ),
       ];
+
+      _loadIapItems();
     });
   }
 
+  Future<void> _loadIapItems() async {
+    bool hasRemovedAds = await StorageService.getHasRemovedAds();
+    List<ShopItem> iapItems = [];
+
+    if (IapService.isAvailable && IapService.products.isNotEmpty) {
+      for (var product in IapService.products) {
+        iapItems.add(
+          ShopItem(
+            id: product.id,
+            name: product.title
+                .split(' (')
+                .first, // Clean up "(App Name)" suffix
+            description: product.description,
+            price: 0,
+            iapPrice: product.price,
+            type: ShopItemType.iap,
+            isOwned: (product.id == IapService.removeAdsId)
+                ? hasRemovedAds
+                : false,
+          ),
+        );
+      }
+    } else {
+      // Fallback for debug/emulators
+      iapItems.addAll([
+        ShopItem(
+          id: IapService.removeAdsId,
+          name: 'Remove Ads',
+          description: 'No more interruptions!',
+          price: 0,
+          iapPrice: '\$2.99',
+          type: ShopItemType.iap,
+          isOwned: hasRemovedAds,
+        ),
+        ShopItem(
+          id: IapService.buyCoins1000Id,
+          name: '1000 Coins',
+          description: 'A large purse of coins.',
+          price: 0,
+          iapPrice: '\$4.99',
+          type: ShopItemType.iap,
+        ),
+        ShopItem(
+          id: IapService.buyCoins500Id,
+          name: '500 Coins',
+          description: 'A small pouch of coins.',
+          price: 0,
+          iapPrice: '\$1.99',
+          type: ShopItemType.iap,
+        ),
+      ]);
+    }
+
+    if (mounted) {
+      setState(() {
+        _items.addAll(iapItems);
+      });
+    }
+  }
+
   Future<void> _buyItem(ShopItem item) async {
+    if (item.type == ShopItemType.iap) {
+      if (item.isOwned) return;
+      // Trigger IAP Flow
+      if (IapService.isAvailable) {
+        try {
+          ProductDetails? product = IapService.products.firstWhere(
+            (p) => p.id == item.id,
+          );
+          await IapService.buyProduct(product);
+        } catch (e) {
+          debugPrint('IAP Product not found: ${item.id}');
+        }
+      } else {
+        // Mock purchase for debug
+        if (item.id == IapService.removeAdsId) {
+          await StorageService.setHasRemovedAds(true);
+        } else if (item.id == IapService.buyCoins1000Id) {
+          await StorageService.saveCoins(_coins + 1000);
+        } else if (item.id == IapService.buyCoins500Id) {
+          await StorageService.saveCoins(_coins + 500);
+        }
+        _loadData();
+      }
+      return;
+    }
+
     if (_coins >= item.price) {
       _coins -= item.price;
       item.isOwned = true;
@@ -201,8 +291,10 @@ class _ShopScreenState extends State<ShopScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       _buildCategoryTab('BOTTLES', 0),
-                      const SizedBox(width: 20),
+                      const SizedBox(width: 10),
                       _buildCategoryTab('THEMES', 1),
+                      const SizedBox(width: 10),
+                      _buildCategoryTab('PREMIUM', 2),
                     ],
                   ),
                 ),
@@ -217,21 +309,21 @@ class _ShopScreenState extends State<ShopScreen> {
                           mainAxisSpacing: 20,
                           childAspectRatio: 0.75,
                         ),
-                    itemCount: _items
-                        .where(
-                          (i) => _activeTabIndex == 0
-                              ? i.type == ShopItemType.tubeSkin
-                              : i.type == ShopItemType.theme,
-                        )
-                        .length,
+                    itemCount: _items.where((i) {
+                      if (_activeTabIndex == 0)
+                        return i.type == ShopItemType.tubeSkin;
+                      if (_activeTabIndex == 1)
+                        return i.type == ShopItemType.theme;
+                      return i.type == ShopItemType.iap;
+                    }).length,
                     itemBuilder: (context, index) {
-                      final displayItems = _items
-                          .where(
-                            (i) => _activeTabIndex == 0
-                                ? i.type == ShopItemType.tubeSkin
-                                : i.type == ShopItemType.theme,
-                          )
-                          .toList();
+                      final displayItems = _items.where((i) {
+                        if (_activeTabIndex == 0)
+                          return i.type == ShopItemType.tubeSkin;
+                        if (_activeTabIndex == 1)
+                          return i.type == ShopItemType.theme;
+                        return i.type == ShopItemType.iap;
+                      }).toList();
                       final item = displayItems[index];
                       final isSelected = item.type == ShopItemType.tubeSkin
                           ? _selectedSkinId == item.id
@@ -359,6 +451,35 @@ class _ShopScreenState extends State<ShopScreen> {
                         ),
                       );
                     }
+                    if (item.type == ShopItemType.iap) {
+                      String imagePath = 'assets/icon/premium_coins.png';
+                      Color color = Colors.orangeAccent;
+                      if (item.id == IapService.removeAdsId) {
+                        imagePath = 'assets/icon/premium_no_ads.png';
+                        color = Colors.purpleAccent;
+                      } else if (item.name.contains('Coins')) {
+                        imagePath = 'assets/icon/premium_coins.png';
+                        color = AppColors.goldCoin;
+                      }
+
+                      return Container(
+                        width: 90,
+                        height: 90,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: color.withValues(alpha: 0.5),
+                              blurRadius: 30,
+                              spreadRadius: -5,
+                            ),
+                          ],
+                        ),
+                        child: ClipOval(
+                          child: Image.asset(imagePath, fit: BoxFit.cover),
+                        ),
+                      );
+                    }
 
                     BottleType bType = BottleType.flask;
                     Color bColor = Colors.blue;
@@ -410,14 +531,18 @@ class _ShopScreenState extends State<ShopScreen> {
                       mainAxisSize: MainAxisSize.min,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(
-                          Icons.monetization_on,
-                          color: AppColors.goldCoin,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 6),
+                        if (item.type != ShopItemType.iap)
+                          const Icon(
+                            Icons.monetization_on,
+                            color: AppColors.goldCoin,
+                            size: 16,
+                          ),
+                        if (item.type != ShopItemType.iap)
+                          const SizedBox(width: 6),
                         Text(
-                          item.price.toString(),
+                          item.type == ShopItemType.iap
+                              ? (item.iapPrice ?? '\$0.00')
+                              : item.price.toString(),
                           style: const TextStyle(
                             color: AppColors.goldCoin,
                             fontWeight: FontWeight.bold,

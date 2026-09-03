@@ -6,17 +6,20 @@ class PouringStreamPainter extends CustomPainter {
   final Offset? endPoint;
   final Color color;
   final double animationProgress; // 0.0 to 1.0 (pouring), 1.0 to 2.0 (stopping)
+  final bool isTiltingRight;
 
   PouringStreamPainter({
     required this.startPoint,
     required this.endPoint,
     required this.color,
     required this.animationProgress,
+    this.isTiltingRight = true,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (startPoint == null || endPoint == null || animationProgress == 0) return;
+    if (startPoint == null || endPoint == null || animationProgress == 0)
+      return;
 
     final paint = Paint()
       ..color = color
@@ -33,25 +36,29 @@ class PouringStreamPainter extends CustomPainter {
     // Calculate dynamic points based on animation
     Offset p1 = startPoint!;
     Offset p2 = endPoint!;
-    
-    // Add an arc to make it look like gravity is pulling the liquid down
-    double controlY = math.max(p1.dy, p2.dy) + (p1.dx - p2.dx).abs() * 0.2;
-    Offset controlPoint = Offset((p1.dx + p2.dx) / 2, controlY);
+
+    // Realistic pouring physics using cubic bezier
+    // CP1: Shoots out horizontally from the bottle mouth
+    double shootOffset = isTiltingRight ? 30.0 : -30.0;
+    Offset cp1 = Offset(p1.dx + shootOffset, p1.dy + 5);
+
+    // CP2: Gravity pulls it straight down into the target tube
+    Offset cp2 = Offset(p2.dx, p2.dy - 60);
 
     Path fullPath = Path();
     fullPath.moveTo(p1.dx, p1.dy);
-    fullPath.quadraticBezierTo(controlPoint.dx, controlPoint.dy, p2.dx, p2.dy);
+    fullPath.cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, p2.dx, p2.dy);
 
     // Get path metrics to animate the stream length
     var pathMetrics = fullPath.computeMetrics().toList();
     if (pathMetrics.isEmpty) return;
-    
+
     var metric = pathMetrics.first;
     double totalLength = metric.length;
-    
+
     double currentStart = 0;
     double currentEnd = totalLength;
-    
+
     if (animationProgress <= 1.0) {
       // Pouring down
       currentEnd = totalLength * animationProgress;
@@ -59,37 +66,41 @@ class PouringStreamPainter extends CustomPainter {
       // Stopping (tail catching up)
       currentStart = totalLength * (animationProgress - 1.0);
     }
-    
+
     if (currentStart >= currentEnd) return; // Stream finished
 
     Path animatedPath = metric.extractPath(currentStart, currentEnd);
 
     // Draw main stream
     canvas.drawPath(animatedPath, paint);
-    
+
     // Draw highlight
     canvas.drawPath(animatedPath, highlightPaint);
-    
+
     // Draw splashes at the end point if the stream has reached it
     if (animationProgress > 0.5 && animationProgress < 1.8) {
       _drawSplashes(canvas, p2, color);
     }
   }
-  
+
   void _drawSplashes(Canvas canvas, Offset center, Color color) {
-    final random = math.Random(center.hashCode); // Use consistent random for same splash
-    final paint = Paint()..color = color..style = PaintingStyle.fill;
-    
+    final random = math.Random(
+      center.hashCode,
+    ); // Use consistent random for same splash
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
     for (int i = 0; i < 5; i++) {
       double angle = random.nextDouble() * math.pi; // Top half circle
       double distance = random.nextDouble() * 15 + 5;
       double size = random.nextDouble() * 3 + 1.5;
-      
+
       Offset drop = Offset(
         center.dx + math.cos(angle) * distance,
         center.dy - math.sin(angle) * distance,
       );
-      
+
       canvas.drawCircle(drop, size, paint);
     }
   }
@@ -97,8 +108,9 @@ class PouringStreamPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant PouringStreamPainter oldDelegate) {
     return oldDelegate.startPoint != startPoint ||
-           oldDelegate.endPoint != endPoint ||
-           oldDelegate.animationProgress != animationProgress ||
-           oldDelegate.color != color;
+        oldDelegate.endPoint != endPoint ||
+        oldDelegate.animationProgress != animationProgress ||
+        oldDelegate.color != color ||
+        oldDelegate.isTiltingRight != isTiltingRight;
   }
 }

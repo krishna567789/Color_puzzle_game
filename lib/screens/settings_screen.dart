@@ -124,7 +124,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             }),
             const Spacer(),
             const Text(
-              'Version 1.0.0',
+              'Version 1.1.0',
               style: TextStyle(color: Colors.white24, fontSize: 12),
             ),
             const SizedBox(height: 20),

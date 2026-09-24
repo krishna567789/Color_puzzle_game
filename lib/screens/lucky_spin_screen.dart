@@ -4,7 +4,9 @@ import 'dart:ui' as ui;
 import 'package:color_puzzle_game/core/audio_service.dart';
 import 'package:flutter/material.dart';
 import '../core/app_colors.dart';
+import '../core/progress_service.dart';
 import '../core/storage_service.dart';
+import '../game/rewards.dart';
 import '../widgets/common/coin_animation_overlay.dart';
 import 'package:flutter/services.dart';
 
@@ -31,6 +33,10 @@ class _LuckySpinScreenState extends State<LuckySpinScreen>
 
   bool _isSpinning = false;
   bool _canSpin = true;
+
+  /// Paid re-spins still available today.
+  int _extraSpinsLeft = 0;
+  int _gems = 0;
   double _currentRotation = 0.0;
 
   final List<Reward> _rewards = [
@@ -94,18 +100,51 @@ class _LuckySpinScreenState extends State<LuckySpinScreen>
 
   Future<void> _checkSpinAvailability() async {
     final lastDate = await StorageService.getLastSpinDate();
-    final today = DateTime.now().toIso8601String().split('T')[0];
+    final usedExtraSpins = await StorageService.getDailyCounter(
+      DailyStat.extraSpins,
+    );
+    final gems = await StorageService.getGems();
+    if (!mounted) return;
     setState(() {
-      _canSpin = lastDate != today;
+      _canSpin = lastDate != StorageService.todayKey;
+      _extraSpinsLeft = (SpinReward.extraSpinsPerDay - usedExtraSpins).clamp(
+        0,
+        SpinReward.extraSpinsPerDay,
+      );
+      _gems = gems;
     });
   }
 
-  void _spin() {
-    if (_isSpinning || !_canSpin) return;
+  /// Today's free turn, or a paid one after it.
+  Future<void> _spin() async {
+    if (_isSpinning) return;
 
-    setState(() {
-      _isSpinning = true;
-    });
+    if (_canSpin) {
+      setState(() => _isSpinning = true);
+    } else {
+      if (_extraSpinsLeft <= 0) {
+        AudioService.playErrorSfx();
+        return;
+      }
+      if (!await ProgressService.spend(gems: SpinReward.extraSpinGems)) {
+        AudioService.playErrorSfx();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Not enough gems for an extra spin.'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+        return;
+      }
+      await StorageService.bumpDailyCounters({DailyStat.extraSpins: 1});
+      setState(() {
+        _extraSpinsLeft--;
+        _gems -= SpinReward.extraSpinGems;
+        _isSpinning = true;
+      });
+    }
 
     AudioService.playClickSfx();
 
@@ -137,23 +176,20 @@ class _LuckySpinScreenState extends State<LuckySpinScreen>
 
     // Save reward
     if (reward.value > 0) {
-      if (reward.name.contains('Gem')) {
-        int gems = await StorageService.getGems();
-        await StorageService.saveGems(gems + reward.value);
-      } else {
-        int coins = await StorageService.getCoins();
-        await StorageService.saveCoins(coins + reward.value);
-      }
+      await ProgressService.grant(
+        coins: reward.imageType == 'coin' ? reward.value : 0,
+        gems: reward.imageType == 'gem' ? reward.value : 0,
+      );
     }
 
-    // Save spin date
-    final today = DateTime.now().toIso8601String().split('T')[0];
-    await StorageService.setLastSpinDate(today);
+    // Only the free turn stamps the day; a paid re-spin must not eat tomorrow's.
+    if (_canSpin) {
+      await StorageService.setLastSpinDate(StorageService.todayKey);
+    }
+    await _checkSpinAvailability();
+    if (!mounted) return;
 
-    setState(() {
-      _isSpinning = false;
-      _canSpin = false;
-    });
+    setState(() => _isSpinning = false);
 
     AudioService.playWinSfx();
     _showRewardDialog(context, reward);
@@ -273,181 +309,282 @@ class _LuckySpinScreenState extends State<LuckySpinScreen>
           ),
 
           SafeArea(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    'LUCKY SPIN',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 32,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 4,
-                      shadows: [
-                        Shadow(color: AppColors.primaryButton, blurRadius: 20),
+            child: LayoutBuilder(
+              builder: (context, bounds) {
+                // Everything here used to be a fixed size (a 310dp wheel inside
+                // a 400dp glow), which pushed the spin button off any phone
+                // with less than ~700dp of viewport.
+                const sidePadding = 16.0;
+                // The app bar is drawn over the body, so leave room for the
+                // back button.
+                const topPadding = 44.0;
+                const bottomPadding = 12.0;
+                final availableWidth = bounds.maxWidth - sidePadding * 2;
+                final wheelSize = math
+                    .min(availableWidth * 0.88, bounds.maxHeight * 0.40)
+                    .clamp(160.0, 310.0);
+                final glowSize = wheelSize * 1.29;
+                final gemSize = wheelSize * 0.194;
+                // 310dp was the original wheel diameter, so the pointer keeps
+                // its exact proportions there.
+                final pointerScale = wheelSize / 310;
+                final gap = (bounds.maxHeight * 0.045).clamp(12.0, 44.0);
+
+                // The scroller is the safety net: on a device with larger text
+                // or an unusually short viewport the column simply scrolls
+                // instead of overflowing.
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(
+                    sidePadding,
+                    topPadding,
+                    sidePadding,
+                    bottomPadding,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: bounds.maxHeight - topPadding - bottomPadding,
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          'LUCKY SPIN',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 32,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 4,
+                            shadows: [
+                              Shadow(
+                                color: AppColors.primaryButton,
+                                blurRadius: 20,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'SPIN THE WHEEL & WIN PRIZES!',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        SizedBox(height: gap),
+
+                        // The Wheel
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            // Wheel Outer Glow
+                            Container(
+                              width: glowSize,
+                              height: glowSize,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(
+                                  colors: [
+                                    Colors.purpleAccent.withValues(alpha: 0.3),
+                                    AppColors.primaryButton.withValues(
+                                      alpha: 0.15,
+                                    ),
+                                    Colors.transparent,
+                                  ],
+                                  stops: const [0.3, 0.6, 1.0],
+                                ),
+                              ),
+                            ),
+
+                            // Animated Wheel
+                            AnimatedBuilder(
+                              animation: _animation,
+                              builder: (context, child) {
+                                return Transform.rotate(
+                                  angle: _animation.value,
+                                  child: CustomPaint(
+                                    size: Size(wheelSize, wheelSize),
+                                    painter: WheelPainter(
+                                      rewards: _rewards,
+                                      coinImg: _coinImg,
+                                      gemImg: _gemImg,
+                                      tryAgainImg: _tryAgainImg,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+
+                            // Center Magical Gem
+                            Container(
+                              width: gemSize,
+                              height: gemSize,
+                              decoration: BoxDecoration(
+                                gradient: const RadialGradient(
+                                  colors: [
+                                    Colors.white,
+                                    AppColors.goldCoin,
+                                    Colors.orange,
+                                  ],
+                                  stops: [0.1, 0.6, 1.0],
+                                ),
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.goldCoin.withValues(
+                                      alpha: 0.8,
+                                    ),
+                                    blurRadius: 20,
+                                    spreadRadius: 2,
+                                  ),
+                                  BoxShadow(
+                                    color: Colors.black54,
+                                    blurRadius: 10,
+                                    offset: Offset(0, 4),
+                                  ),
+                                ],
+                                border: Border.all(
+                                  color: Colors.white70,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Center(
+                                child: Icon(
+                                  Icons.star_rounded,
+                                  color: Colors.white,
+                                  size: gemSize * 0.6,
+                                  shadows: const [
+                                    Shadow(
+                                      color: Colors.black38,
+                                      blurRadius: 4,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+
+                            // Golden Pointer
+                            Positioned(
+                              top: -20 * pointerScale,
+                              child: Container(
+                                width: 40 * pointerScale,
+                                height: 50 * pointerScale,
+                                decoration: BoxDecoration(
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.amber.withValues(
+                                        alpha: 0.5,
+                                      ),
+                                      blurRadius: 15,
+                                    ),
+                                  ],
+                                ),
+                                child: CustomPaint(painter: PointerPainter()),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        SizedBox(height: gap),
+
+                        // Spin Button
+                        GestureDetector(
+                          onTap: _isSpinning ? null : _spin,
+                          child: Container(
+                            width: math.min(240.0, bounds.maxWidth - 48),
+                            height: 65,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: _canSpin
+                                    ? [Colors.yellowAccent, Colors.orange]
+                                    : _extraSpinsLeft > 0
+                                    ? [
+                                        Colors.cyanAccent,
+                                        Colors.deepPurpleAccent,
+                                      ]
+                                    : [
+                                        Colors.grey.shade800,
+                                        Colors.grey.shade900,
+                                      ],
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                              ),
+                              borderRadius: BorderRadius.circular(32.5),
+                              border: Border.all(
+                                color: Colors.white.withValues(
+                                  alpha: _canSpin || _extraSpinsLeft > 0
+                                      ? 0.8
+                                      : 0.2,
+                                ),
+                                width: 2,
+                              ),
+                              boxShadow: [
+                                if (_canSpin)
+                                  BoxShadow(
+                                    color: Colors.orange.withValues(alpha: 0.6),
+                                    blurRadius: 25,
+                                    offset: const Offset(0, 8),
+                                  ),
+                              ],
+                            ),
+                            child: Center(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                  ),
+                                  child: Text(
+                                    _canSpin
+                                        ? 'SPIN NOW'
+                                        : _extraSpinsLeft > 0
+                                        ? 'EXTRA SPIN · ${SpinReward.extraSpinGems} '
+                                              'GEMS'
+                                        : 'NEXT SPIN TOMORROW',
+                                    style: TextStyle(
+                                      color: _canSpin || _extraSpinsLeft > 0
+                                          ? Colors.black87
+                                          : Colors.white54,
+                                      fontSize: _canSpin ? 18 : 15,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 1.5,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.diamond,
+                              color: Colors.cyanAccent,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                '$_gems gems · $_extraSpinsLeft of '
+                                '${SpinReward.extraSpinsPerDay} extra spins left',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'SPIN THE WHEEL & WIN PRIZES!',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  const SizedBox(height: 50),
-
-                  // The Wheel
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // Wheel Outer Glow
-                      Container(
-                        width: 400,
-                        height: 400,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              Colors.purpleAccent.withValues(alpha: 0.3),
-                              AppColors.primaryButton.withValues(alpha: 0.15),
-                              Colors.transparent,
-                            ],
-                            stops: const [0.3, 0.6, 1.0],
-                          ),
-                        ),
-                      ),
-
-                      // Animated Wheel
-                      AnimatedBuilder(
-                        animation: _animation,
-                        builder: (context, child) {
-                          return Transform.rotate(
-                            angle: _animation.value,
-                            child: CustomPaint(
-                              size: const Size(310, 310),
-                              painter: WheelPainter(
-                                rewards: _rewards,
-                                coinImg: _coinImg,
-                                gemImg: _gemImg,
-                                tryAgainImg: _tryAgainImg,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-
-                      // Center Magical Gem
-                      Container(
-                        width: 60,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          gradient: const RadialGradient(
-                            colors: [
-                              Colors.white,
-                              AppColors.goldCoin,
-                              Colors.orange,
-                            ],
-                            stops: [0.1, 0.6, 1.0],
-                          ),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.goldCoin.withValues(alpha: 0.8),
-                              blurRadius: 20,
-                              spreadRadius: 2,
-                            ),
-                            BoxShadow(
-                              color: Colors.black54,
-                              blurRadius: 10,
-                              offset: Offset(0, 4),
-                            ),
-                          ],
-                          border: Border.all(color: Colors.white70, width: 2),
-                        ),
-                        child: const Center(
-                          child: Icon(
-                            Icons.star_rounded,
-                            color: Colors.white,
-                            size: 36,
-                            shadows: [
-                              Shadow(color: Colors.black38, blurRadius: 4),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      // Golden Pointer
-                      Positioned(
-                        top: -20,
-                        child: Container(
-                          width: 40,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.amber.withValues(alpha: 0.5),
-                                blurRadius: 15,
-                              ),
-                            ],
-                          ),
-                          child: CustomPaint(painter: PointerPainter()),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 70),
-
-                  // Spin Button
-                  GestureDetector(
-                    onTap: _spin,
-                    child: Container(
-                      width: 240,
-                      height: 65,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: _canSpin
-                              ? [Colors.yellowAccent, Colors.orange]
-                              : [Colors.grey.shade800, Colors.grey.shade900],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                        ),
-                        borderRadius: BorderRadius.circular(35),
-                        border: Border.all(
-                          color: Colors.white.withValues(
-                            alpha: _canSpin ? 0.8 : 0.2,
-                          ),
-                          width: 2,
-                        ),
-                        boxShadow: [
-                          if (_canSpin)
-                            BoxShadow(
-                              color: Colors.orange.withValues(alpha: 0.6),
-                              blurRadius: 25,
-                              offset: const Offset(0, 8),
-                            ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          _canSpin ? 'SPIN NOW' : 'NEXT SPIN TOMORROW',
-                          style: TextStyle(
-                            color: _canSpin ? Colors.black87 : Colors.white54,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                );
+              },
             ),
           ),
         ],
@@ -519,13 +656,11 @@ class WheelPainter extends CustomPainter {
       canvas.rotate(i * arcAngle - math.pi / 2 + arcAngle / 2);
 
       // Draw Icon Image
-      ui.Image? img;
-      if (rewards[i].imageType == 'coin')
-        img = coinImg;
-      else if (rewards[i].imageType == 'gem')
-        img = gemImg;
-      else
-        img = tryAgainImg;
+      final ui.Image? img = switch (rewards[i].imageType) {
+        'coin' => coinImg,
+        'gem' => gemImg,
+        _ => tryAgainImg,
+      };
 
       if (img != null) {
         // Draw the image perfectly centered on the slice axis

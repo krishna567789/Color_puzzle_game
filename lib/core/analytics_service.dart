@@ -28,9 +28,46 @@ class AnalyticsService {
     });
   }
 
-  static Future<void> logPowerUpUsed(String powerUpType) async {
+  static Future<void> logPowerUpUsed(String powerUpType, {
+    bool adFunded = false,
+  }) async {
     await logEvent('power_up_used', parameters: {
       'type': powerUpType,
+      'funded_by': adFunded ? 'rewarded_ad' : 'coins',
     });
+  }
+
+  static Future<void> logAdImpression(String adFormat) async {
+    await logEvent('ad_impression', parameters: {'ad_format': adFormat});
+  }
+
+  static Future<void> logAdRewarded(String adFormat) async {
+    await logEvent('ad_reward_earned', parameters: {'ad_format': adFormat});
+  }
+
+  static Future<void> logAdFailedToLoad(String adFormat) async {
+    await logEvent('ad_failed_to_load', parameters: {'ad_format': adFormat});
+  }
+
+  static Future<void> logShopOpened() async {
+    await logEvent('shop_open');
+  }
+
+  static Future<void> logPurchase({
+    required String productId,
+    required String source,
+  }) async {
+    await logEvent('iap_purchase', parameters: {
+      'product_id': productId,
+      'source': source,
+    });
+  }
+
+  static Future<void> logPurchaseFailed(String reason) async {
+    await logEvent('iap_purchase_failed', parameters: {'reason': reason});
+  }
+
+  static Future<void> logAdsRemoved() async {
+    await logEvent('ads_removed');
   }
 }

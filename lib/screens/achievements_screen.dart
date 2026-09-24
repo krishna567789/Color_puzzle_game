@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../core/app_colors.dart';
+import '../core/progress_service.dart';
 import '../core/storage_service.dart';
 import '../models/achievement_model.dart';
 import '../core/audio_service.dart';
@@ -15,8 +16,6 @@ class AchievementsScreen extends StatefulWidget {
 
 class _AchievementsScreenState extends State<AchievementsScreen> {
   List<Achievement> _achievements = [];
-  int _coins = 0;
-  int _gems = 0;
 
   @override
   void initState() {
@@ -26,8 +25,6 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
 
   Future<void> _loadData() async {
     final totalWon = await StorageService.getTotalLevelsWon();
-    final coins = await StorageService.getCoins();
-    final gems = await StorageService.getGems();
 
     // Define achievement templates
     List<Achievement> templates = [
@@ -43,24 +40,23 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
         title: 'Amateur',
         description: 'Win 10 levels',
         goal: 10,
-        rewardCoins: 500,
-        rewardGems: 1,
+        rewardCoins: 250,
       ),
       Achievement(
         id: 'win_50',
         title: 'Professional',
         description: 'Win 50 levels',
         goal: 50,
-        rewardCoins: 2000,
-        rewardGems: 5,
+        rewardCoins: 800,
+        rewardGems: 3,
       ),
       Achievement(
         id: 'win_100',
         title: 'Grandmaster',
         description: 'Win 100 levels',
         goal: 100,
-        rewardCoins: 5000,
-        rewardGems: 10,
+        rewardCoins: 1500,
+        rewardGems: 5,
       ),
     ];
 
@@ -75,33 +71,29 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
 
     setState(() {
       _achievements = loaded;
-      _coins = coins;
-      _gems = gems;
     });
   }
 
   Future<void> _claimReward(BuildContext buttonContext, Achievement achievement) async {
     if (achievement.isClaimed || !achievement.isCompleted) return;
-
-    setState(() {
-      achievement.isClaimed = true;
-      _coins += achievement.rewardCoins;
-      _gems += achievement.rewardGems;
-    });
-
-    await StorageService.saveCoins(_coins);
-    await StorageService.saveGems(_gems);
-    await StorageService.saveAchievementProgress(
-      achievement.id,
-      true,
-      achievement.currentProgress,
+    // The claim is stamped before anything is paid, and paid out of the wallet
+    // as it is at that moment, so a double tap cannot pay twice.
+    if (!await StorageService.claimAchievement(achievement.id)) return;
+    achievement.isClaimed = true;
+    await ProgressService.grant(
+      coins: achievement.rewardCoins,
+      gems: achievement.rewardGems,
     );
+    if (!mounted) return;
+    setState(() {});
 
     AudioService.playWinSfx();
     
     if (achievement.rewardCoins > 0) {
+      if (!buttonContext.mounted) return;
       final renderBox = buttonContext.findRenderObject() as RenderBox?;
-      Offset startOffset = Offset(MediaQuery.of(context).size.width / 2, MediaQuery.of(context).size.height / 2);
+      final media = MediaQuery.of(context).size;
+      Offset startOffset = Offset(media.width / 2, media.height / 2);
       if (renderBox != null) {
         final pos = renderBox.localToGlobal(Offset.zero);
         final size = renderBox.size;

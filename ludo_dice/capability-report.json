@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "profile": "qoder-glb-safe",
+  "status": "complete",
+  "capabilities": [
+    {
+      "id": "artifact.glb.create",
+      "status": "implemented",
+      "evidence": [
+        "revision:1"
+      ]
+    },
+    {
+      "id": "transaction.dry-run",
+      "status": "implemented",
+      "evidence": [
+        "lifecycle:createModelBundle"
+      ]
+    },
+    {
+      "id": "transaction.expected-state",
+      "status": "implemented",
+      "evidence": [
+        "state:sha256:14cde4e1089ea0e54f692da3da3ff50659291a9560551ef5efe1714ceb1e9bd7"
+      ]
+    },
+    {
+      "id": "project.sidecar",
+      "status": "implemented",
+      "evidence": [
+        "revision:1"
+      ]
+    },
+    {
+      "id": "validation.khronos",
+      "status": "implemented",
+      "evidence": [
+        "profile:qoder-glb-safe"
+      ]
+    },
+    {
+      "id": "validation.spatial-envelope",
+      "status": "implemented",
+      "evidence": [
+        "preflight:world-bounds"
+      ]
+    },
+    {
+      "id": "geometry.primitive.beveled-box",
+      "status": "implemented",
+      "evidence": [
+        "feature:die.body.feature"
+      ]
+    },
+    {
+      "id": "geometry.primitive.cylinder",
+      "status": "implemented",
+      "evidence": [
+        "feature:pip.disc.feature"
+      ]
+    },
+    {
+      "id": "geometry.axis",
+      "status": "implemented",
+      "evidence": [
+        "feature:pip.disc.feature:y"
+      ]
+    },
+    {
+      "id": "node.hierarchy.create",
+      "status": "implemented",
+      "evidence": [
+        "occurrence:ludo.die.body",
+        "occurrence:ludo.die.pip.f1.0",
+        "occurrence:ludo.die.pip.f6.0",
+        "occurrence:ludo.die.pip.f6.1",
+        "occurrence:ludo.die.pip.f6.2",
+        "occurrence:ludo.die.pip.f6.3",
+        "occurrence:ludo.die.pip.f6.4",
+        "occurrence:ludo.die.pip.f6.5",
+        "occurrence:ludo.die.pip.f3.0",
+        "occurrence:ludo.die.pip.f3.1",
+        "occurrence:ludo.die.pip.f3.2",
+        "occurrence:ludo.die.pip.f4.0",
+        "occurrence:ludo.die.pip.f4.1",
+        "occurrence:ludo.die.pip.f4.2",
+        "occurrence:ludo.die.pip.f4.3",
+        "occurrence:ludo.die.pip.f2.0",
+        "occurrence:ludo.die.pip.f2.1",
+        "occurrence:ludo.die.pip.f5.0",
+        "occurrence:ludo.die.pip.f5.1",
+        "occurrence:ludo.die.pip.f5.2"
+      ]
+    },
+    {
+      "id": "geometry.edit",
+      "status": "unsupported",
+      "evidence": [
+        "profile:qoder-glb-safe"
+      ]
+    },
+    {
+      "id": "animation.edit",
+      "status": "unsupported",
+      "evidence": [
+        "profile:qoder-glb-safe"
+      ]
+    },
+    {
+      "id": "texture.import",
+      "status": "unsupported",
+      "evidence": [
+        "profile:qoder-glb-safe"
+      ]
+    }
+  ]
+}

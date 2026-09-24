@@ -77,13 +77,12 @@ class _AnimatedCoin extends StatefulWidget {
   final VoidCallback onComplete;
 
   const _AnimatedCoin({
-    Key? key,
     required this.startOffset,
     required this.explodeOffset,
     required this.endOffset,
     required this.delay,
     required this.onComplete,
-  }) : super(key: key);
+  });
 
   @override
   State<_AnimatedCoin> createState() => _AnimatedCoinState();
@@ -94,7 +93,6 @@ class _AnimatedCoinState extends State<_AnimatedCoin> with TickerProviderStateMi
   late AnimationController _flyController;
   late Animation<Offset> _explodeAnimation;
   late Animation<Offset> _flyAnimation;
-  late Animation<double> _scaleAnimation;
 
   bool _isExploding = false;
   bool _isFlying = false;
@@ -122,11 +120,6 @@ class _AnimatedCoinState extends State<_AnimatedCoin> with TickerProviderStateMi
       begin: widget.explodeOffset,
       end: widget.endOffset,
     ).animate(CurvedAnimation(parent: _flyController, curve: Curves.easeInOutCubic));
-
-    _scaleAnimation = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.2), weight: 30),
-      TweenSequenceItem(tween: Tween(begin: 1.2, end: 1.0), weight: 70),
-    ]).animate(CurvedAnimation(parent: _flyController, curve: Curves.linear));
 
     _startAnimation();
   }

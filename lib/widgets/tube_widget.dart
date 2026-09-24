@@ -6,12 +6,9 @@ class TubeWidget extends StatefulWidget {
   final Tube tube;
   final bool isSelected;
   final bool isShaking;
-  final bool isReceiving;
   final double tiltAngle;
   final Offset offset;
   final VoidCallback onTap;
-  final Color? pouringColor;
-  final Offset? targetOffset;
   final String skinId;
   final bool isHinted;
   final double scale;
@@ -21,12 +18,9 @@ class TubeWidget extends StatefulWidget {
     required this.tube,
     required this.isSelected,
     required this.isShaking,
-    this.isReceiving = false,
     this.tiltAngle = 0.0,
     this.offset = Offset.zero,
     required this.onTap,
-    this.pouringColor,
-    this.targetOffset,
     this.skinId = 'default_tube',
     this.isHinted = false,
     this.scale = 1.0,
@@ -38,16 +32,12 @@ class TubeWidget extends StatefulWidget {
 
 class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
   late AnimationController _shakeController;
-  late AnimationController _splashController;
   late AnimationController _capController;
-  late AnimationController _streamController;
   late AnimationController _waveController;
   late AnimationController _glowController;
 
   late Animation<double> _shakeAnimation;
   late Animation<double> _capDropAnimation;
-  double _lastTiltAngle = 0.0;
-  Offset? _lastTargetOffset;
   bool _wasSolved = false;
 
   @override
@@ -58,25 +48,18 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
       vsync: this,
     );
 
-    _splashController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    );
-
     _capController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
     );
 
-    _streamController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    );
-
+    // Only the loose surface and the drifting bubbles move, so a tube that is
+    // empty or already packed stops ticking instead of burning a frame budget.
     _waveController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
-    )..repeat();
+    );
+    if (_surfaceIsLoose(widget.tube)) _waveController.repeat();
 
     _glowController = AnimationController(
       vsync: this,
@@ -109,17 +92,22 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
         tube.colors.every((c) => c == tube.colors.first);
   }
 
+  /// True while the liquid has an open top to ripple: a full tube paints a flat
+  /// column and an empty one paints nothing.
+  bool _surfaceIsLoose(Tube tube) =>
+      tube.colors.isNotEmpty && tube.colors.length < tube.capacity;
+
   @override
   void didUpdateWidget(covariant TubeWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.isShaking && !oldWidget.isShaking) {
       _shakeController.forward(from: 0.0);
     }
-    if (widget.isReceiving && !oldWidget.isReceiving) {
-      _splashController.repeat();
-    } else if (!widget.isReceiving && oldWidget.isReceiving) {
-      _splashController.stop();
-      _splashController.reset();
+
+    if (_surfaceIsLoose(widget.tube)) {
+      if (!_waveController.isAnimating) _waveController.repeat();
+    } else if (_waveController.isAnimating) {
+      _waveController.stop();
     }
 
     bool isSolved = _isSolved(widget.tube);
@@ -131,31 +119,12 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
       _glowController.reset();
     }
     _wasSolved = isSolved;
-
-    bool isPouringOld = oldWidget.tiltAngle != 0.0;
-    bool isPouringNew = widget.tiltAngle != 0.0;
-
-    if (!isPouringOld && isPouringNew) {
-      Future.delayed(const Duration(milliseconds: 200), () {
-        if (mounted && widget.tiltAngle != 0.0) {
-          _streamController.forward(from: 0.0);
-        }
-      });
-    } else if (isPouringOld && !isPouringNew) {
-      _streamController
-          .animateTo(2.0, duration: const Duration(milliseconds: 200))
-          .then((_) {
-            if (mounted) _streamController.value = 0.0;
-          });
-    }
   }
 
   @override
   void dispose() {
     _shakeController.dispose();
-    _splashController.dispose();
     _capController.dispose();
-    _streamController.dispose();
     _waveController.dispose();
     _glowController.dispose();
     super.dispose();
@@ -168,10 +137,7 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
       child: AnimatedBuilder(
         animation: Listenable.merge([
           _shakeController,
-          _splashController,
           _capController,
-          _streamController,
-          _waveController,
           _glowController,
         ]),
         builder: (context, child) {
@@ -181,12 +147,6 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
           double yOffset = (widget.isSelected ? -30.0 : 0) * scale;
 
           bool isPouring = widget.tiltAngle != 0.0;
-          if (isPouring) {
-            _lastTiltAngle = widget.tiltAngle;
-            if (widget.targetOffset != null) {
-              _lastTargetOffset = widget.targetOffset;
-            }
-          }
           double pourX = isPouring ? widget.offset.dx : 0;
           double pourY = isPouring ? widget.offset.dy : 0;
 
@@ -197,7 +157,7 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
                 duration: const Duration(milliseconds: 400),
                 curve: Curves.easeInOut,
                 transform: Matrix4.identity()
-                  ..translate(xOffset + pourX, yOffset + pourY)
+                  ..translateByDouble(xOffset + pourX, yOffset + pourY, 0, 1)
                   ..rotateZ(widget.tiltAngle),
                 transformAlignment: Alignment.topCenter,
                 child: SizedBox(
@@ -225,7 +185,7 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
                                     boxShadow: [
                                       BoxShadow(
                                         color: widget.tube.colors.isNotEmpty 
-                                            ? widget.tube.colors.first.withOpacity(0.8)
+                                            ? widget.tube.colors.first.withValues(alpha: 0.8)
                                             : Colors.white,
                                         blurRadius: 20 * scale,
                                         spreadRadius: 10 * scale,
@@ -236,28 +196,21 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
                               ),
                             ),
 
-                          // Tube Background
-                          Image.asset(
-                            'assets/blender/bottol.png',
-                            width: 55,
-                            height: 160,
-                            color: Colors.white.withOpacity(0.1),
-                            colorBlendMode: BlendMode.modulate,
-                          ),
-
-                          // Liquid Inside
+                          // Liquid Inside. The wave listens to its own
+                          // controller, so a ripple repaints this one layer
+                          // instead of rebuilding every tube each frame.
                           Positioned(
                             bottom: 4,
                             child: ClipPath(
                               clipper: BottleClipper(),
-                              child: CustomPaint(
-                                size: const Size(51, 144),
-                                painter: LiquidSegmentPainter(
-                                  colors: widget.tube.colors,
-                                  fillHeight: widget.tube.colors.length * (144.0 / 4),
-                                  animationValue: 1.0,
-                                  hiddenCount: widget.tube.hiddenCount,
-                                  wavePhase: _waveController.value * 2 * math.pi,
+                              child: RepaintBoundary(
+                                child: CustomPaint(
+                                  size: const Size(51, 144),
+                                  painter: LiquidSegmentPainter(
+                                    colors: widget.tube.colors,
+                                    hiddenCount: widget.tube.hiddenCount,
+                                    wave: _waveController,
+                                  ),
                                 ),
                               ),
                             ),
@@ -340,18 +293,18 @@ class BottlePainter extends CustomPainter {
         begin: Alignment.centerLeft,
         end: Alignment.centerRight,
         colors: [
-          Colors.white.withOpacity(0.5),
-          Colors.white.withOpacity(0.1),
+          Colors.white.withValues(alpha: 0.5),
+          Colors.white.withValues(alpha: 0.1),
           Colors.transparent,
-          Colors.white.withOpacity(0.05),
-          Colors.white.withOpacity(0.3),
+          Colors.white.withValues(alpha: 0.05),
+          Colors.white.withValues(alpha: 0.3),
         ],
         stops: const [0.0, 0.15, 0.5, 0.85, 1.0],
       ).createShader(rect)
       ..style = PaintingStyle.fill;
 
     final borderPaint = Paint()
-      ..color = isSelected ? Colors.white : Colors.white.withOpacity(0.4)
+      ..color = isSelected ? Colors.white : Colors.white.withValues(alpha: 0.4)
       ..style = PaintingStyle.stroke
       ..strokeWidth = skinId == 'neon_tube' ? 4.0 : 2.0
       ..strokeCap = StrokeCap.round
@@ -363,7 +316,7 @@ class BottlePainter extends CustomPainter {
       Color glowColor = isHinted ? Colors.amberAccent : _getGlowColor();
       canvas.drawShadow(
         path,
-        glowColor.withOpacity(0.6),
+        glowColor.withValues(alpha: 0.6),
         (isSelected || isHinted) ? 12 : 6,
         true,
       );
@@ -380,9 +333,9 @@ class BottlePainter extends CustomPainter {
     final neckRimPaint = Paint()
       ..shader = LinearGradient(
         colors: [
-          Colors.white.withOpacity(0.9),
-          Colors.white.withOpacity(0.4),
-          Colors.white.withOpacity(0.8),
+          Colors.white.withValues(alpha: 0.9),
+          Colors.white.withValues(alpha: 0.4),
+          Colors.white.withValues(alpha: 0.8),
         ],
       ).createShader(rect)
       ..style = PaintingStyle.stroke
@@ -398,41 +351,6 @@ class BottlePainter extends CustomPainter {
     );
   }
 
-  Color _getGlassColor() {
-    switch (skinId) {
-      case 'neon_tube':
-        return Colors.purpleAccent;
-      case 'crystal_bottle':
-        return Colors.blueAccent;
-      case 'wooden_tube':
-        return Colors.brown;
-      default:
-        return Colors.cyanAccent;
-    }
-  }
-
-  Color _getBorderColor() {
-    switch (skinId) {
-      case 'neon_tube':
-        return Colors.purpleAccent.withOpacity(0.6);
-      case 'wooden_tube':
-        return Colors.brown[400]!;
-      default:
-        return Colors.white.withOpacity(0.5);
-    }
-  }
-
-  Color _getSelectedBorderColor() {
-    switch (skinId) {
-      case 'neon_tube':
-        return Colors.white;
-      case 'wooden_tube':
-        return Colors.orangeAccent;
-      default:
-        return Colors.white;
-    }
-  }
-
   Color _getGlowColor() {
     switch (skinId) {
       case 'neon_tube':
@@ -446,7 +364,7 @@ class BottlePainter extends CustomPainter {
 
   void _drawCrystalFacets(Canvas canvas, Size size) {
     final facetPaint = Paint()
-      ..color = Colors.white.withOpacity(0.1)
+      ..color = Colors.white.withValues(alpha: 0.1)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
     canvas.drawLine(
@@ -506,7 +424,7 @@ class BottleHighlightPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = Colors.white
-          .withOpacity(0.6) // Stronger white highlight
+          .withValues(alpha: 0.6) // Stronger white highlight
       ..style = PaintingStyle.fill;
 
     // Highlight on the neck
@@ -559,7 +477,7 @@ class CorkCapPainter extends CustomPainter {
 
     // 2. Inner shadow/texture at the bottom
     final shadow = Paint()
-      ..color = Colors.black.withOpacity(0.2)
+      ..color = Colors.black.withValues(alpha: 0.2)
       ..style = PaintingStyle.fill;
     canvas.drawRRect(
       RRect.fromRectAndRadius(
@@ -571,7 +489,7 @@ class CorkCapPainter extends CustomPainter {
 
     // 3. Wood grain details (small lines)
     final grainPaint = Paint()
-      ..color = Colors.brown.withOpacity(0.3)
+      ..color = Colors.brown.withValues(alpha: 0.3)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
 
@@ -598,68 +516,96 @@ class CorkCapPainter extends CustomPainter {
 
 class LiquidSegmentPainter extends CustomPainter {
   final List<Color> colors;
-  final double fillHeight;
-  final double animationValue;
   final int hiddenCount;
-  final double wavePhase;
+  final Animation<double> wave;
 
   LiquidSegmentPainter({
     required this.colors,
-    required this.fillHeight,
-    required this.animationValue,
-    this.hiddenCount = 0,
-    this.wavePhase = 0.0,
-  });
+    required this.hiddenCount,
+    required this.wave,
+  }) : super(repaint: wave);
+
+  static const double _height = 144;
+  static const double _segmentHeight = _height / 4;
+
+  /// Standing bubble layout per layer: horizontal position as a fraction of the
+  /// bottle, radius and rise speed. Deterministic, so nothing has to be drawn
+  /// from a fresh random sequence on every frame.
+  static const List<(double, double, double)> _bubbleSlots = [
+    (0.24, 1.6, 1.0),
+    (0.63, 1.1, 1.7),
+    (0.42, 1.9, 1.25),
+    (0.78, 1.3, 1.5),
+  ];
+
+  static TextPainter? _mysteryMarker;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (colors.isEmpty) return;
 
-    final double segmentHeight = size.height / 4;
-    final double totalHeight = colors.length * segmentHeight;
-    final double startY = size.height - totalHeight;
+    final phase = wave.value * 2 * math.pi;
+    final bubblePaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.3)
+      ..style = PaintingStyle.fill;
 
     for (int i = 0; i < colors.length; i++) {
-      bool isHidden = i < hiddenCount;
-      Color segmentColor = isHidden ? Colors.grey.shade400 : colors[i];
-      
-      final double topY = size.height - ((i + 1) * segmentHeight);
-      
-      // Draw wavy top only for the uppermost segment
+      final bool isHidden = i < hiddenCount;
+      final Color segmentColor = isHidden ? Colors.grey.shade400 : colors[i];
+      final double topY = size.height - ((i + 1) * _segmentHeight);
+      final paint = Paint()
+        ..color = segmentColor
+        ..style = PaintingStyle.fill;
+
+      // Only the uppermost loose segment ripples; a packed tube reads as still.
       if (i == colors.length - 1 && colors.length < 4) {
-        Path path = Path();
-        path.moveTo(0, topY + segmentHeight); // Bottom left
-        path.lineTo(size.width, topY + segmentHeight); // Bottom right
-        
-        // Wavy top edge
+        final path = Path()
+          ..moveTo(0, topY + _segmentHeight)
+          ..lineTo(size.width, topY + _segmentHeight);
         for (double x = size.width; x >= 0; x -= 2) {
-          double waveHeight = 2.0; // small wave
-          double y = topY + math.sin((x / size.width) * math.pi * 2 + wavePhase) * waveHeight;
-          path.lineTo(x, y);
+          path.lineTo(
+            x,
+            topY +
+                math.sin((x / size.width) * math.pi * 2 + phase) * 2.0,
+          );
         }
         path.close();
-        
-        final paint = Paint()
-          ..color = segmentColor
-          ..style = PaintingStyle.fill;
         canvas.drawPath(path, paint);
       } else {
-        // Normal flat segment
-        final rect = Rect.fromLTWH(0, topY, size.width, segmentHeight);
-        final paint = Paint()
-          ..color = segmentColor
-          ..style = PaintingStyle.fill;
-        canvas.drawRect(rect, paint);
-      }
-      
-      // Draw bubbles inside the liquid
-      if (!isHidden) {
-        _drawBubbles(canvas, size, topY, segmentHeight, segmentColor, i);
+        canvas.drawRect(
+          Rect.fromLTWH(0, topY, size.width, _segmentHeight),
+          paint,
+        );
       }
 
-      // Draw Mystery '?' Marker
       if (isHidden) {
-        final textPainter = TextPainter(
+        _paintMysteryMarker(canvas, size, topY);
+      } else {
+        _drawBubbles(canvas, size, topY, bubblePaint, i, phase);
+      }
+    }
+  }
+
+  void _drawBubbles(
+    Canvas canvas,
+    Size size,
+    double topY,
+    Paint paint,
+    int layerIndex,
+    double phase,
+  ) {
+    for (int j = 0; j < 3; j++) {
+      final (unitX, radius, speed) = _bubbleSlots[(layerIndex + j) % _bubbleSlots.length];
+      final rise = (phase * speed * 15) % _segmentHeight;
+      final x = unitX * size.width + math.sin(phase * 2 + j) * 2;
+      final y = (topY + _segmentHeight) - rise;
+      canvas.drawCircle(Offset(x, y), radius, paint);
+    }
+  }
+
+  void _paintMysteryMarker(Canvas canvas, Size size, double topY) {
+    final marker =
+        _mysteryMarker ??= TextPainter(
           text: const TextSpan(
             text: '?',
             style: TextStyle(
@@ -669,48 +615,20 @@ class LiquidSegmentPainter extends CustomPainter {
             ),
           ),
           textDirection: TextDirection.ltr,
-        );
-        textPainter.layout();
-        textPainter.paint(
-          canvas,
-          Offset(
-            (size.width - textPainter.width) / 2,
-            topY + (segmentHeight - textPainter.height) / 2,
-          ),
-        );
-      }
-    }
-  }
-  
-  void _drawBubbles(Canvas canvas, Size size, double topY, double height, Color color, int layerIndex) {
-    final random = math.Random(color.value + layerIndex);
-    final paint = Paint()
-      ..color = Colors.white.withOpacity(0.3)
-      ..style = PaintingStyle.fill;
-      
-    int bubbleCount = random.nextInt(3) + 2;
-    
-    for (int j = 0; j < bubbleCount; j++) {
-      double startX = random.nextDouble() * size.width;
-      double speed = random.nextDouble() * 1.5 + 0.5;
-      double yOffset = (wavePhase * speed * 15) % height;
-      
-      double bY = (topY + height) - yOffset;
-      double bX = startX + math.sin(wavePhase * 2 + j) * 2;
-      
-      double radius = random.nextDouble() * 2 + 1;
-      
-      canvas.drawCircle(Offset(bX, bY), radius, paint);
-    }
+        )..layout();
+    marker.paint(
+      canvas,
+      Offset(
+        (size.width - marker.width) / 2,
+        topY + (_segmentHeight - marker.height) / 2,
+      ),
+    );
   }
 
   @override
   bool shouldRepaint(covariant LiquidSegmentPainter oldDelegate) {
     return oldDelegate.colors != colors ||
-        oldDelegate.fillHeight != fillHeight ||
-        oldDelegate.animationValue != animationValue ||
-        oldDelegate.hiddenCount != hiddenCount ||
-        oldDelegate.wavePhase != wavePhase;
+        oldDelegate.hiddenCount != hiddenCount;
   }
 }
 
@@ -724,7 +642,7 @@ class MagicDustPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final random = math.Random(42);
     final paint = Paint()
-      ..color = color.withOpacity(1.0 - progress)
+      ..color = color.withValues(alpha: 1.0 - progress)
       ..style = PaintingStyle.fill;
 
     for (int i = 0; i < 15; i++) {

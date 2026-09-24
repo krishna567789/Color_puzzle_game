@@ -7,11 +7,15 @@ class PlayGamesService {
   static bool get isSignedIn => _isSignedIn;
 
   static Future<void> init() async {
+    // Deliberately not `signIn()`: on a device with no Google account (or a
+    // player who has never opted in) that call raises the system add-account
+    // screen on top of the splash, which is the first thing a new player sees.
+    // Reading the existing state is silent, and Settings has an explicit sign-in
+    // button for players who want cloud saves, scores and achievements.
     try {
-      await GamesServices.signIn();
       _isSignedIn = await GamesServices.isSignedIn;
     } catch (e) {
-      debugPrint("Play Games silent sign-in failed: $e");
+      debugPrint('Play Games sign-in state unavailable: $e');
     }
   }
 

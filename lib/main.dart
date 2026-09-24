@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 
+import 'core/app_theme.dart';
 import 'core/storage_service.dart';
 import 'core/audio_service.dart';
 import 'core/ad_manager.dart';
@@ -11,13 +13,22 @@ import 'screens/splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Every layout in this game is composed for a portrait phone.
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
   await Firebase.initializeApp();
   await StorageService.init();
-  await AudioService.init();
-  await AdManager.init();
-  await PlayGamesService.init();
-  await IapService.init();
-  await HapticService.init();
+  // These talk to separate SDKs and none of them depend on each other, so a
+  // slow Play Games / store handshake should not add to splash time.
+  await Future.wait([
+    AudioService.init(),
+    AdManager.init(),
+    PlayGamesService.init(),
+    IapService.init(),
+    HapticService.init(),
+  ]);
   runApp(const ColorPuzzleGameApp());
 }
 
@@ -58,11 +69,7 @@ class _ColorPuzzleGameAppState extends State<ColorPuzzleGameApp>
     return MaterialApp(
       title: 'Color Flow',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.purpleAccent),
-        useMaterial3: true,
-        fontFamily: 'Roboto',
-      ),
+      theme: AppTheme.dark,
       home: const SplashScreen(),
     );
   }

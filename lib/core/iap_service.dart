@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'analytics_service.dart';
 import 'storage_service.dart';
 import 'ad_manager.dart';
 
@@ -39,13 +40,13 @@ class IapService {
   }
 
   static Future<void> _loadProducts() async {
-    const Set<String> _kIds = <String>{
+    const Set<String> productIds = <String>{
       removeAdsId,
       buyCoins1000Id,
       buyCoins500Id,
     };
     final ProductDetailsResponse response = await _inAppPurchase
-        .queryProductDetails(_kIds);
+        .queryProductDetails(productIds);
     if (response.notFoundIDs.isNotEmpty) {
       debugPrint('Products not found: ${response.notFoundIDs}');
     }
@@ -84,10 +85,17 @@ class IapService {
         // Show pending UI if necessary
       } else {
         if (purchaseDetails.status == PurchaseStatus.error) {
-          debugPrint('Purchase error: ${purchaseDetails.error}');
-        } else if (purchaseDetails.status == PurchaseStatus.purchased ||
-            purchaseDetails.status == PurchaseStatus.restored) {
+          AnalyticsService.logPurchaseFailed(
+            purchaseDetails.error?.message ?? 'unknown',
+          );
+        } else if (purchaseDetails.status == PurchaseStatus.purchased) {
           _deliverProduct(purchaseDetails);
+        } else if (purchaseDetails.status == PurchaseStatus.restored) {
+          // Only the non-consumable entitlement may be re-granted on a
+          // restore; crediting consumables again would mint free coins.
+          if (purchaseDetails.productID == removeAdsId) {
+            _deliverProduct(purchaseDetails);
+          }
         }
         if (purchaseDetails.pendingCompletePurchase) {
           _inAppPurchase.completePurchase(purchaseDetails);
@@ -98,21 +106,28 @@ class IapService {
 
   static Future<void> _deliverProduct(PurchaseDetails purchaseDetails) async {
     final productId = purchaseDetails.productID;
+    final purchaseId = purchaseDetails.purchaseID ?? productId;
+    if (!await StorageService.markPurchaseDelivered(purchaseId)) return;
 
     if (productId == removeAdsId) {
       await StorageService.setHasRemovedAds(true);
 
       AdManager.updateHasRemovedAds(true);
+      AnalyticsService.logAdsRemoved();
+      AnalyticsService.logPurchase(productId: productId, source: 'iap');
 
       debugPrint('Ads removed successfully.');
     } else if (productId == buyCoins1000Id) {
-      int currentCoins = await StorageService.getCoins();
-      await StorageService.saveCoins(currentCoins + 1000);
-      debugPrint('1000 coins added.');
+      await _addCoins(1000, productId);
     } else if (productId == buyCoins500Id) {
-      int currentCoins = await StorageService.getCoins();
-      await StorageService.saveCoins(currentCoins + 500);
-      debugPrint('500 coins added.');
+      await _addCoins(500, productId);
     }
+  }
+
+  static Future<void> _addCoins(int amount, String productId) async {
+    final currentCoins = await StorageService.getCoins();
+    await StorageService.saveCoins(currentCoins + amount);
+    AnalyticsService.logPurchase(productId: productId, source: 'iap');
+    debugPrint('$amount coins added.');
   }
 }

@@ -1,15 +1,24 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../game/level_design.dart';
+import '../game/rewards.dart';
+import '../game/water_sort_solver.dart';
 import '../models/tube_model.dart';
+import '../core/ad_manager.dart';
+import '../core/event_service.dart';
+import '../core/progress_service.dart';
 import '../core/storage_service.dart';
 import '../core/audio_service.dart';
+import '../core/cloud_save_service.dart';
 import '../core/haptic_service.dart';
 import '../core/review_service.dart';
 import '../core/play_games_service.dart';
 import '../core/analytics_service.dart';
 
 enum GameMode { classic, challenge, timeAttack, daily }
+
+enum PowerUp { undo, hint, shuffle, addTube }
 
 class HintMove {
   const HintMove({required this.fromIndex, required this.toIndex});
@@ -18,6 +27,37 @@ class HintMove {
 }
 
 class GameController extends ChangeNotifier {
+  static const int undoCost = 50;
+  static const int hintCost = 50;
+  static const int shuffleCost = 50;
+  static const int extraTubeCost = 100;
+  static const int extraChanceCost = 50;
+  static const int maxExtraChances = 3;
+
+  /// Ceiling for the solvability check at level start. Going higher only buys a
+  /// more exact solution length on boards that are already winnable by
+  /// construction, and that pause is visible on screen.
+  static const int solveNodeBudget = 12000;
+
+  /// Up to this many colours a breadth-first search answers inside the budget,
+  /// so the level start can afford the proof and the exact par. Past it the
+  /// search only burns the budget without ever concluding; the boards stay
+  /// winnable either way, since they are built by undoing legal pours.
+  static const int searchableColorCount = 9;
+
+  /// What a power-up costs right now. The base prices are the tutorial's; a
+  /// board twelve colours deep replaces far more thinking than the first one,
+  /// so the same aid is worth more there.
+  int costOf(PowerUp power) {
+    final base = switch (power) {
+      PowerUp.undo => undoCost,
+      PowerUp.hint => hintCost,
+      PowerUp.shuffle => shuffleCost,
+      PowerUp.addTube => extraTubeCost,
+    };
+    return base + (designLevel ~/ 10).clamp(0, 10) * 5;
+  }
+
   List<Tube> tubes = [];
   int? selectedTubeIndex;
   int? wrongMoveIndex;
@@ -43,17 +83,42 @@ class GameController extends ChangeNotifier {
   int currentLevel = 1;
   int movesCount = 0;
 
+  /// Set when no pour is left, so the game-over dialog can say that the player
+  /// is stuck rather than pretending they ran out of moves.
+  bool isStuck = false;
+
+  /// Length of the shortest solution the solver proved for the current board,
+  /// or an estimate when the search ran out of budget.
+  int parMoves = 0;
+
+  /// The win's grading and payout, filled in once [_awardWin] has written them
+  /// to storage. The end-of-level screen shows these rather than inventing its
+  /// own numbers, so a promise and a grant cannot disagree.
+  int starsEarned = 0;
+  int coinsEarned = 0;
+  int gemsEarned = 0;
+
+  /// False until the payout has been stored, which is what the win dialog waits
+  /// for. Replaying a level cannot collect twice.
+  bool winRewarded = false;
+  bool _awardingWin = false;
+
   // Mode specific logic
   GameMode activeMode = GameMode.classic;
   int? remainingTime; // for all modes (seconds)
   int? movesLimit; // for all modes
   int extraChancesUsed = 0;
-  
+
   // Powerups / Tools (Using coins now, no hard limits)
   HintMove? activeHint;
-  
+
   Timer? _timer;
   bool _isDisposed = false;
+
+  final Stopwatch _levelStopwatch = Stopwatch();
+
+  /// How long the level that just finished took, for analytics and records.
+  int lastLevelDurationSeconds = 0;
 
   final List<List<Tube>> _history = [];
   final List<Color> _availableColors = [
@@ -71,7 +136,11 @@ class GameController extends ChangeNotifier {
     const Color(0xFFA6FF00), // Vivid Lime
   ];
 
-  GameController({GameMode mode = GameMode.classic, bool loadProgress = true, int? targetLevel}) {
+  GameController({
+    GameMode mode = GameMode.classic,
+    bool loadProgress = true,
+    int? targetLevel,
+  }) {
     activeMode = mode;
     if (targetLevel != null) {
       currentLevel = targetLevel;
@@ -117,18 +186,28 @@ class GameController extends ChangeNotifier {
     activeHint = null;
     isLevelComplete = false;
     isGameOver = false;
+    isStuck = false;
     movesCount = 0;
     extraChancesUsed = 0;
-    
-    // Tools reset
-    activeHint = null;
-    
+    remainingTime = null;
+    movesLimit = null;
+    starsEarned = 0;
+    coinsEarned = 0;
+    gemsEarned = 0;
+    winRewarded = false;
+    _awardingWin = false;
+
     _history.clear();
-    
+    _levelStopwatch
+      ..reset()
+      ..start();
+
     AnalyticsService.logLevelStart(currentLevel, activeMode.name);
 
-    _setupModeConstraints();
+    // The board has to exist first, because the move and time budgets are
+    // derived from the length of its reference solution.
     _generateProceduralLevel();
+    _setupModeConstraints();
 
     if (remainingTime != null) {
       _startTimer();
@@ -139,18 +218,16 @@ class GameController extends ChangeNotifier {
 
   void _setupModeConstraints() {
     if (activeMode == GameMode.challenge) {
-      remainingTime = null;
-      movesLimit = 15 + (currentLevel * 2);
+      // A small allowance over the shortest known solution, so the mode tests
+      // planning rather than luck.
+      movesLimit = parMoves + 6;
     } else if (activeMode == GameMode.timeAttack) {
-      remainingTime = 60 + (currentLevel * 10);
-      movesLimit = null;
-    } else {
-      remainingTime = null;
-      movesLimit = null;
+      remainingTime = 20 + parMoves * 6;
     }
   }
 
   void _startTimer() {
+    _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_isDisposed || isLevelComplete || isGameOver) {
         timer.cancel();
@@ -175,56 +252,128 @@ class GameController extends ChangeNotifier {
     _notifySafely();
   }
 
+  /// Undoes the game-over state that a deadlock caused, and picks the clock back
+  /// up where it stopped.
+  void _reviveFromDeadlock() {
+    if (!isStuck) return;
+    isStuck = false;
+    isGameOver = false;
+    if (remainingTime != null && remainingTime! > 0) _startTimer();
+  }
+
+  /// A board is built by undoing legal pours, so it is winnable by construction.
+  /// Narrow boards are still searched, which proves that independently and hands
+  /// back the shortest solution the budgets and star ratings key off. Wide
+  /// boards blow the node budget without ever answering, so they skip the search
+  /// and estimate par from the deal rather than freezing the screen for it.
   void _generateProceduralLevel() {
     final random = activeMode == GameMode.daily
         ? Random(_dailySeed())
         : Random();
+    final config = LevelDesign.forLevel(designLevel);
+    final worthProving = config.colorCount <= searchableColorCount;
 
-    int baseDifficulty = (currentLevel ~/ 2) + 4;
-    if (activeMode == GameMode.challenge || activeMode == GameMode.timeAttack) baseDifficulty += 2;
-    if (activeMode == GameMode.daily) baseDifficulty = 8;
+    List<Tube>? board;
+    int? par;
 
-    int numColors = min(baseDifficulty, _availableColors.length);
-    int numEmptyTubes = 2;
-    List<Color> levelColors = List.from(_availableColors)..shuffle(random);
-    levelColors = levelColors.take(numColors).toList();
-    for (var attempt = 0; attempt < 8; attempt++) {
-      tubes = [
+    for (var attempt = 0; attempt < 3 && board == null; attempt++) {
+      final candidate = _dealBoard(config, random);
+      if (!worthProving) {
+        board = candidate;
+        break;
+      }
+      final report = WaterSortSolver.solve(
+        candidate,
+        nodeBudget: solveNodeBudget,
+      );
+      if (report.outcome == SolveOutcome.unsolvable) continue;
+      board = candidate;
+      par = report.pours;
+    }
+
+    // Either the first deal held up, or the search ran out of budget on a
+    // board that is still winnable by construction. Neither is a reason to
+    // leave the player without a level.
+    tubes = board ?? _dealBoard(config, random);
+    parMoves = par ?? LevelDesign.estimatedPar(config);
+    assert(_dealsWholeSegments(config), 'Malformed deal at level $designLevel');
+    _hideMysterySegments(config, random);
+  }
+
+  /// Cheap stand-in for the search on wide boards, and only run in debug: a deal
+  /// is sound if every colour sits on the board in one whole segment and no tube
+  /// overflowed. Builds ship without it.
+  bool _dealsWholeSegments(LevelConfig config) {
+    final counts = <int, int>{};
+    for (final tube in tubes) {
+      if (tube.colors.length > tube.capacity) return false;
+      for (final color in tube.colors) {
+        counts[color.toARGB32()] = (counts[color.toARGB32()] ?? 0) + 1;
+      }
+    }
+    return counts.length == config.colorCount &&
+        counts.values.every((count) => count == config.capacity);
+  }
+
+  List<Tube> _dealBoard(LevelConfig config, Random random) {
+    final palette = List<Color>.from(_availableColors)..shuffle(random);
+    final levelColors = palette.take(config.colorCount).toList();
+
+    List<Tube> board = const [];
+    for (var attempt = 0; attempt < 6; attempt++) {
+      board = [
         ...levelColors.map(
-          (color) =>
-              Tube(initialColors: List<Color>.filled(4, color, growable: true)),
+          (color) => Tube(
+            capacity: config.capacity,
+            initialColors: List<Color>.filled(
+              config.capacity,
+              color,
+              growable: true,
+            ),
+          ),
         ),
-        ...List.generate(numEmptyTubes, (_) => Tube()),
+        ...List.generate(
+          config.freeTubes,
+          (_) => Tube(capacity: config.capacity),
+        ),
       ];
 
-      final mixMoves = min(80, numColors * 6 + currentLevel * 2);
-      for (var move = 0; move < mixMoves; move++) {
-        _applyReversibleMixMove(random);
+      var pouredSegments = 0;
+      for (var move = 0; move < config.mixRounds; move++) {
+        if (_applyReversibleMixMove(board, random)) pouredSegments++;
       }
 
-      if (!_isAlreadySolved() && tubes.any(_hasMixedColors)) {
-        // Apply Mystery Mode logic (e.g. 1 mystery tube at lvl 4, max 3)
-        if (currentLevel >= 4) {
-          int numMysteryTubes = min(3, (currentLevel ~/ 4));
-          List<int> validIndexes = [];
-          for (int i = 0; i < tubes.length; i++) {
-            if (tubes[i].colors.length >= 3) validIndexes.add(i);
-          }
-          validIndexes.shuffle(random);
-          for (int i = 0; i < min(numMysteryTubes, validIndexes.length); i++) {
-            int idx = validIndexes[i];
-            tubes[idx].hiddenCount = max(0, tubes[idx].colors.length - 1);
-          }
-        }
-        return;
+      if (pouredSegments >= config.colorCount &&
+          board.any(_hasMixedColors) &&
+          !_isAlreadySolved(board)) {
+        return board;
       }
+    }
+    return board;
+  }
+
+  void _hideMysterySegments(LevelConfig config, Random random) {
+    if (config.mysteryTubes == 0) return;
+
+    // Only tubes that already hold several layers are worth hiding, and the
+    // free workspace tubes must stay readable or the board becomes a guess.
+    final candidates = <int>[];
+    for (var i = 0; i < tubes.length; i++) {
+      if (tubes[i].colors.length >= 3) candidates.add(i);
+    }
+    candidates.shuffle(random);
+
+    for (final index in candidates.take(config.mysteryTubes)) {
+      tubes[index].hiddenCount = tubes[index].colors.length - 1;
     }
   }
 
-  bool _applyReversibleMixMove(Random random) {
+  /// One step of the reverse scramble. Every move here is the exact undo of a
+  /// legal pour, which is what keeps the resulting board winnable.
+  bool _applyReversibleMixMove(List<Tube> board, Random random) {
     final sourceIndexes = <int>[];
-    for (var index = 0; index < tubes.length; index++) {
-      final tube = tubes[index];
+    for (var index = 0; index < board.length; index++) {
+      final tube = board[index];
       if (tube.isEmpty) continue;
 
       final runLength = _topColorRunLength(tube);
@@ -236,7 +385,7 @@ class GameController extends ChangeNotifier {
 
     sourceIndexes.shuffle(random);
     for (final sourceIndex in sourceIndexes) {
-      final source = tubes[sourceIndex];
+      final source = board[sourceIndex];
       final color = source.topColor!;
       final runLength = _topColorRunLength(source);
       final maxTransfer = source.colors.length == runLength
@@ -244,8 +393,8 @@ class GameController extends ChangeNotifier {
           : runLength - 1;
 
       final targetIndexes = <int>[];
-      for (var index = 0; index < tubes.length; index++) {
-        final target = tubes[index];
+      for (var index = 0; index < board.length; index++) {
+        final target = board[index];
         if (index != sourceIndex &&
             !target.isFull &&
             (target.isEmpty || target.topColor != color)) {
@@ -254,7 +403,7 @@ class GameController extends ChangeNotifier {
       }
       if (targetIndexes.isEmpty) continue;
 
-      final target = tubes[targetIndexes[random.nextInt(targetIndexes.length)]];
+      final target = board[targetIndexes[random.nextInt(targetIndexes.length)]];
       final amount = min(
         maxTransfer,
         min(
@@ -289,14 +438,32 @@ class GameController extends ChangeNotifier {
         tube.colors.any((color) => color != tube.colors.first);
   }
 
-  bool _isAlreadySolved() {
-    for (var tube in tubes) {
+  bool _isAlreadySolved(List<Tube> board) {
+    for (var tube in board) {
       if (tube.isEmpty) continue;
       if (!tube.isFull) return false;
       Color first = tube.colors.first;
       if (tube.colors.any((c) => c != first)) return false;
     }
     return true;
+  }
+
+  /// Which point on the difficulty curve this board should sit at.
+  ///
+  /// Classic tracks saved progress. The side modes restart `currentLevel` at 1
+  /// every session, so without this they would all play the tutorial board and
+  /// never deepen.
+  int get designLevel {
+    switch (activeMode) {
+      case GameMode.classic:
+        return currentLevel;
+      case GameMode.challenge:
+      case GameMode.timeAttack:
+        return maxUnlockedLevel + (currentLevel - 1) * 3;
+      case GameMode.daily:
+        // Same day, same puzzle for everyone — derived from the date seed.
+        return 24 + _dailySeed() % 26;
+    }
   }
 
   String get dailyChallengeId {
@@ -320,60 +487,111 @@ class GameController extends ChangeNotifier {
     _initLevel();
   }
 
+  /// Moves the player on. Payouts and the unlock happen the moment a board is
+  /// finished, in [_awardWin], so walking back to the dashboard instead of
+  /// pressing Next can never cost a player what they earned.
   Future<void> nextLevel() async {
-    if (activeMode != GameMode.daily) {
-      // Reward and progression
-      coins += (activeMode == GameMode.classic) ? 50 : 75;
-      await StorageService.saveCoins(coins);
-      await StorageService.incrementTotalLevelsWon();
-      
-      // Update event progress logic
-      await _updateEventProgress();
-
-      if (currentLevel == maxUnlockedLevel) {
-        maxUnlockedLevel++;
-        await StorageService.saveLevel(maxUnlockedLevel);
-        await PlayGamesService.submitScore(maxUnlockedLevel);
-      }
-    } else if (activeMode == GameMode.daily && !hasClaimedDailyReward) {
-      if (await StorageService.claimDailyReward(dailyChallengeId)) {
-        coins += 100;
-        gems += 1;
-        hasClaimedDailyReward = true;
-        await StorageService.saveCoins(coins);
-        await StorageService.saveGems(gems);
-      }
-    }
     if (activeMode != GameMode.daily) currentLevel++;
     _initLevel();
   }
 
-  Future<void> _updateEventProgress() async {
-    final eventIds = ['summer_season_2026', 'weekend_warrior'];
-    for (var id in eventIds) {
-      final data = await StorageService.getEventData(id);
-      if (!(data['claimed'] ?? false)) {
-        int currentProgress = data['progress'] ?? 0;
-        await StorageService.saveEventProgress(id, false, currentProgress + 1);
+  /// Grades and pays a finished board, then moves today's counters.
+  ///
+  /// Gems are deliberately rare: one per level, only the first time it is
+  /// three-starred, which keeps them a multi-day goal rather than a spare
+  /// balance. The daily challenge pays a fixed prize once a day however often
+  /// the board is replayed.
+  Future<void> _awardWin() async {
+    if (_awardingWin || winRewarded) return;
+    _awardingWin = true;
+    try {
+      final classic = activeMode == GameMode.classic;
+      var coinsWon = 0;
+      var gemsWon = 0;
+      var xpWon = 0;
+      var stars = LevelReward.starsFor(moves: movesCount, par: parMoves);
+
+      if (activeMode == GameMode.daily) {
+        hasClaimedDailyReward = await StorageService.claimDailyReward(
+          dailyChallengeId,
+        );
+        if (hasClaimedDailyReward) {
+          coinsWon = 100;
+          gemsWon = 1;
+          // Paid on the same first-claim gate as the coins, so replaying
+          // today's board cannot level the player up a second time.
+          xpWon = LevelReward.xpFor(stars: stars);
+        }
+      } else {
+        final previousBest = classic
+            ? await StorageService.getLevelStars(currentLevel)
+            : 0;
+        final reward = LevelReward.forWin(
+          level: classic ? currentLevel : designLevel,
+          moves: movesCount,
+          par: parMoves,
+          previousBestStars: previousBest,
+          trackBest: classic,
+          sideMode: !classic,
+        );
+        stars = reward.stars;
+        coinsWon = reward.coins;
+        gemsWon = reward.gems;
+        xpWon = reward.xp;
+        if (classic && reward.isNewBest) {
+          await StorageService.saveLevelStars(currentLevel, reward.stars);
+        }
       }
+
+      starsEarned = stars;
+      coinsEarned = coinsWon;
+      gemsEarned = gemsWon;
+      coins += coinsWon;
+      gems += gemsWon;
+      await StorageService.saveCoins(coins);
+      if (gemsWon != 0) await StorageService.saveGems(gems);
+      await StorageService.addPlayerXp(xpWon);
+      await StorageService.incrementTotalLevelsWon();
+      if (classic && currentLevel >= maxUnlockedLevel) {
+        // Unlocked on the win itself, not when Next is pressed, so a player who
+        // finishes a level and leaves cannot find it locked again.
+        maxUnlockedLevel = currentLevel + 1;
+        await StorageService.saveLevel(maxUnlockedLevel);
+        await PlayGamesService.submitScore(maxUnlockedLevel);
+      }
+      await EventService.recordWin(stars: stars);
+      await ProgressService.recordDaily({
+        DailyStat.wins: 1,
+        DailyStat.stars: stars,
+        if (!classic) DailyStat.sideModeWins: 1,
+      });
+      winRewarded = true;
+      // Both of these round-trip to Play Games. Neither may sit between a
+      // finished board and the screen that pays for it.
+      unawaited(CloudSaveService.upload());
+      if (activeMode != GameMode.daily) {
+        unawaited(_handleProductionIntegrations());
+      }
+    } finally {
+      _awardingWin = false;
+      _notifySafely();
     }
   }
 
-  void undo() {
-    if (isGameOver || isLevelComplete || pouringFromIndex != null) return;
-    if (coins < 50) return; // Not enough coins
-    if (_history.isNotEmpty) {
-      coins -= 50;
-      StorageService.saveCoins(coins);
-      
-      AnalyticsService.logPowerUpUsed('undo');
-      tubes = _history.removeLast();
-      selectedTubeIndex = null;
-      activeHint = null;
-      movesCount = max(0, movesCount - 1);
-      _notifySafely();
-      HapticService.mediumImpact();
-    }
+  bool undo({bool adFunded = false}) {
+    if (!_canAct) return false;
+    if (_history.isEmpty) return false;
+    if (!_payForPowerUp(PowerUp.undo, adFunded: adFunded)) return false;
+
+    AnalyticsService.logPowerUpUsed('undo', adFunded: adFunded);
+    tubes = _history.removeLast();
+    selectedTubeIndex = null;
+    activeHint = null;
+    movesCount = max(0, movesCount - 1);
+    _reviveFromDeadlock();
+    _notifySafely();
+    HapticService.mediumImpact();
+    return true;
   }
 
   void selectTube(int index) {
@@ -416,80 +634,66 @@ class GameController extends ChangeNotifier {
         (toTube.isEmpty || toTube.topColor == fromTube.topColor);
   }
 
-  void shuffleTubes() {
-    if (isGameOver || isLevelComplete || coins < 50) return;
-    
-    coins -= 50;
-    StorageService.saveCoins(coins);
+  /// Re-scrambles the board with the generator's own reversible pour, which is
+  /// what keeps the level winnable afterwards. Permuting the top colours
+  /// randomly, as this used to, broke the construction invariant and could hand
+  /// the player a board that cannot be finished at any price.
+  bool shuffleTubes({bool adFunded = false}) {
+    if (!_canAct) return false;
 
-    List<Color> topColors = [];
-    List<int> validIndices = [];
+    final config = LevelDesign.forLevel(designLevel);
+    final mixRounds = max(6, config.colorCount * 2);
+    final random = Random();
+    final stirred = tubes.map((tube) => tube.copyWith()).toList();
 
-    for (int i = 0; i < tubes.length; i++) {
-      if (tubes[i].isNotEmpty && !tubes[i].isComplete) {
-        topColors.add(tubes[i].topColor!);
-        validIndices.add(i);
-      }
+    var applied = 0;
+    for (var move = 0; move < mixRounds; move++) {
+      if (_applyReversibleMixMove(stirred, random)) applied++;
     }
+    if (applied == 0) return false;
+    if (!_payForPowerUp(PowerUp.shuffle, adFunded: adFunded)) return false;
 
-    if (topColors.length > 1) {
-      _history.add(tubes.map((t) => t.copyWith()).toList());
-      movesCount++;
-      
-      topColors.shuffle(Random());
-      for (int i = 0; i < validIndices.length; i++) {
-        int tubeIndex = validIndices[i];
-        tubes[tubeIndex].colors.removeLast();
-        tubes[tubeIndex].colors.add(topColors[i]);
-      }
-      
-      AudioService.playPourSfx();
-      
-      // Check win condition right after shuffle
-      _checkWinCondition();
-      if (isLevelComplete) {
-        _timer?.cancel();
-      } else if (movesLimit != null && movesCount >= movesLimit!) {
-        _timer?.cancel();
-        _handleGameOver();
-      }
-      
-      // Note: Shuffle uses coins now, if we want to keep it. 
-      // But the plan replaced Shuffle with Hint. We can leave it for now.
-      _notifySafely();
-    }
-  }
-  
-  void addExtraTube() {
-    if (isGameOver || isLevelComplete) return;
-    if (coins < 100) return;
-    
-    coins -= 100;
-    StorageService.saveCoins(coins);
-    
-    AnalyticsService.logPowerUpUsed('add_tube');
-    // Add an empty tube with standard capacity
-    tubes.add(Tube(capacity: 4));
-    
+    AnalyticsService.logPowerUpUsed('shuffle', adFunded: adFunded);
+    _history.add(tubes.map((tube) => tube.copyWith()).toList());
+    tubes = stirred;
+    selectedTubeIndex = null;
+    activeHint = null;
+    _reviveFromDeadlock();
+    // A stir's inverse is always a legal pour, so the board cannot end up
+    // dead; it can, however, land on the last few segments of a solve.
+    _checkWinCondition();
     AudioService.playPourSfx();
     _notifySafely();
+    return true;
   }
 
-  void useExtraChance(bool isTime, {bool isAd = false}) {
-    if (extraChancesUsed >= 3) return;
-    
-    // Deduct coins if not an Ad
-    if (!isAd) {
-      if (coins >= 50) {
-        coins -= 50;
-        StorageService.saveCoins(coins);
-      } else {
-        return; // Prevent using chance if they somehow bypass the UI check
-      }
-    }
-    
+  bool addExtraTube({bool adFunded = false}) {
+    if (!_canAct) return false;
+    if (!_payForPowerUp(PowerUp.addTube, adFunded: adFunded)) return false;
+
+    AnalyticsService.logPowerUpUsed('add_tube', adFunded: adFunded);
+    // Same capacity as the rest of the board: a short tube on a five-layer
+    // level cannot hold a colour to itself, so it is workspace that does not
+    // work.
+    tubes.add(Tube(capacity: tubes.isEmpty ? 4 : tubes.first.capacity));
+
+    AudioService.playPourSfx();
+    _notifySafely();
+    return true;
+  }
+
+  bool useExtraChance(bool isTime, {bool isAd = false}) {
+    // Deliberately does not reject `isGameOver`: this is the revive action.
+    if (isLevelComplete || pouringFromIndex != null) return false;
+    if (extraChancesUsed >= maxExtraChances) return false;
+    if (!isAd && !_spendCoins(extraChanceCost)) return false;
+
     extraChancesUsed++;
     isGameOver = false;
+    AnalyticsService.logPowerUpUsed(
+      isTime ? 'extra_time' : 'extra_moves',
+      adFunded: isAd,
+    );
 
     if (isTime) {
       remainingTime = (remainingTime ?? 0) + 30;
@@ -498,29 +702,133 @@ class GameController extends ChangeNotifier {
       movesLimit = (movesLimit ?? 0) + 5;
     }
     _notifySafely();
+    return true;
   }
 
-  void requestHint() {
-    if (isLevelComplete || isGameOver || pouringFromIndex != null) return;
-    if (coins < 50) return; // Not enough coins
-    
+  /// The most useful pour available right now.
+  ///
+  /// Returning the first legal one would charge a player for a move that undoes
+  /// their own progress, so each pour is scored by how much it actually
+  /// accomplishes. It still answers whenever any legal pour exists, because a
+  /// null result is read as a dead board by the move bookkeeping.
+  HintMove? findHintMove() {
+    HintMove? best;
+    var bestScore = 0;
+
     for (var fromIndex = 0; fromIndex < tubes.length; fromIndex++) {
       final source = tubes[fromIndex];
-      final isSolved =
-          source.isFull &&
-          source.isNotEmpty &&
-          source.colors.every((color) => color == source.colors.first);
-      if (source.isEmpty || isSolved) continue;
+      if (source.isEmpty || source.isComplete) continue;
+      final run = _topRun(source);
+
       for (var toIndex = 0; toIndex < tubes.length; toIndex++) {
-        if (canPour(fromIndex, toIndex)) {
-          coins -= 50;
-          StorageService.saveCoins(coins);
-          activeHint = HintMove(fromIndex: fromIndex, toIndex: toIndex);
-          _notifySafely();
-          return;
+        if (toIndex == fromIndex || !canPour(fromIndex, toIndex)) continue;
+        final target = tubes[toIndex];
+        final moved = min(run, target.capacity - target.colors.length);
+        final score = target.isEmpty
+            // Only a whole tube moving into a spare frees something; a partial
+            // one just relocates the problem.
+            ? (source.colors.length == run ? 30 : 2)
+            // Merging same-coloured layers is progress, and finishing a tube is
+            // the best move on the board.
+            : 10 +
+                  moved * 2 +
+                  (target.colors.length + moved == target.capacity &&
+                          target.colors.every((c) => c == source.topColor)
+                      ? 50
+                      : 0);
+
+        if (score > bestScore) {
+          bestScore = score;
+          best = HintMove(fromIndex: fromIndex, toIndex: toIndex);
         }
       }
     }
+    return best;
+  }
+
+  /// How many top segments of a tube share the colour that would pour next.
+  int _topRun(Tube tube) {
+    final color = tube.topColor;
+    var run = 0;
+    for (
+      var i = tube.colors.length - 1;
+      i >= 0 && tube.colors[i] == color;
+      i--
+    ) {
+      run++;
+    }
+    return run;
+  }
+
+  bool requestHint({bool adFunded = false}) {
+    if (!_canAct) return false;
+    final move = findHintMove();
+    if (move == null) return false;
+    if (!_payForPowerUp(PowerUp.hint, adFunded: adFunded)) return false;
+
+    AnalyticsService.logPowerUpUsed('hint', adFunded: adFunded);
+    activeHint = move;
+    _notifySafely();
+    return true;
+  }
+
+  /// Takes payment for a power-up that has already been shown to apply. An
+  /// ad-funded use costs no coins but still counts as using the tool, which is
+  /// what the daily quest for power-ups is really measuring.
+  bool _payForPowerUp(PowerUp power, {required bool adFunded}) {
+    if (!adFunded && !_spendCoins(costOf(power))) return false;
+    unawaited(ProgressService.recordDaily({DailyStat.powerUps: 1}));
+    return true;
+  }
+
+  /// Whether a power-up can currently take effect, so a rewarded ad is never
+  /// shown for a move that would be rejected.
+  bool canUsePowerUp(PowerUp power) {
+    if (!_canAct) return false;
+    switch (power) {
+      case PowerUp.undo:
+        return _history.isNotEmpty;
+      case PowerUp.hint:
+        return findHintMove() != null;
+      case PowerUp.shuffle:
+        // Probed on a copy, because a stir both needs and changes the board.
+        return _applyReversibleMixMove(
+          tubes.map((t) => t.copyWith()).toList(),
+          Random(),
+        );
+      case PowerUp.addTube:
+        return true;
+    }
+  }
+
+  /// Being out of moves ends the level, but a deadlock is still recoverable —
+  /// rewinding or re-scrambling is exactly what the player should reach for.
+  bool get _canAct {
+    if (isLevelComplete || pouringFromIndex != null) return false;
+    return !isGameOver || isStuck;
+  }
+
+  void _afterMoveBookkeeping() {
+    _checkWinCondition();
+    if (isLevelComplete) {
+      _timer?.cancel();
+      return;
+    }
+    isStuck = findHintMove() == null;
+    final outOfMoves = movesLimit != null && movesCount >= movesLimit!;
+    if (isStuck || outOfMoves) {
+      _timer?.cancel();
+      _handleGameOver();
+    }
+  }
+
+  /// Deducts a price, returning false when the player cannot pay. Never lets
+  /// the balance go negative and never charges for a move that is not applied.
+  bool _spendCoins(int amount) {
+    if (coins < amount) return false;
+    coins -= amount;
+    StorageService.saveCoins(coins);
+    return true;
   }
 
   Future<void> _startPouring(int fromIndex, int toIndex) async {
@@ -573,12 +881,12 @@ class GameController extends ChangeNotifier {
         !toTube.isFull) {
       Color removedColor = fromTube.colors.removeLast();
       toTube.colors.add(removedColor);
-      
+
       // Update hidden status
       if (fromTube.colors.length <= fromTube.hiddenCount) {
         fromTube.hiddenCount = max(0, fromTube.colors.length - 1);
       }
-      
+
       HapticService.lightImpact();
       _notifySafely();
       await Future.delayed(const Duration(milliseconds: 200));
@@ -593,15 +901,7 @@ class GameController extends ChangeNotifier {
     pouringFromIndex = null;
     pouringToIndex = null;
 
-    _checkWinCondition();
-
-    if (isLevelComplete) {
-      _timer?.cancel();
-    } else if (movesLimit != null && movesCount >= movesLimit!) {
-      _timer?.cancel();
-      _handleGameOver();
-    }
-
+    _afterMoveBookkeeping();
     _notifySafely();
   }
 
@@ -634,13 +934,16 @@ class GameController extends ChangeNotifier {
 
     if (allSorted) {
       isLevelComplete = true;
+      _levelStopwatch.stop();
+      lastLevelDurationSeconds = _levelStopwatch.elapsed.inSeconds;
       AudioService.playWinSfx();
-      AnalyticsService.logLevelComplete(currentLevel, movesCount, 0);
-      
-      // Production Integrations
-      if (activeMode != GameMode.daily) {
-        _handleProductionIntegrations();
-      }
+      AnalyticsService.logLevelComplete(
+        currentLevel,
+        movesCount,
+        lastLevelDurationSeconds,
+      );
+      AdManager.notifyLevelCompleted();
+      unawaited(_awardWin());
     }
   }
 
@@ -648,26 +951,23 @@ class GameController extends ChangeNotifier {
     // 1. In-App Review
     await ReviewService.requestReviewIfEligible(currentLevel);
 
-    // 2. Play Games Achievements & Leaderboard
-    if (PlayGamesService.isSignedIn) {
-      // Submit score (e.g. current level reached)
-      await PlayGamesService.submitScore(currentLevel);
-      
-      // Unlock achievements based on level
-      if (currentLevel >= 1) {
-        await PlayGamesService.unlockAchievement(PlayGamesService.achievementBeginnerId);
-      }
-      if (currentLevel >= 10) {
-        await PlayGamesService.unlockAchievement(PlayGamesService.achievementMasterId);
-      }
-      if (currentLevel >= 100) {
-        await PlayGamesService.unlockAchievement(PlayGamesService.achievementHundredId);
-      }
-
-      // 3. Cloud Save
-      // Create a simple string representation of the cloud data
-      String cloudData = "level:$currentLevel,coins:$coins,gems:$gems";
-      await PlayGamesService.saveGame(cloudData);
+    // 2. Play Games achievements. The leaderboard score goes up with
+    // [nextLevel], where the level reached has actually changed.
+    if (!PlayGamesService.isSignedIn) return;
+    if (currentLevel >= 1) {
+      await PlayGamesService.unlockAchievement(
+        PlayGamesService.achievementBeginnerId,
+      );
+    }
+    if (currentLevel >= 10) {
+      await PlayGamesService.unlockAchievement(
+        PlayGamesService.achievementMasterId,
+      );
+    }
+    if (currentLevel >= 100) {
+      await PlayGamesService.unlockAchievement(
+        PlayGamesService.achievementHundredId,
+      );
     }
   }
 

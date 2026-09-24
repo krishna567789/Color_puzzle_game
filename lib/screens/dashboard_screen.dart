@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
@@ -6,10 +7,12 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../core/ad_manager.dart';
 import '../widgets/dashboard/top_player_bar.dart';
-import '../widgets/dashboard/mode_card.dart';
 import '../controllers/game_controller.dart';
 import '../core/storage_service.dart';
 import '../core/audio_service.dart';
+import '../core/cloud_save_service.dart';
+import '../core/progress_service.dart';
+import '../game/rewards.dart';
 import '../widgets/common/game_button.dart';
 import '../widgets/common/bouncing_button.dart';
 import 'game_screen.dart';
@@ -29,7 +32,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen>
     with TickerProviderStateMixin {
-  int _userLevel = 1;
+  int _playerXp = 0;
   int _coins = 0;
   int _gems = 0;
 
@@ -44,9 +47,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   void initState() {
     super.initState();
-    _loadUserData();
+    unawaited(_loadUserData());
     AudioService.playBGM();
-    _loadBannerAd();
 
     _entranceController = AnimationController(
       vsync: this,
@@ -71,14 +73,23 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Future<void> _loadUserData() async {
-    final level = await StorageService.getLevel();
+    // First, so a reinstall or a second phone hands progress back before this
+    // screen reads any numbers.
+    await CloudSaveService.restore();
+    // Ticked here rather than on the quests tab, so a day that was played but
+    // never browsed still counts, and pays, once.
+    await ProgressService.tickLoginStreak();
+    final xp = await StorageService.getPlayerXp();
     final coins = await StorageService.getCoins();
     final gems = await StorageService.getGems();
+    final adsRemoved = await StorageService.getHasRemovedAds();
+    if (!mounted) return;
     setState(() {
-      _userLevel = level;
+      _playerXp = xp;
       _coins = coins;
       _gems = gems;
     });
+    if (!adsRemoved) _loadBannerAd();
   }
 
   void _loadBannerAd() {
@@ -89,12 +100,11 @@ class _DashboardScreenState extends State<DashboardScreen>
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (_) {
-          setState(() {
-            _isBannerAdLoaded = true;
-          });
+          if (mounted) setState(() => _isBannerAdLoaded = true);
         },
         onAdFailedToLoad: (ad, error) {
           ad.dispose();
+          _bannerAd = null;
           debugPrint('Banner ad failed to load: $error');
         },
       ),
@@ -205,14 +215,21 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ),
                 ],
               ),
-              child: Text(
-                title.toUpperCase(),
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.0,
+              // The label box is only 55dp wide, so "CHALLENGE" used to break
+              // mid-word. Scaling keeps each authored line intact.
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  title.toUpperCase(),
+                  maxLines: 2,
+                  softWrap: false,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.0,
+                  ),
                 ),
               ),
             ),
@@ -354,7 +371,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   left: 0,
                   right: 0,
                   child: TopPlayerBar(
-                    level: _userLevel,
+                    progress: PlayerLevel.fromXp(_playerXp),
                     coins: _coins,
                     gems: _gems,
                   ),
@@ -372,7 +389,11 @@ class _DashboardScreenState extends State<DashboardScreen>
                         animation: _floatingController,
                         builder: (context, child) {
                           return Transform.translate(
-                            offset: Offset(0, math.sin(_floatingController.value * math.pi) * 10),
+                            offset: Offset(
+                              0,
+                              math.sin(_floatingController.value * math.pi) *
+                                  10,
+                            ),
                             child: child,
                           );
                         },
@@ -447,7 +468,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                               borderRadius: BorderRadius.circular(37.5),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF5CD615).withValues(alpha: 0.6 * _pulseController.value),
+                                  color: const Color(0xFF5CD615).withValues(
+                                    alpha: 0.6 * _pulseController.value,
+                                  ),
                                   blurRadius: 20 * _pulseController.value,
                                   spreadRadius: 5 * _pulseController.value,
                                 ),
@@ -462,7 +485,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                         child: GameButton(
                           width: 240,
                           height: 75,
-                          color: const Color(0xFF5CD615), // Magical vibrant green
+                          color: const Color(
+                            0xFF5CD615,
+                          ), // Magical vibrant green
                           onTap: () => _navigateToGame(GameMode.classic),
                           child: const Text(
                             'PLAY CLASSIC',
@@ -501,77 +526,77 @@ class _DashboardScreenState extends State<DashboardScreen>
                           _buildBottomButton(
                             title: 'Lucky Spin',
                             icon: 'assets/icon/lucky_spin.png',
-                          onTap: () async {
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const LuckySpinScreen(),
-                              ),
-                            );
-                            _loadUserData();
-                          },
-                        ),
-                        const SizedBox(width: 8),
-                        _buildBottomButton(
-                          title: 'Events',
-                          icon: 'assets/icon/events.png',
-                          onTap: () async {
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const EventsScreen(),
-                              ),
-                            );
-                            _loadUserData();
-                          },
-                        ),
-                        const SizedBox(width: 8),
-                        _buildBottomButton(
-                          title: 'Quests',
-                          icon: 'assets/icon/daily chalenge.png',
-                          hasBadge: true,
-                          onTap: () async {
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const QuestsScreen(),
-                              ),
-                            );
-                            _loadUserData();
-                          },
-                        ),
-                        const SizedBox(width: 8),
-                        _buildBottomButton(
-                          title: 'Shop',
-                          icon: 'assets/icon/shop.png',
-                          hasBadge: true,
-                          onTap: () async {
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const ShopScreen(),
-                              ),
-                            );
-                            _loadUserData();
-                          },
-                        ),
-                        const SizedBox(width: 8),
-                        _buildBottomButton(
-                          title: 'Trophies',
-                          icon: 'assets/icon/achivement.png',
-                          onTap: () async {
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const AchievementsScreen(),
-                              ),
-                            );
-                            _loadUserData();
-                          },
-                        ),
-                      ],
-                    ),
+                            onTap: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const LuckySpinScreen(),
+                                ),
+                              );
+                              _loadUserData();
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          _buildBottomButton(
+                            title: 'Events',
+                            icon: 'assets/icon/events.png',
+                            onTap: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const EventsScreen(),
+                                ),
+                              );
+                              _loadUserData();
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          _buildBottomButton(
+                            title: 'Quests',
+                            icon: 'assets/icon/daily chalenge.png',
+                            hasBadge: true,
+                            onTap: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const QuestsScreen(),
+                                ),
+                              );
+                              _loadUserData();
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          _buildBottomButton(
+                            title: 'Shop',
+                            icon: 'assets/icon/shop.png',
+                            hasBadge: true,
+                            onTap: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const ShopScreen(),
+                                ),
+                              );
+                              _loadUserData();
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          _buildBottomButton(
+                            title: 'Trophies',
+                            icon: 'assets/icon/achivement.png',
+                            onTap: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const AchievementsScreen(),
+                                ),
+                              );
+                              _loadUserData();
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

@@ -9,7 +9,7 @@ import '../core/app_colors.dart';
 import '../widgets/common/hand_indicator.dart';
 import '../widgets/common/game_button.dart';
 import '../widgets/common/bouncing_button.dart';
-import 'package:audioplayers/audioplayers.dart';
+import '../core/audio_service.dart';
 import '../widgets/common/level_complete_dialog.dart';
 import '../widgets/common/pouring_stream_effect.dart';
 import 'package:confetti/confetti.dart';
@@ -25,19 +25,13 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
   late final GameController _controller;
-  late final AudioPlayer _audioPlayer;
-  late final AudioPlayer _lockAudioPlayer;
   late List<GlobalKey> _tubeKeys;
-  bool _isPlayingSound = false;
   bool _isEndDialogVisible = false;
   int _solvedTubesCount = 0;
   bool _showTutorial = false;
   int _tutorialStep = 0;
   int _currentLevelForKeys = 0;
   late ConfettiController _confettiController;
-
-  // Performance Tracking
-  final Stopwatch _levelStopwatch = Stopwatch();
 
   @override
   void initState() {
@@ -47,15 +41,12 @@ class _GameScreenState extends State<GameScreen> {
       targetLevel: widget.targetLevel,
     );
     _controller.addListener(_onGameStateChanged);
-    _audioPlayer = AudioPlayer();
-    _lockAudioPlayer = AudioPlayer();
     _currentLevelForKeys = _controller.currentLevel;
     _tubeKeys = List.generate(20, (_) => GlobalKey());
     _confettiController = ConfettiController(
       duration: const Duration(seconds: 3),
     );
     _checkTutorial();
-    _levelStopwatch.start();
   }
 
   Future<void> _checkTutorial() async {
@@ -80,21 +71,12 @@ class _GameScreenState extends State<GameScreen> {
     if (_controller.currentLevel != _currentLevelForKeys) {
       _tubeKeys = List.generate(20, (_) => GlobalKey());
       _currentLevelForKeys = _controller.currentLevel;
-      _levelStopwatch.reset();
-      _levelStopwatch.start();
     }
 
     setState(() {});
 
-    // Play sound when pouring starts
-    if (_controller.pouringFromIndex != null && !_isPlayingSound) {
-      _isPlayingSound = true;
-      _audioPlayer.play(AssetSource('audio/pour.ogg'));
-    } else if (_controller.pouringFromIndex == null && _isPlayingSound) {
-      _isPlayingSound = false;
-      _audioPlayer.stop();
-    }
-
+    // The controller already plays the pour effect on every pour; a second
+    // player here would both double the sound and ignore the SFX setting.
     int currentSolvedCount = _controller.tubes
         .where(
           (t) =>
@@ -104,12 +86,15 @@ class _GameScreenState extends State<GameScreen> {
         )
         .length;
     if (currentSolvedCount > _solvedTubesCount) {
-      _lockAudioPlayer.play(AssetSource('audio/lock.wav'));
+      AudioService.playSfx('lock.wav');
     }
     _solvedTubesCount = currentSolvedCount;
 
     if (_isEndDialogVisible) return;
     if (_controller.isLevelComplete) {
+      // Wait for the payout to be stored: the screen quotes the controller's
+      // numbers, and it is better to be a frame late than to promise wrong ones.
+      if (!_controller.winRewarded) return;
       _isEndDialogVisible = true;
       _confettiController.play();
       Future.delayed(const Duration(milliseconds: 300), () {
@@ -141,8 +126,20 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _showGameOverDialog() {
-    bool canUseExtraChance = _controller.extraChancesUsed < 3;
-    bool outOfTime = _controller.remainingTime == 0;
+    final bool stuck = _controller.isStuck;
+    final bool canRecover =
+        _controller.extraChancesUsed < GameController.maxExtraChances;
+    final bool outOfTime = _controller.remainingTime == 0;
+
+    // A deadlock is not fixed by more time or more moves; only a re-scramble
+    // gives the board a legal pour again.
+    final int rescueCost = stuck
+        ? _controller.costOf(PowerUp.shuffle)
+        : GameController.extraChanceCost;
+
+    bool rescue({required bool adFunded}) => stuck
+        ? _controller.shuffleTubes(adFunded: adFunded)
+        : _controller.useExtraChance(outOfTime, isAd: adFunded);
 
     showDialog<void>(
       context: context,
@@ -166,7 +163,7 @@ class _GameScreenState extends State<GameScreen> {
                 border: Border.all(color: const Color(0xFF5A3D99), width: 2),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF8A2BE2).withOpacity(0.4),
+                    color: const Color(0xFF8A2BE2).withValues(alpha: 0.4),
                     blurRadius: 30,
                     spreadRadius: -5,
                   ),
@@ -177,9 +174,9 @@ class _GameScreenState extends State<GameScreen> {
                 children: [
                   // Title
                   Text(
-                    canUseExtraChance ? 'KEEP GOING?' : 'GAME OVER',
+                    canRecover ? 'KEEP GOING?' : 'GAME OVER',
                     style: TextStyle(
-                      color: canUseExtraChance
+                      color: canRecover
                           ? Colors.orangeAccent
                           : Colors.redAccent,
                       fontSize: 26,
@@ -188,8 +185,8 @@ class _GameScreenState extends State<GameScreen> {
                       shadows: [
                         Shadow(
                           color:
-                              (canUseExtraChance ? Colors.orange : Colors.red)
-                                  .withOpacity(0.5),
+                              (canRecover ? Colors.orange : Colors.red)
+                                  .withValues(alpha: 0.5),
                           blurRadius: 10,
                         ),
                       ],
@@ -198,17 +195,19 @@ class _GameScreenState extends State<GameScreen> {
                   const SizedBox(height: 12),
                   // Description
                   Text(
-                    canUseExtraChance
-                        ? (outOfTime
+                    !canRecover
+                        ? 'You used all extra chances.\nTry again?'
+                        : stuck
+                        ? 'No pours are left on this board.\nStir the bottles to continue?'
+                        : (outOfTime
                               ? 'You ran out of time!\nGet 30 seconds to continue?'
-                              : 'You ran out of moves!\nGet 5 moves to continue?')
-                        : 'You used all extra chances.\nTry again?',
+                              : 'You ran out of moves!\nGet 5 moves to continue?'),
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: Colors.white70, fontSize: 16),
                   ),
                   const SizedBox(height: 24),
 
-                  if (canUseExtraChance) ...[
+                  if (canRecover) ...[
                     // Buttons
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -217,31 +216,26 @@ class _GameScreenState extends State<GameScreen> {
                         GameButton(
                           width: 120,
                           onTap: () {
-                            if (_controller.coins >= 50) {
-                              Navigator.pop(context);
-                              _controller.useExtraChance(outOfTime);
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Not enough coins!'),
-                                ),
-                              );
+                            if (!rescue(adFunded: false)) {
+                              _showSnack('Not enough coins for another try!');
+                              return;
                             }
+                            Navigator.pop(context);
                           },
                           color: const Color(0xFFFF9900), // Orange/Gold
-                          child: const Row(
+                          child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                '50',
-                                style: TextStyle(
+                                '$rescueCost',
+                                style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 16,
                                 ),
                               ),
-                              SizedBox(width: 6),
-                              Icon(
+                              const SizedBox(width: 6),
+                              const Icon(
                                 Icons.monetization_on,
                                 color: Colors.yellow,
                                 size: 20,
@@ -255,16 +249,11 @@ class _GameScreenState extends State<GameScreen> {
                           onTap: () {
                             AdManager.showRewardedAd(
                               () {
+                                if (!rescue(adFunded: true)) {
+                                  _showSnack('This rescue is no longer available.');
+                                  return;
+                                }
                                 Navigator.pop(context);
-                                _controller.useExtraChance(
-                                  outOfTime,
-                                  isAd: true,
-                                );
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Thanks for watching!'),
-                                  ),
-                                );
                               },
                               () {
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -355,8 +344,8 @@ class _GameScreenState extends State<GameScreen> {
                   boxShadow: [
                     BoxShadow(
                       color: outOfTime
-                          ? Colors.orange.withOpacity(0.6)
-                          : Colors.cyan.withOpacity(0.6),
+                          ? Colors.orange.withValues(alpha: 0.6)
+                          : Colors.cyan.withValues(alpha: 0.6),
                       blurRadius: 30,
                     ),
                   ],
@@ -379,27 +368,15 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _showWinDialog() {
-    _levelStopwatch.stop();
-    final int elapsedSeconds = _levelStopwatch.elapsed.inSeconds;
-    final int moves = _controller.movesCount;
-
-    // Star Calculation Logic (3 stars = good, 1 star = slow/many moves)
-    int stars = 1;
-    if (moves <= 15 && elapsedSeconds <= 30) {
-      stars = 3;
-    } else if (moves <= 25 && elapsedSeconds <= 60) {
-      stars = 2;
-    }
-
     Navigator.push(
       context,
       PageRouteBuilder(
         opaque: false,
-        pageBuilder: (context, _, __) => LevelCompleteDialog(
-          stars: stars,
+        pageBuilder: (context, _, _) => LevelCompleteDialog(
+          stars: _controller.starsEarned,
           level: _controller.currentLevel,
-          coinsEarned: 50,
-          gemsEarned: 5,
+          coinsEarned: _controller.coinsEarned,
+          gemsEarned: _controller.gemsEarned,
           onNext: () {
             Navigator.pop(context);
             _controller.nextLevel();
@@ -421,8 +398,6 @@ class _GameScreenState extends State<GameScreen> {
     _confettiController.dispose();
     _controller.removeListener(_onGameStateChanged);
     _controller.dispose();
-    _audioPlayer.dispose();
-    _lockAudioPlayer.dispose();
     super.dispose();
   }
 
@@ -602,11 +577,11 @@ class _GameScreenState extends State<GameScreen> {
                         height: 50,
                         child: Container(
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.05),
+                            color: Colors.white.withValues(alpha: 0.05),
                             borderRadius: BorderRadius.circular(100),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.cyanAccent.withOpacity(0.2),
+                                color: Colors.cyanAccent.withValues(alpha: 0.2),
                                 blurRadius: 40,
                                 spreadRadius: 10,
                               ),
@@ -623,11 +598,8 @@ class _GameScreenState extends State<GameScreen> {
                         ) {
                           bool isPouringSource =
                               _controller.pouringFromIndex == index;
-                          bool isReceiving =
-                              _controller.pouringToIndex == index;
 
                           Offset moveOffset = Offset.zero;
-                          Offset? targetOffset;
 
                           if (isPouringSource &&
                               _controller.pouringToIndex != null) {
@@ -659,8 +631,6 @@ class _GameScreenState extends State<GameScreen> {
                                 targetPos.dx - sourcePos.dx + tiltDir,
                                 targetPos.dy - sourcePos.dy - (160 * scale) + 10,
                               );
-
-                              targetOffset = Offset(0, 160);
                             }
                           }
 
@@ -671,13 +641,10 @@ class _GameScreenState extends State<GameScreen> {
                               isSelected:
                                   _controller.selectedTubeIndex == index,
                               isShaking: _controller.wrongMoveIndex == index,
-                              isReceiving: isReceiving,
                               tiltAngle: isPouringSource
                                   ? _controller.pourTiltAngle
                                   : 0.0,
                               offset: moveOffset,
-                              targetOffset: targetOffset,
-                              pouringColor: _controller.pouringColor,
                               scale: scale,
                               onTap: () {
                                 if (_showTutorial) {
@@ -844,7 +811,7 @@ class _GameScreenState extends State<GameScreen> {
                 decoration: BoxDecoration(
                   color: const Color(
                     0xFF3B2A6A,
-                  ).withOpacity(0.8), // Purple transparent pill
+                  ).withValues(alpha: 0.8), // Purple transparent pill
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: const Color(0xFF5E4B9A)),
                 ),
@@ -932,99 +899,115 @@ class _GameScreenState extends State<GameScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           _buildActionBtn(
+            power: PowerUp.undo,
             imagePath: 'assets/images/icon_undo.jpg',
-            cost: 50,
-            onTap: () => _controller.undo(),
+          ),
+          const SizedBox(width: 20),
+          _buildActionBtn(power: PowerUp.hint, icon: Icons.lightbulb_outline),
+          const SizedBox(width: 20),
+          _buildActionBtn(
+            power: PowerUp.shuffle,
+            imagePath: 'assets/images/icon_shuffle.jpg',
           ),
           const SizedBox(width: 20),
           _buildActionBtn(
-            icon: Icons.lightbulb_outline,
-            cost: 50,
-            onTap: () => _controller.requestHint(),
-          ),
-          const SizedBox(width: 20),
-          _buildActionBtn(
+            power: PowerUp.addTube,
             imagePath: 'assets/images/icon_add_tube.jpg',
-            cost: 100,
-            onTap: () => _controller.addExtraTube(),
           ),
         ],
       ),
     );
   }
 
+  int _costOf(PowerUp power) => _controller.costOf(power);
+
+  /// Returns false when the power-up could not take effect on this board state.
+  bool _applyPower(PowerUp power, {required bool adFunded}) => switch (power) {
+    PowerUp.undo => _controller.undo(adFunded: adFunded),
+    PowerUp.hint => _controller.requestHint(adFunded: adFunded),
+    PowerUp.shuffle => _controller.shuffleTubes(adFunded: adFunded),
+    PowerUp.addTube => _controller.addExtraTube(adFunded: adFunded),
+  };
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Widget _buildActionBtn({
+    required PowerUp power,
     String? imagePath,
     IconData? icon,
-    required int cost,
-    required VoidCallback onTap,
   }) {
-    bool canAfford = _controller.coins >= cost;
+    final int cost = _costOf(power);
+    final bool canAfford = _controller.coins >= cost;
+    final bool usable = _controller.canUsePowerUp(power);
+    final bool payWithCoins = canAfford && usable;
+
     return BouncingButton(
-      onTap: canAfford
-          ? onTap
-          : () {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  backgroundColor: AppColors.cardBackground,
-                  title: const Text(
-                    'Not Enough Coins',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  content: const Text(
-                    'Watch a short video to use this power-up for free?',
-                    style: TextStyle(color: Colors.white70),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(color: Colors.white54),
-                      ),
+      onTap: () {
+        if (!usable) {
+          _showSnack('Not available for the current board.');
+          return;
+        }
+        if (payWithCoins) {
+          _applyPower(power, adFunded: false);
+          return;
+        }
+        showDialog(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            backgroundColor: AppColors.cardBackground,
+            title: const Text(
+              'Not Enough Coins',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: const Text(
+              'Watch a short video to use this power-up for free?',
+              style: TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.white54),
+                ),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryButton,
+                ),
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  AdManager.showRewardedAd(
+                    () {
+                      if (!_applyPower(power, adFunded: true)) {
+                        _showSnack('This power-up is no longer available.');
+                      }
+                    },
+                    () => _showSnack(
+                      'Failed to load Ad. Please try again later.',
                     ),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryButton,
-                      ),
-                      onPressed: () {
-                        Navigator.pop(context);
-                        AdManager.showRewardedAd(
-                          () {
-                            // Temporarily give coins so the controller check passes
-                            _controller.coins += cost;
-                            onTap();
-                          },
-                          () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Failed to load Ad. Please try again later.',
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.play_arrow, color: Colors.white),
-                          SizedBox(width: 4),
-                          Text(
-                            'Watch Ad',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ],
-                      ),
-                    ),
+                  );
+                },
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.play_arrow, color: Colors.white),
+                    SizedBox(width: 4),
+                    Text('Watch Ad', style: TextStyle(color: Colors.white)),
                   ],
                 ),
-              );
-            },
+              ),
+            ],
+          ),
+        );
+      },
       child: Opacity(
-        opacity: canAfford ? 1.0 : 0.5,
+        opacity: payWithCoins ? 1.0 : 0.5,
         child: Stack(
           clipBehavior: Clip.none,
           children: [
@@ -1040,7 +1023,7 @@ class _GameScreenState extends State<GameScreen> {
                 ), // Yellow border
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFFFD700).withOpacity(0.3),
+                    color: const Color(0xFFFFD700).withValues(alpha: 0.3),
                     blurRadius: 8,
                   ),
                 ],

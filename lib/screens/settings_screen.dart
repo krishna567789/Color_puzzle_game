@@ -10,7 +10,6 @@ import 'package:share_plus/share_plus.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
-
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
@@ -117,9 +116,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             }),
             const SizedBox(height: 16),
             _buildActionTile('Share App', Icons.share, Colors.blueAccent, () {
-              Share.share(
-                'Check out this magical Color Puzzle Game! Can you solve all the levels? Download it now!',
-                subject: 'Color Puzzle Game',
+              SharePlus.instance.share(
+                ShareParams(
+                  text: 'Check out this magical Color Puzzle Game! Can you '
+                      'solve all the levels? Download it now!',
+                  subject: 'Color Puzzle Game',
+                ),
               );
             }),
             const Spacer(),
@@ -163,7 +165,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: AppColors.primaryButton,
+            activeThumbColor: AppColors.primaryButton,
             activeTrackColor: AppColors.primaryButton.withValues(alpha: 0.3),
             inactiveThumbColor: Colors.white24,
             inactiveTrackColor: Colors.white10,

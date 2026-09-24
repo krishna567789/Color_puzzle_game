@@ -86,15 +86,12 @@ class _PouringStreamEffectState extends State<PouringStreamEffect>
       final targetContext = widget.tubeKeys[_lastToIndex!].currentContext;
 
       if (sourceContext != null && targetContext != null) {
-        final sourceBox = sourceContext.findRenderObject() as RenderBox;
         final targetBox = targetContext.findRenderObject() as RenderBox;
 
-        final sourceGlobal = sourceBox.localToGlobal(Offset.zero);
         final targetGlobal = targetBox.localToGlobal(Offset.zero);
         
         final localRenderBox = context.findRenderObject() as RenderBox?;
         if (localRenderBox != null) {
-           final localSource = localRenderBox.globalToLocal(sourceGlobal);
            final localTarget = localRenderBox.globalToLocal(targetGlobal);
            
            // The source tube jumps to hover over the target tube!

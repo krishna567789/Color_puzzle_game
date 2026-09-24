@@ -18,8 +18,9 @@ class PouringStreamPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (startPoint == null || endPoint == null || animationProgress == 0)
+    if (startPoint == null || endPoint == null || animationProgress == 0) {
       return;
+    }
 
     final paint = Paint()
       ..color = color
@@ -28,7 +29,7 @@ class PouringStreamPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     final highlightPaint = Paint()
-      ..color = Colors.white.withOpacity(0.5)
+      ..color = Colors.white.withValues(alpha: 0.5)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0
       ..strokeCap = StrokeCap.round;

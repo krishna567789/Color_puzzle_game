@@ -1,6 +1,10 @@
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../core/ad_manager.dart';
+import '../core/analytics_service.dart';
 import '../core/app_colors.dart';
+import '../core/progress_service.dart';
 import '../core/storage_service.dart';
 import '../models/shop_item_model.dart';
 import '../core/audio_service.dart';
@@ -23,9 +27,24 @@ class _ShopScreenState extends State<ShopScreen> {
   String _selectedThemeId = 'default_theme';
   int _activeTabIndex = 0;
 
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _restorePurchases() async {
+    AnalyticsService.logEvent('iap_restore_tapped');
+    await IapService.restorePurchases();
+    await _loadData();
+    _showSnack('Purchases restored.');
+  }
+
   @override
   void initState() {
     super.initState();
+    AnalyticsService.logShopOpened();
     _loadData();
   }
 
@@ -62,7 +81,7 @@ class _ShopScreenState extends State<ShopScreen> {
           id: 'crystal_bottle',
           name: 'Crystal Vase',
           description: 'Elegant crystal shape.',
-          price: 2500,
+          gemPrice: 40,
           type: ShopItemType.tubeSkin,
           isOwned: ownedIds.contains('crystal_bottle'),
         ),
@@ -94,7 +113,7 @@ class _ShopScreenState extends State<ShopScreen> {
           id: 'space_theme',
           name: 'Cosmic Void',
           description: 'Deep space puzzles.',
-          price: 3500,
+          gemPrice: 60,
           type: ShopItemType.theme,
           isOwned: ownedIds.contains('space_theme'),
         ),
@@ -167,58 +186,53 @@ class _ShopScreenState extends State<ShopScreen> {
   Future<void> _buyItem(ShopItem item) async {
     if (item.type == ShopItemType.iap) {
       if (item.isOwned) return;
-      // Trigger IAP Flow
-      if (IapService.isAvailable) {
-        try {
-          ProductDetails? product = IapService.products.firstWhere(
-            (p) => p.id == item.id,
-          );
-          await IapService.buyProduct(product);
-        } catch (e) {
-          debugPrint('IAP Product not found: ${item.id}');
-        }
-      } else {
-        // Mock purchase for debug
+      ProductDetails? product;
+      for (final p in IapService.products) {
+        if (p.id == item.id) product = p;
+      }
+      if (IapService.isAvailable && product != null) {
+        await IapService.buyProduct(product);
+      } else if (kDebugMode) {
+        // Local sandbox only: lets the economy be tested without a Play
+        // Console listing. Never reachable in a release build.
         if (item.id == IapService.removeAdsId) {
           await StorageService.setHasRemovedAds(true);
+          AdManager.updateHasRemovedAds(true);
         } else if (item.id == IapService.buyCoins1000Id) {
-          await StorageService.saveCoins(_coins + 1000);
+          await ProgressService.grant(coins: 1000);
         } else if (item.id == IapService.buyCoins500Id) {
-          await StorageService.saveCoins(_coins + 500);
+          await ProgressService.grant(coins: 500);
         }
-        _loadData();
+        await _loadData();
+      } else {
+        AudioService.playErrorSfx();
+        _showSnack(
+          'Store is currently unavailable. Please check your connection '
+          'and try again.',
+        );
       }
       return;
     }
 
-    if (_coins >= item.price) {
-      _coins -= item.price;
-      item.isOwned = true;
-
-      List<String> owned = _items
-          .where((i) => i.isOwned)
-          .map((i) => i.id)
-          .toList();
-      await StorageService.saveCoins(_coins);
-      await StorageService.saveOwnedItems(owned);
-      AudioService.playWinSfx();
-      setState(() {});
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Purchased ${item.name}!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } else {
+    // Gems are the premium local currency: the flagship cosmetics can only be
+    // bought with them, which is what keeps a gem scarce after a while.
+    final paid = item.costsGems
+        ? await ProgressService.spend(gems: item.gemPrice)
+        : await ProgressService.spend(coins: item.price);
+    if (!paid) {
       AudioService.playClickSfx();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Not enough coins!'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+      _showSnack('Not enough ${item.costsGems ? 'gems' : 'coins'}!');
+      return;
     }
+
+    item.isOwned = true;
+    await StorageService.saveOwnedItems([
+      for (final owned in _items)
+        if (owned.isOwned && owned.type != ShopItemType.iap) owned.id,
+    ]);
+    await _loadData();
+    AudioService.playWinSfx();
+    _showSnack('Purchased ${item.name}!');
   }
 
   Future<void> _selectItem(ShopItem item) async {
@@ -234,8 +248,19 @@ class _ShopScreenState extends State<ShopScreen> {
     setState(() {});
   }
 
+  /// The catalogue cut down to the tab on screen.
+  List<ShopItem> get _visibleItems {
+    final type = switch (_activeTabIndex) {
+      1 => ShopItemType.theme,
+      2 => ShopItemType.iap,
+      _ => ShopItemType.tubeSkin,
+    };
+    return [for (final item in _items) if (item.type == type) item];
+  }
+
   @override
   Widget build(BuildContext context) {
+    final visibleItems = _visibleItems;
     return Scaffold(
       backgroundColor: Colors.black,
       extendBodyBehindAppBar: true,
@@ -262,6 +287,12 @@ class _ShopScreenState extends State<ShopScreen> {
             AppColors.goldCoin,
             _coins.toString(),
           ),
+          const SizedBox(width: 8),
+          _buildCurrencyDisplay(
+            Icons.diamond,
+            Colors.cyanAccent,
+            _gems.toString(),
+          ),
           const SizedBox(width: 16),
         ],
       ),
@@ -286,15 +317,18 @@ class _ShopScreenState extends State<ShopScreen> {
               children: [
                 // Category Tabs
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16.0),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 16.0,
+                    horizontal: 14,
+                  ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      _buildCategoryTab('BOTTLES', 0),
-                      const SizedBox(width: 10),
-                      _buildCategoryTab('THEMES', 1),
-                      const SizedBox(width: 10),
-                      _buildCategoryTab('PREMIUM', 2),
+                      for (final tab in const ['BOTTLES', 'THEMES', 'PREMIUM']
+                          .asMap()
+                          .entries) ...[
+                        if (tab.key > 0) const SizedBox(width: 10),
+                        Expanded(child: _buildCategoryTab(tab.value, tab.key)),
+                      ],
                     ],
                   ),
                 ),
@@ -309,22 +343,9 @@ class _ShopScreenState extends State<ShopScreen> {
                           mainAxisSpacing: 20,
                           childAspectRatio: 0.75,
                         ),
-                    itemCount: _items.where((i) {
-                      if (_activeTabIndex == 0)
-                        return i.type == ShopItemType.tubeSkin;
-                      if (_activeTabIndex == 1)
-                        return i.type == ShopItemType.theme;
-                      return i.type == ShopItemType.iap;
-                    }).length,
+                    itemCount: visibleItems.length,
                     itemBuilder: (context, index) {
-                      final displayItems = _items.where((i) {
-                        if (_activeTabIndex == 0)
-                          return i.type == ShopItemType.tubeSkin;
-                        if (_activeTabIndex == 1)
-                          return i.type == ShopItemType.theme;
-                        return i.type == ShopItemType.iap;
-                      }).toList();
-                      final item = displayItems[index];
+                      final item = visibleItems[index];
                       final isSelected = item.type == ShopItemType.tubeSkin
                           ? _selectedSkinId == item.id
                           : _selectedThemeId == item.id;
@@ -332,6 +353,20 @@ class _ShopScreenState extends State<ShopScreen> {
                     },
                   ),
                 ),
+
+                if (_activeTabIndex == 2)
+                  TextButton.icon(
+                    onPressed: _restorePurchases,
+                    icon: const Icon(Icons.refresh, color: Colors.white70),
+                    label: const Text(
+                      'RESTORE PURCHASES',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -348,7 +383,8 @@ class _ShopScreenState extends State<ShopScreen> {
         setState(() => _activeTabIndex = index);
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
           gradient: active
               ? const LinearGradient(
@@ -368,13 +404,16 @@ class _ShopScreenState extends State<ShopScreen> {
               ),
           ],
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: active ? Colors.black87 : Colors.white60,
-            fontWeight: FontWeight.w900,
-            fontSize: 14,
-            letterSpacing: 1,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: active ? Colors.black87 : Colors.white60,
+              fontWeight: FontWeight.w900,
+              fontSize: 14,
+              letterSpacing: 1,
+            ),
           ),
         ),
       ),
@@ -532,19 +571,20 @@ class _ShopScreenState extends State<ShopScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         if (item.type != ShopItemType.iap)
-                          const Icon(
-                            Icons.monetization_on,
-                            color: AppColors.goldCoin,
+                          Icon(
+                            item.costsGems ? Icons.diamond : Icons.monetization_on,
+                            color: item.costsGems ? Colors.cyanAccent : AppColors.goldCoin,
                             size: 16,
                           ),
-                        if (item.type != ShopItemType.iap)
-                          const SizedBox(width: 6),
+                        if (item.type != ShopItemType.iap) const SizedBox(width: 6),
                         Text(
                           item.type == ShopItemType.iap
                               ? (item.iapPrice ?? '\$0.00')
-                              : item.price.toString(),
-                          style: const TextStyle(
-                            color: AppColors.goldCoin,
+                              : item.cost.toString(),
+                          style: TextStyle(
+                            color: item.costsGems
+                                ? Colors.cyanAccent
+                                : AppColors.goldCoin,
                             fontWeight: FontWeight.bold,
                           ),
                         ),

@@ -1,30 +1,39 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'analytics_service.dart';
 import 'storage_service.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 class AdManager {
   static bool _hasRemovedAds = false;
 
+  /// AdMob penalises interstitials that interrupt the player too often, so they
+  /// are rate limited on both level completions and wall-clock time.
+  static const int _interstitialMinLevelsApart = 3;
+  static const Duration _interstitialMinGap = Duration(minutes: 1);
+  static int _levelsSinceInterstitial = 0;
+  static DateTime? _lastInterstitialAt;
+
   static Future<void> init() async {
     if (kIsWeb) return;
     _hasRemovedAds = await StorageService.getHasRemovedAds();
-    if (_hasRemovedAds) {
-      // Still initialize but only load rewarded ads
-      await MobileAds.instance.initialize();
-      loadRewardedAd();
-      return;
-    }
-    
     await MobileAds.instance.initialize();
-    loadInterstitialAd();
     loadRewardedAd();
+    if (!_hasRemovedAds) loadInterstitialAd();
   }
 
   static void updateHasRemovedAds(bool value) {
     _hasRemovedAds = value;
+    if (_hasRemovedAds) {
+      _interstitialAd?.dispose();
+      _interstitialAd = null;
+    } else {
+      loadInterstitialAd();
+    }
   }
 
+  // iOS unit IDs are still Google's public test IDs; swap in the real AdMob iOS
+  // IDs before shipping an iOS build.
   static String get bannerAdUnitId {
     if (kIsWeb) return '';
     if (Platform.isAndroid) {
@@ -58,7 +67,7 @@ class AdManager {
   static InterstitialAd? _interstitialAd;
 
   static void loadInterstitialAd() {
-    if (kIsWeb) return;
+    if (kIsWeb || _hasRemovedAds || _interstitialAd != null) return;
     InterstitialAd.load(
       adUnitId: interstitialAdUnitId,
       request: const AdRequest(),
@@ -86,26 +95,47 @@ class AdManager {
     );
   }
 
+  /// Called once per cleared level so interstitials can be spaced out.
+  static void notifyLevelCompleted() {
+    _levelsSinceInterstitial++;
+  }
+
+  static bool get _interstitialDue {
+    if (_levelsSinceInterstitial < _interstitialMinLevelsApart) return false;
+    final last = _lastInterstitialAt;
+    if (last != null && DateTime.now().difference(last) < _interstitialMinGap) {
+      return false;
+    }
+    return true;
+  }
+
   static void showInterstitialAd() {
-    if (_hasRemovedAds) return;
+    if (_hasRemovedAds || !_interstitialDue) return;
 
     if (_interstitialAd != null) {
       _interstitialAd!.show();
       _interstitialAd = null;
+      _levelsSinceInterstitial = 0;
+      _lastInterstitialAt = DateTime.now();
     } else {
       loadInterstitialAd(); // Ensure we try loading again if not available
     }
   }
 
   static RewardedAd? _rewardedAd;
+  static bool _rewardedAdLoading = false;
+
+  static bool get isRewardedAdReady => _rewardedAd != null;
 
   static void loadRewardedAd() {
-    if (kIsWeb) return;
+    if (kIsWeb || _rewardedAdLoading || _rewardedAd != null) return;
+    _rewardedAdLoading = true;
     RewardedAd.load(
       adUnitId: rewardedAdUnitId,
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (RewardedAd ad) {
+          _rewardedAdLoading = false;
           _rewardedAd = ad;
           _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
             onAdDismissedFullScreenContent: (RewardedAd ad) {
@@ -121,22 +151,33 @@ class AdManager {
           );
         },
         onAdFailedToLoad: (LoadAdError error) {
-          debugPrint('RewardedAd failed to load: $error');
+          _rewardedAdLoading = false;
           _rewardedAd = null;
+          debugPrint('RewardedAd failed to load: $error');
+          AnalyticsService.logAdFailedToLoad('rewarded');
         },
       ),
     );
   }
 
   static void showRewardedAd(Function onRewardEarned, Function onAdFailed) {
-    if (_rewardedAd != null) {
-      _rewardedAd!.show(onUserEarnedReward: (AdWithoutView ad, RewardItem reward) {
-        onRewardEarned();
-      });
-      _rewardedAd = null;
-    } else {
+    final ad = _rewardedAd;
+    if (ad == null) {
       loadRewardedAd();
       onAdFailed();
+      return;
     }
+    _rewardedAd = null;
+    var rewarded = false;
+    ad.show(
+      onUserEarnedReward: (AdWithoutView _, RewardItem _) {
+        // AdMob can fire this more than once on some devices; pay out once.
+        if (rewarded) return;
+        rewarded = true;
+        AnalyticsService.logAdRewarded('rewarded');
+        onRewardEarned();
+      },
+    );
+    AnalyticsService.logAdImpression('rewarded');
   }
 }

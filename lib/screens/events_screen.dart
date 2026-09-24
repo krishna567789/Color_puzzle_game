@@ -1,7 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../core/app_colors.dart';
-import '../core/storage_service.dart';
+import '../core/event_service.dart';
 import '../models/event_model.dart';
 import '../core/audio_service.dart';
 import '../widgets/common/coin_animation_overlay.dart';
@@ -15,8 +15,6 @@ class EventsScreen extends StatefulWidget {
 
 class _EventsScreenState extends State<EventsScreen> {
   List<GameEvent> _events = [];
-  int _coins = 0;
-  int _gems = 0;
 
   @override
   void initState() {
@@ -25,74 +23,31 @@ class _EventsScreenState extends State<EventsScreen> {
   }
 
   Future<void> _loadData() async {
-    final coins = await StorageService.getCoins();
-    final gems = await StorageService.getGems();
-    
-    // In a real app, these might come from a server
-    List<GameEvent> templates = [
-      GameEvent(
-        id: 'summer_season_2026',
-        title: 'SUMMER SPLASH',
-        description: 'Complete 25 levels during the summer season to win big!',
-        bannerImage: 'assets/images/onboarding2.png', // Using existing asset
-        startDate: DateTime(2026, 6, 1),
-        endDate: DateTime(2026, 8, 31),
-        goal: 25,
-        rewardCoins: 5000,
-        rewardGems: 10,
-      ),
-      GameEvent(
-        id: 'weekend_warrior',
-        title: 'WEEKEND WARRIOR',
-        description: 'Solve 5 puzzles this weekend!',
-        bannerImage: 'assets/images/onboarding1.png',
-        startDate: DateTime(2026, 8, 15), // Current time is Aug 19, Wed. Weekend was 15-16.
-        endDate: DateTime(2026, 8, 23),
-        goal: 5,
-        rewardCoins: 1000,
-        rewardGems: 2,
-      ),
-    ];
-
-    List<GameEvent> loaded = [];
-    for (var e in templates) {
-      final data = await StorageService.getEventData(e.id);
-      e.isClaimed = data['claimed'] ?? false;
-      e.currentProgress = data['progress'] ?? 0;
-      loaded.add(e);
-    }
-
-    setState(() {
-      _events = loaded;
-      _coins = coins;
-      _gems = gems;
-    });
+    final events = await EventService.schedule();
+    if (!mounted) return;
+    setState(() => _events = events);
   }
 
   Future<void> _claimReward(BuildContext buttonContext, GameEvent event) async {
-    if (event.isClaimed || !event.isCompleted) return;
-
-    setState(() {
-      event.isClaimed = true;
-      _coins += event.rewardCoins;
-      _gems += event.rewardGems;
-    });
-
-    await StorageService.saveCoins(_coins);
-    await StorageService.saveGems(_gems);
-    await StorageService.saveEventProgress(event.id, true, event.currentProgress);
-    
+    final paid = await EventService.claim(event.id);
+    if (paid == null) return;
+    if (!mounted) return;
     AudioService.playWinSfx();
-    
-    if (event.rewardCoins > 0) {
+
+    await _loadData();
+    if (!mounted) return;
+
+    if (paid.rewardCoins > 0) {
+      if (!buttonContext.mounted) return;
       final renderBox = buttonContext.findRenderObject() as RenderBox?;
-      Offset startOffset = Offset(MediaQuery.of(context).size.width / 2, MediaQuery.of(context).size.height / 2);
+      final media = MediaQuery.of(context).size;
+      Offset startOffset = Offset(media.width / 2, media.height / 2);
       if (renderBox != null) {
         final pos = renderBox.localToGlobal(Offset.zero);
         final size = renderBox.size;
         startOffset = Offset(pos.dx + size.width / 2, pos.dy + size.height / 2);
       }
-      
+
       CoinAnimationUtils.showCoinAnimation(
         context: context,
         startOffset: startOffset,
@@ -100,10 +55,10 @@ class _EventsScreenState extends State<EventsScreen> {
         coinCount: 15,
       );
     }
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Season Reward: ${event.rewardCoins} Coins Claimed!'),
+        content: Text('${paid.title}: ${paid.rewardCoins} Coins Claimed!'),
         backgroundColor: Colors.blueAccent,
       ),
     );
@@ -160,7 +115,7 @@ class _EventsScreenState extends State<EventsScreen> {
 
   Widget _buildEventCard(GameEvent event) {
     bool isActive = event.isActive;
-    bool canClaim = event.isCompleted && !event.isClaimed;
+    bool canClaim = event.canClaim;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
@@ -234,7 +189,14 @@ class _EventsScreenState extends State<EventsScreen> {
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: Colors.white30, width: 1),
                       ),
-                      child: Text('${event.daysRemaining}d Left', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        !isActive
+                            ? 'Starts in ${event.daysUntilStart}d'
+                            : event.daysRemaining <= 0
+                            ? 'ENDS TODAY'
+                            : '${event.daysRemaining}d Left',
+                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ),
                 ],
@@ -259,6 +221,31 @@ class _EventsScreenState extends State<EventsScreen> {
                     Text(
                       event.description, 
                       style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.4),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        const Icon(Icons.monetization_on, color: Colors.yellow, size: 18),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${event.rewardCoins}',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                        if (event.rewardGems > 0) ...[
+                          const SizedBox(width: 16),
+                          const Icon(Icons.diamond, color: Colors.cyanAccent, size: 16),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${event.rewardGems}',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                        const Spacer(),
+                        Text(
+                          'Reward',
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 24),
                     
@@ -321,7 +308,9 @@ class _EventsScreenState extends State<EventsScreen> {
                       height: 55,
                       child: Builder(
                         builder: (btnContext) => GestureDetector(
-                          onTap: canClaim ? () => _claimReward(btnContext, event) : (isActive ? () => Navigator.pop(context) : null),
+                          onTap: canClaim
+                              ? () => _claimReward(btnContext, event)
+                              : (isActive ? () => Navigator.pop(context) : null),
                           child: Container(
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
@@ -342,7 +331,7 @@ class _EventsScreenState extends State<EventsScreen> {
                             ),
                             child: Center(
                               child: Text(
-                                canClaim ? 'CLAIM REWARD' : (isActive ? 'PLAY NOW' : 'FINISHED'),
+                                canClaim ? 'CLAIM REWARD' : (isActive ? 'PLAY NOW' : 'UPCOMING'),
                                 style: TextStyle(
                                   color: isActive || canClaim ? Colors.black87 : Colors.white54, 
                                   fontWeight: FontWeight.w900,

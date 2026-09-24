@@ -1,0 +1,696 @@
+{
+  "schema": "modeling.program",
+  "schemaVersion": 1,
+  "kind": "model.create",
+  "intent": "Build a 16 mm Ludo dice (पासा) as a rounded ivory cube with 21 pip discs",
+  "units": {
+    "length": "m",
+    "angle": "rad",
+    "time": "s"
+  },
+  "coordinateSystem": {
+    "handedness": "right",
+    "upAxis": "y",
+    "forwardAxis": "z"
+  },
+  "spatialEnvelope": {
+    "min": [
+      -0.00835,
+      -0.00835,
+      -0.00835
+    ],
+    "max": [
+      0.00835,
+      0.00835,
+      0.00835
+    ],
+    "tolerance": 0.0004
+  },
+  "requires": [
+    "modeling.feature.axis",
+    "modeling.feature.beveled-box",
+    "modeling.feature.cylinder",
+    "modeling.scene",
+    "modeling.spatial-envelope"
+  ],
+  "parameters": [],
+  "operations": [
+    {
+      "op": "appearance.define",
+      "opKey": "die.shell.material",
+      "key": "die.shell.material",
+      "baseColor": "#F6F1E4",
+      "metallic": 0.02,
+      "roughness": 0.3,
+      "emissive": "#000000"
+    },
+    {
+      "op": "appearance.define",
+      "opKey": "pip.black.material",
+      "key": "pip.black.material",
+      "baseColor": "#1B1B1D",
+      "metallic": 0.05,
+      "roughness": 0.45,
+      "emissive": "#000000"
+    },
+    {
+      "op": "appearance.define",
+      "opKey": "pip.red.material",
+      "key": "pip.red.material",
+      "baseColor": "#B3231C",
+      "metallic": 0.05,
+      "roughness": 0.4,
+      "emissive": "#000000"
+    },
+    {
+      "op": "feature.define",
+      "opKey": "die.body.feature",
+      "key": "die.body.feature",
+      "feature": {
+        "type": "primitive.beveled-box",
+        "size": [
+          0.016,
+          0.016,
+          0.016
+        ],
+        "bevelRadius": 0.0014,
+        "bevelSegments": 3
+      }
+    },
+    {
+      "op": "feature.define",
+      "opKey": "pip.disc.feature",
+      "key": "pip.disc.feature",
+      "feature": {
+        "type": "primitive.cylinder",
+        "radius": 0.0016,
+        "height": 0.0007,
+        "radialSegments": 20,
+        "axis": "y"
+      }
+    },
+    {
+      "op": "component.define",
+      "opKey": "die.body.component",
+      "key": "die.body.component",
+      "feature": "die.body.feature",
+      "appearance": "die.shell.material"
+    },
+    {
+      "op": "component.define",
+      "opKey": "pip.black.component",
+      "key": "pip.black.component",
+      "feature": "pip.disc.feature",
+      "appearance": "pip.black.material"
+    },
+    {
+      "op": "component.define",
+      "opKey": "pip.red.component",
+      "key": "pip.red.component",
+      "feature": "pip.disc.feature",
+      "appearance": "pip.red.material"
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die",
+      "key": "ludo.die",
+      "name": "LudoDice",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotationRad": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die.body",
+      "key": "ludo.die.body",
+      "name": "DiceBody",
+      "parent": "ludo.die",
+      "component": "die.body.component",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotationRad": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die.pip.f1.0",
+      "key": "ludo.die.pip.f1.0",
+      "name": "PipFace1_0",
+      "parent": "ludo.die",
+      "component": "pip.red.component",
+      "transform": {
+        "translation": [
+          0,
+          0.008,
+          0
+        ],
+        "rotationRad": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die.pip.f6.0",
+      "key": "ludo.die.pip.f6.0",
+      "name": "PipFace6_0",
+      "parent": "ludo.die",
+      "component": "pip.black.component",
+      "transform": {
+        "translation": [
+          -0.0034,
+          -0.008,
+          -0.0034
+        ],
+        "rotationRad": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die.pip.f6.1",
+      "key": "ludo.die.pip.f6.1",
+      "name": "PipFace6_1",
+      "parent": "ludo.die",
+      "component": "pip.black.component",
+      "transform": {
+        "translation": [
+          -0.0034,
+          -0.008,
+          0
+        ],
+        "rotationRad": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die.pip.f6.2",
+      "key": "ludo.die.pip.f6.2",
+      "name": "PipFace6_2",
+      "parent": "ludo.die",
+      "component": "pip.black.component",
+      "transform": {
+        "translation": [
+          -0.0034,
+          -0.008,
+          0.0034
+        ],
+        "rotationRad": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die.pip.f6.3",
+      "key": "ludo.die.pip.f6.3",
+      "name": "PipFace6_3",
+      "parent": "ludo.die",
+      "component": "pip.black.component",
+      "transform": {
+        "translation": [
+          0.0034,
+          -0.008,
+          -0.0034
+        ],
+        "rotationRad": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die.pip.f6.4",
+      "key": "ludo.die.pip.f6.4",
+      "name": "PipFace6_4",
+      "parent": "ludo.die",
+      "component": "pip.black.component",
+      "transform": {
+        "translation": [
+          0.0034,
+          -0.008,
+          0
+        ],
+        "rotationRad": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die.pip.f6.5",
+      "key": "ludo.die.pip.f6.5",
+      "name": "PipFace6_5",
+      "parent": "ludo.die",
+      "component": "pip.black.component",
+      "transform": {
+        "translation": [
+          0.0034,
+          -0.008,
+          0.0034
+        ],
+        "rotationRad": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die.pip.f3.0",
+      "key": "ludo.die.pip.f3.0",
+      "name": "PipFace3_0",
+      "parent": "ludo.die",
+      "component": "pip.black.component",
+      "transform": {
+        "translation": [
+          0.008,
+          -0.0034,
+          -0.0034
+        ],
+        "rotationRad": [
+          0,
+          0,
+          1.5707963267948966
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die.pip.f3.1",
+      "key": "ludo.die.pip.f3.1",
+      "name": "PipFace3_1",
+      "parent": "ludo.die",
+      "component": "pip.black.component",
+      "transform": {
+        "translation": [
+          0.008,
+          0,
+          0
+        ],
+        "rotationRad": [
+          0,
+          0,
+          1.5707963267948966
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die.pip.f3.2",
+      "key": "ludo.die.pip.f3.2",
+      "name": "PipFace3_2",
+      "parent": "ludo.die",
+      "component": "pip.black.component",
+      "transform": {
+        "translation": [
+          0.008,
+          0.0034,
+          0.0034
+        ],
+        "rotationRad": [
+          0,
+          0,
+          1.5707963267948966
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die.pip.f4.0",
+      "key": "ludo.die.pip.f4.0",
+      "name": "PipFace4_0",
+      "parent": "ludo.die",
+      "component": "pip.red.component",
+      "transform": {
+        "translation": [
+          -0.008,
+          -0.0034,
+          -0.0034
+        ],
+        "rotationRad": [
+          0,
+          0,
+          1.5707963267948966
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die.pip.f4.1",
+      "key": "ludo.die.pip.f4.1",
+      "name": "PipFace4_1",
+      "parent": "ludo.die",
+      "component": "pip.red.component",
+      "transform": {
+        "translation": [
+          -0.008,
+          -0.0034,
+          0.0034
+        ],
+        "rotationRad": [
+          0,
+          0,
+          1.5707963267948966
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die.pip.f4.2",
+      "key": "ludo.die.pip.f4.2",
+      "name": "PipFace4_2",
+      "parent": "ludo.die",
+      "component": "pip.red.component",
+      "transform": {
+        "translation": [
+          -0.008,
+          0.0034,
+          -0.0034
+        ],
+        "rotationRad": [
+          0,
+          0,
+          1.5707963267948966
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die.pip.f4.3",
+      "key": "ludo.die.pip.f4.3",
+      "name": "PipFace4_3",
+      "parent": "ludo.die",
+      "component": "pip.red.component",
+      "transform": {
+        "translation": [
+          -0.008,
+          0.0034,
+          0.0034
+        ],
+        "rotationRad": [
+          0,
+          0,
+          1.5707963267948966
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die.pip.f2.0",
+      "key": "ludo.die.pip.f2.0",
+      "name": "PipFace2_0",
+      "parent": "ludo.die",
+      "component": "pip.black.component",
+      "transform": {
+        "translation": [
+          -0.0034,
+          -0.0034,
+          0.008
+        ],
+        "rotationRad": [
+          1.5707963267948966,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die.pip.f2.1",
+      "key": "ludo.die.pip.f2.1",
+      "name": "PipFace2_1",
+      "parent": "ludo.die",
+      "component": "pip.black.component",
+      "transform": {
+        "translation": [
+          0.0034,
+          0.0034,
+          0.008
+        ],
+        "rotationRad": [
+          1.5707963267948966,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die.pip.f5.0",
+      "key": "ludo.die.pip.f5.0",
+      "name": "PipFace5_0",
+      "parent": "ludo.die",
+      "component": "pip.black.component",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          -0.008
+        ],
+        "rotationRad": [
+          1.5707963267948966,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die.pip.f5.1",
+      "key": "ludo.die.pip.f5.1",
+      "name": "PipFace5_1",
+      "parent": "ludo.die",
+      "component": "pip.black.component",
+      "transform": {
+        "translation": [
+          -0.0034,
+          -0.0034,
+          -0.008
+        ],
+        "rotationRad": [
+          1.5707963267948966,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die.pip.f5.2",
+      "key": "ludo.die.pip.f5.2",
+      "name": "PipFace5_2",
+      "parent": "ludo.die",
+      "component": "pip.black.component",
+      "transform": {
+        "translation": [
+          -0.0034,
+          0.0034,
+          -0.008
+        ],
+        "rotationRad": [
+          1.5707963267948966,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die.pip.f5.3",
+      "key": "ludo.die.pip.f5.3",
+      "name": "PipFace5_3",
+      "parent": "ludo.die",
+      "component": "pip.black.component",
+      "transform": {
+        "translation": [
+          0.0034,
+          -0.0034,
+          -0.008
+        ],
+        "rotationRad": [
+          1.5707963267948966,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "ludo.die.pip.f5.4",
+      "key": "ludo.die.pip.f5.4",
+      "name": "PipFace5_4",
+      "parent": "ludo.die",
+      "component": "pip.black.component",
+      "transform": {
+        "translation": [
+          0.0034,
+          0.0034,
+          -0.008
+        ],
+        "rotationRad": [
+          1.5707963267948966,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    }
+  ],
+  "budget": {
+    "maxBytes": 1048576,
+    "maxNodes": 32,
+    "maxMeshes": 4,
+    "maxVertices": 6000,
+    "maxTriangles": 6000,
+    "maxOperations": 64,
+    "maxGeneratedInstances": 64
+  }
+}

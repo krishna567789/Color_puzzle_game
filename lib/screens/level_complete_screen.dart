@@ -115,7 +115,7 @@ class _LevelCompleteScreenState extends State<LevelCompleteScreen> with SingleTi
                   ),
                   
                   const SizedBox(height: 30),
-                  
+
                   // Reward
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -135,9 +135,7 @@ class _LevelCompleteScreenState extends State<LevelCompleteScreen> with SingleTi
                       ],
                     ),
                   ),
-                  
                   const SizedBox(height: 24),
-                  
                   // Stats
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -148,7 +146,6 @@ class _LevelCompleteScreenState extends State<LevelCompleteScreen> with SingleTi
                   ),
                   
                   const SizedBox(height: 32),
-                  
                   // Buttons
                   GameButton(
                     width: double.infinity,

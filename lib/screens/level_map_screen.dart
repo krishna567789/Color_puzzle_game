@@ -5,6 +5,7 @@ import '../core/app_colors.dart';
 import '../core/storage_service.dart';
 import '../core/audio_service.dart';
 import '../core/play_games_service.dart';
+import '../game/level_design.dart';
 import 'package:games_services/games_services.dart';
 import 'dart:convert';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -20,11 +21,14 @@ class LevelMapScreen extends StatefulWidget {
 class _LevelMapScreenState extends State<LevelMapScreen>
     with SingleTickerProviderStateMixin {
   int _userLevel = 1;
-  final int _totalLevels = 100;
   late AnimationController _pulseController;
   final ScrollController _scrollController = ScrollController();
   String? _playerImageBase64;
   Map<int, List<LeaderboardScoreData>> _friendsScoresByLevel = {};
+
+  /// Best rating ever earned on each level, so a node can show one star when
+  /// the player only just scraped past it.
+  Map<int, int> _starsByLevel = {};
 
   @override
   void initState() {
@@ -38,6 +42,7 @@ class _LevelMapScreenState extends State<LevelMapScreen>
 
   Future<void> _loadData() async {
     final level = await StorageService.getLevel();
+    final stars = await StorageService.getAllLevelStars();
     String? playerImg;
     Map<int, List<LeaderboardScoreData>> friendsMap = {};
     
@@ -58,6 +63,7 @@ class _LevelMapScreenState extends State<LevelMapScreen>
     if (mounted) {
       setState(() {
         _userLevel = level;
+        _starsByLevel = stars;
         _playerImageBase64 = playerImg;
         _friendsScoresByLevel = friendsMap;
       });
@@ -65,23 +71,21 @@ class _LevelMapScreenState extends State<LevelMapScreen>
 
     // Auto-scroll to current level after a short delay
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final viewportHeight = MediaQuery.of(context).size.height;
       Future.delayed(const Duration(milliseconds: 500), () {
-        if (_scrollController.hasClients) {
-          // Calculate offset (each item is 140 height)
-          double offset =
-              (_userLevel - 1) * 140.0 -
-              (MediaQuery.of(context).size.height / 2) +
-              70;
-          offset = offset.clamp(
-            0.0,
-            _scrollController.position.maxScrollExtent,
-          );
-          _scrollController.animateTo(
-            offset,
-            duration: const Duration(milliseconds: 800),
-            curve: Curves.easeInOut,
-          );
-        }
+        if (!mounted || !_scrollController.hasClients) return;
+        // Calculate offset (each item is 140 height)
+        double offset = (_userLevel - 1) * 140.0 - viewportHeight / 2 + 70;
+        offset = offset.clamp(
+          0.0,
+          _scrollController.position.maxScrollExtent,
+        );
+        _scrollController.animateTo(
+          offset,
+          duration: const Duration(milliseconds: 800),
+          curve: Curves.easeInOut,
+        );
       });
     });
   }
@@ -97,6 +101,14 @@ class _LevelMapScreenState extends State<LevelMapScreen>
     // Creates a wavy path using sine wave
     return (width / 2) + sin(index * 0.8) * (width * 0.3);
   }
+
+  /// Levels are generated for ever, so the map always ends on a chapter
+  /// boundary past the player instead of a hard-walled 100.
+  int get _totalLevels => max(
+    100,
+    (_userLevel ~/ LevelDesign.levelsPerChapter + 1) *
+        LevelDesign.levelsPerChapter,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -155,6 +167,8 @@ class _LevelMapScreenState extends State<LevelMapScreen>
               final isLocked = levelNumber > _userLevel;
 
               final currentX = _getOffsetX(index, screenWidth);
+              final isChapterStart =
+                  levelNumber % LevelDesign.levelsPerChapter == 1;
               final nextX = index < _totalLevels - 1
                   ? _getOffsetX(index + 1, screenWidth)
                   : currentX;
@@ -177,6 +191,36 @@ class _LevelMapScreenState extends State<LevelMapScreen>
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
+                      if (isChapterStart)
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          top: 0,
+                          child: Center(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.55),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: AppColors.goldCoin.withValues(alpha: 0.7),
+                                ),
+                              ),
+                              child: Text(
+                                LevelDesign.chapterName(levelNumber).toUpperCase(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.6,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       Positioned(
                         left: currentX - 40, // Centered
                         top: 30, // Centered vertically (140 - 80) / 2
@@ -247,14 +291,29 @@ class _LevelMapScreenState extends State<LevelMapScreen>
                     ? Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Image.asset('assets/icon/star_3d.png', width: 28, height: 28),
-                          const SizedBox(height: 2),
+                          Text(
+                            level.toString(),
+                            style: const TextStyle(
+                              color: Colors.black87,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Image.asset('assets/icon/star_3d.png', width: 18, height: 18),
-                              const SizedBox(width: 8),
-                              Image.asset('assets/icon/star_3d.png', width: 18, height: 18),
+                              for (var star = 1; star <= 3; star++)
+                                star <= (_starsByLevel[level] ?? 0)
+                                    ? Image.asset(
+                                        'assets/icon/star_3d.png',
+                                        width: 15,
+                                        height: 15,
+                                      )
+                                    : const Icon(
+                                        Icons.star_border,
+                                        size: 15,
+                                        color: Colors.black38,
+                                      ),
                             ],
                           ),
                         ],

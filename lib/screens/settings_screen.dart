@@ -18,6 +18,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _musicEnabled = true;
   bool _sfxEnabled = true;
   bool _vibrationEnabled = true;
+  bool _colorblindPatterns = false;
+  bool _leftHandedLayout = false;
 
   @override
   void initState() {
@@ -31,12 +33,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final music = await StorageService.getMusic();
     final sfx = await StorageService.getSfx();
     final vibration = await StorageService.getVibration();
+    final patterns = await StorageService.getColorblindPatterns();
+    final leftHanded = await StorageService.getLeftHandedLayout();
     setState(() {
       _musicEnabled = music;
       _sfxEnabled = sfx;
       _vibrationEnabled = vibration;
+      _colorblindPatterns = patterns;
+      _leftHandedLayout = leftHanded;
       _isSignedIn = PlayGamesService.isSignedIn;
     });
+  }
+
+  /// The accessibility switches are read by the game board when it is next
+  /// opened, so the write has to land before the player leaves this screen.
+  void _setColorblindPatterns(bool value) {
+    setState(() => _colorblindPatterns = value);
+    StorageService.setColorblindPatterns(value);
+  }
+
+  void _setLeftHandedLayout(bool value) {
+    setState(() => _leftHandedLayout = value);
+    StorageService.setLeftHandedLayout(value);
   }
 
   @override
@@ -60,7 +78,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         centerTitle: true,
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           children: [
@@ -83,7 +101,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
               HapticService.toggleVibration(val);
               HapticService.lightImpact(); // Test feedback
             }),
+            const SizedBox(height: 24),
+            const _SectionLabel('ACCESSIBILITY'),
+            _buildSettingTile(
+              'Layer Patterns',
+              Icons.pattern,
+              _colorblindPatterns,
+              _setColorblindPatterns,
+              subtitle: 'Each colour keeps its own shape',
+            ),
             const SizedBox(height: 16),
+            _buildSettingTile(
+              'Left-Handed Controls',
+              Icons.back_hand,
+              _leftHandedLayout,
+              _setLeftHandedLayout,
+              subtitle: 'Keep the tools along the left edge',
+            ),
+            const SizedBox(height: 24),
             _buildActionTile(
               _isSignedIn ? 'Play Games Connected' : 'Sign in to Play Games',
               FontAwesomeIcons.google,
@@ -118,13 +153,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildActionTile('Share App', Icons.share, Colors.blueAccent, () {
               SharePlus.instance.share(
                 ShareParams(
-                  text: 'Check out this magical Color Puzzle Game! Can you '
+                  text:
+                      'Check out this magical Color Puzzle Game! Can you '
                       'solve all the levels? Download it now!',
                   subject: 'Color Puzzle Game',
                 ),
               );
             }),
-            const Spacer(),
+            // A fixed gap, not a Spacer: this list scrolls now, and a flex child
+            // in an unbounded column is an error rather than an alignment.
+            const SizedBox(height: 32),
             const Text(
               'Version 1.1.0',
               style: TextStyle(color: Colors.white24, fontSize: 12),
@@ -140,8 +178,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     String title,
     IconData icon,
     bool value,
-    Function(bool) onChanged,
-  ) {
+    Function(bool) onChanged, {
+    String? subtitle,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
@@ -152,16 +191,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Row(
         children: [
           Icon(icon, color: AppColors.primaryButton, size: 28),
-          const SizedBox(width: 20),
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
+          const SizedBox(width: 16),
+          // The label gets the space that is left, and wraps into it: a title
+          // this side of a switch is what overflowed the smallest phone.
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 2,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle,
+                    style: const TextStyle(color: Colors.white38, fontSize: 12),
+                  ),
+              ],
             ),
           ),
-          const Spacer(),
           Switch(
             value: value,
             onChanged: onChanged,
@@ -200,22 +253,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Row(
           children: [
             iconWidget,
-            const SizedBox(width: 20),
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                title,
+                maxLines: 2,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-            const Spacer(),
             const Icon(
               Icons.arrow_forward_ios,
               color: Colors.white24,
               size: 18,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The heading over a block of switches.
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 4, bottom: 12),
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: AppColors.primaryButton,
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.6,
+          ),
         ),
       ),
     );

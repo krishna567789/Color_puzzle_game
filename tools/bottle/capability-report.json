@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "profile": "qoder-glb-safe",
+  "status": "complete",
+  "capabilities": [
+    {
+      "id": "artifact.glb.create",
+      "status": "implemented",
+      "evidence": [
+        "revision:1"
+      ]
+    },
+    {
+      "id": "transaction.dry-run",
+      "status": "implemented",
+      "evidence": [
+        "lifecycle:createModelBundle"
+      ]
+    },
+    {
+      "id": "transaction.expected-state",
+      "status": "implemented",
+      "evidence": [
+        "state:sha256:a965e93b6c02c8291c4cd96032631f8569c77e20c5234a96ab5ce30fb857f221"
+      ]
+    },
+    {
+      "id": "project.sidecar",
+      "status": "implemented",
+      "evidence": [
+        "revision:1"
+      ]
+    },
+    {
+      "id": "validation.khronos",
+      "status": "implemented",
+      "evidence": [
+        "profile:qoder-glb-safe"
+      ]
+    },
+    {
+      "id": "validation.spatial-envelope",
+      "status": "implemented",
+      "evidence": [
+        "preflight:world-bounds"
+      ]
+    },
+    {
+      "id": "geometry.profile.revolve",
+      "status": "implemented",
+      "evidence": [
+        "feature:bottle.body.feature"
+      ]
+    },
+    {
+      "id": "geometry.axis",
+      "status": "implemented",
+      "evidence": [
+        "feature:bottle.body.feature:y",
+        "feature:bottle.rim.feature:y"
+      ]
+    },
+    {
+      "id": "geometry.primitive.hollow-cylinder",
+      "status": "implemented",
+      "evidence": [
+        "feature:bottle.rim.feature"
+      ]
+    },
+    {
+      "id": "node.hierarchy.create",
+      "status": "implemented",
+      "evidence": [
+        "occurrence:bottle.rim"
+      ]
+    },
+    {
+      "id": "geometry.edit",
+      "status": "unsupported",
+      "evidence": [
+        "profile:qoder-glb-safe"
+      ]
+    },
+    {
+      "id": "animation.edit",
+      "status": "unsupported",
+      "evidence": [
+        "profile:qoder-glb-safe"
+      ]
+    },
+    {
+      "id": "texture.import",
+      "status": "unsupported",
+      "evidence": [
+        "profile:qoder-glb-safe"
+      ]
+    }
+  ]
+}

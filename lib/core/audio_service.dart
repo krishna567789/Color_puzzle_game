@@ -5,6 +5,11 @@ class AudioService {
   static late final AudioPlayer _bgmPlayer;
   static late final AudioPlayer _sfxPlayer;
 
+  /// Only the pour gets its own player: its length belongs to the move, not to
+  /// the clip, so the controller has to be able to stop it mid-sample without
+  /// cutting off whatever else is playing.
+  static AudioPlayer? _pourPlayer;
+
   static bool _musicEnabled = true;
   static bool _sfxEnabled = true;
 
@@ -17,6 +22,7 @@ class AudioService {
     if (_ready) return;
     _bgmPlayer = AudioPlayer();
     _sfxPlayer = AudioPlayer();
+    _pourPlayer = AudioPlayer();
     _musicEnabled = await StorageService.getMusic();
     _sfxEnabled = await StorageService.getSfx();
 
@@ -62,6 +68,28 @@ class AudioService {
     await playSfx('pour.wav');
   }
 
+  /// Starts the gurgle and leaves it running; the caller owns its length.
+  static Future<void> startPourSfx() async {
+    if (!_ready || !_sfxEnabled) return;
+    final player = _pourPlayer;
+    if (player == null) return;
+    try {
+      await player.play(AssetSource('audio/pour.wav'));
+    } catch (e) {
+      // Silently fail if file missing
+    }
+  }
+
+  static Future<void> stopPourSfx() async {
+    final player = _pourPlayer;
+    if (!_ready || player == null) return;
+    try {
+      await player.stop();
+    } catch (e) {
+      // The move is already applied; a failed teardown is not worth surfacing.
+    }
+  }
+
   static Future<void> playWinSfx() async {
     await playSfx('win.wav');
   }
@@ -91,5 +119,6 @@ class AudioService {
   static void toggleSfx(bool enabled) {
     _sfxEnabled = enabled;
     StorageService.setSfx(enabled);
+    if (!enabled) stopPourSfx();
   }
 }

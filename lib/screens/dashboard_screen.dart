@@ -98,6 +98,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       adUnitId: AdManager.bannerAdUnitId,
       size: AdSize.banner,
       request: const AdRequest(),
+
       listener: BannerAdListener(
         onAdLoaded: (_) {
           if (mounted) setState(() => _isBannerAdLoaded = true);
@@ -376,7 +377,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                     gems: _gems,
                   ),
                 ),
-
                 // Logo (Smaller, positioned higher)
                 Positioned(
                   top: 90,

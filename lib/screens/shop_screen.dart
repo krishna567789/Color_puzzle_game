@@ -8,7 +8,7 @@ import '../core/progress_service.dart';
 import '../core/storage_service.dart';
 import '../models/shop_item_model.dart';
 import '../core/audio_service.dart';
-import '../widgets/custom_bottle.dart';
+import '../widgets/tube_widget.dart';
 import '../core/iap_service.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 
@@ -452,99 +452,104 @@ class _ShopScreenState extends State<ShopScreen> {
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: Column(
               children: [
-                const Spacer(),
-                Builder(
-                  builder: (context) {
-                    if (item.type == ShopItemType.theme) {
-                      IconData icon = Icons.wallpaper;
-                      Color color = Colors.purpleAccent;
-                      if (item.name.contains('Forest')) {
-                        icon = Icons.forest;
-                        color = Colors.green;
-                      } else if (item.name.contains('Space') ||
-                          item.name.contains('Cosmic')) {
-                        icon = Icons.rocket_launch;
-                        color = Colors.blueAccent;
-                      }
+                // The art gets whatever the labels leave it, and shrinks rather
+                // than overflowing: the smallest phone in the catalogue gives a
+                // card 126 x 169, and a bottle render is taller than that.
+                Expanded(
+                  child: FittedBox(
+                    fit: BoxFit.contain,
+                    child: Builder(
+                      builder: (context) {
+                        if (item.type == ShopItemType.theme) {
+                          IconData icon = Icons.wallpaper;
+                          Color color = Colors.purpleAccent;
+                          if (item.name.contains('Forest')) {
+                            icon = Icons.forest;
+                            color = Colors.green;
+                          } else if (item.name.contains('Space') ||
+                              item.name.contains('Cosmic')) {
+                            icon = Icons.rocket_launch;
+                            color = Colors.blueAccent;
+                          }
 
-                      return Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            if (isSelected)
-                              BoxShadow(
-                                color: color.withValues(alpha: 0.5),
-                                blurRadius: 30,
-                                spreadRadius: -5,
-                              ),
-                          ],
-                        ),
-                        child: Icon(
-                          icon,
-                          size: 70,
-                          color: isSelected ? color : Colors.white54,
-                          shadows: [
-                            if (isSelected)
-                              Shadow(color: color, blurRadius: 15),
-                          ],
-                        ),
-                      );
-                    }
-                    if (item.type == ShopItemType.iap) {
-                      String imagePath = 'assets/icon/premium_coins.png';
-                      Color color = Colors.orangeAccent;
-                      if (item.id == IapService.removeAdsId) {
-                        imagePath = 'assets/icon/premium_no_ads.png';
-                        color = Colors.purpleAccent;
-                      } else if (item.name.contains('Coins')) {
-                        imagePath = 'assets/icon/premium_coins.png';
-                        color = AppColors.goldCoin;
-                      }
-
-                      return Container(
-                        width: 90,
-                        height: 90,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: color.withValues(alpha: 0.5),
-                              blurRadius: 30,
-                              spreadRadius: -5,
+                          return Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                if (isSelected)
+                                  BoxShadow(
+                                    color: color.withValues(alpha: 0.5),
+                                    blurRadius: 30,
+                                    spreadRadius: -5,
+                                  ),
+                              ],
                             ),
-                          ],
-                        ),
-                        child: ClipOval(
-                          child: Image.asset(imagePath, fit: BoxFit.cover),
-                        ),
-                      );
-                    }
+                            child: Icon(
+                              icon,
+                              size: 70,
+                              color: isSelected ? color : Colors.white54,
+                              shadows: [
+                                if (isSelected)
+                                  Shadow(color: color, blurRadius: 15),
+                              ],
+                            ),
+                          );
+                        }
+                        if (item.type == ShopItemType.iap) {
+                          String imagePath = 'assets/icon/premium_coins.png';
+                          Color color = Colors.orangeAccent;
+                          if (item.id == IapService.removeAdsId) {
+                            imagePath = 'assets/icon/premium_no_ads.png';
+                            color = Colors.purpleAccent;
+                          } else if (item.name.contains('Coins')) {
+                            imagePath = 'assets/icon/premium_coins.png';
+                            color = AppColors.goldCoin;
+                          }
 
-                    BottleType bType = BottleType.flask;
-                    Color bColor = Colors.blue;
-                    if (item.name.contains('Neon')) {
-                      bType = BottleType.beaker;
-                      bColor = Colors.greenAccent;
-                    } else if (item.name.contains('Crystal')) {
-                      bType = BottleType.potion;
-                      bColor = Colors.purpleAccent;
-                    } else if (item.name.contains('Nature') ||
-                        item.name.contains('Tube')) {
-                      bType = BottleType.tube;
-                      bColor = Colors.lightGreenAccent;
-                    }
+                          return Container(
+                            width: 90,
+                            height: 90,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: color.withValues(alpha: 0.5),
+                                  blurRadius: 30,
+                                  spreadRadius: -5,
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: Image.asset(imagePath, fit: BoxFit.cover),
+                            ),
+                          );
+                        }
 
-                    return CustomBottleWidget(
-                      type: bType,
-                      liquidColor: isSelected ? bColor : Colors.grey.shade400,
-                      isGlowing: isSelected,
-                      fillLevel: 0.7,
-                      width: 50,
-                      height: 70,
-                    );
-                  },
+                        // The same render the bottle wears in play, so the card
+                        // cannot promise a look the game does not deliver. The
+                        // card lights up on its own when picked, so the art adds
+                        // no glow of its own.
+                        return SizedBox(
+                          width: 78,
+                          height: 116,
+                          child: Image.asset(
+                            bottleHeroPath(item.id),
+                            fit: BoxFit.contain,
+                            cacheHeight: 348,
+                            color: isSelected ? null : Colors.white24,
+                            colorBlendMode: BlendMode.modulate,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const Icon(
+                                  Icons.local_drink_outlined,
+                                  size: 70,
+                                  color: Colors.white54,
+                                ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 ),
-                const Spacer(),
                 Text(
                   item.name,
                   style: const TextStyle(
@@ -572,11 +577,16 @@ class _ShopScreenState extends State<ShopScreen> {
                       children: [
                         if (item.type != ShopItemType.iap)
                           Icon(
-                            item.costsGems ? Icons.diamond : Icons.monetization_on,
-                            color: item.costsGems ? Colors.cyanAccent : AppColors.goldCoin,
+                            item.costsGems
+                                ? Icons.diamond
+                                : Icons.monetization_on,
+                            color: item.costsGems
+                                ? Colors.cyanAccent
+                                : AppColors.goldCoin,
                             size: 16,
                           ),
-                        if (item.type != ShopItemType.iap) const SizedBox(width: 6),
+                        if (item.type != ShopItemType.iap)
+                          const SizedBox(width: 6),
                         Text(
                           item.type == ShopItemType.iap
                               ? (item.iapPrice ?? '\$0.00')

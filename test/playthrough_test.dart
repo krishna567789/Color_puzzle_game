@@ -77,7 +77,11 @@ void main() {
 
     controller.selectTube(1);
     controller.selectTube(0);
-    await Future<void>.delayed(const Duration(milliseconds: 1600));
+    for (var i = 0;
+        i < 40 && (controller.pouringFromIndex != null || !controller.isLevelComplete);
+        i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
 
     expect(controller.isLevelComplete, isTrue);
   });

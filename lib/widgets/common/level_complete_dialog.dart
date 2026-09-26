@@ -143,6 +143,9 @@ class _LevelCompleteDialogState extends State<LevelCompleteDialog>
     double screenWidth = MediaQuery.of(context).size.width;
     double dialogWidth = screenWidth * 0.9;
     if (dialogWidth > 400) dialogWidth = 400;
+    // Its artwork is a fixed size, so a width-only ratio squeezes it out of
+    // the box on narrow phones.
+    double dialogHeight = math.max(dialogWidth * 1.45, 548.0);
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -150,7 +153,7 @@ class _LevelCompleteDialogState extends State<LevelCompleteDialog>
       elevation: 0,
       child: SizedBox(
         width: dialogWidth,
-        height: dialogWidth * 1.45,
+        height: dialogHeight,
         child: Stack(
           alignment: Alignment.center,
           clipBehavior: Clip.none,

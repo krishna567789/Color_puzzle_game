@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../game/level_design.dart';
+import '../game/liquid_patterns.dart';
 import '../game/rewards.dart';
 import '../game/water_sort_solver.dart';
 import '../models/tube_model.dart';
@@ -69,6 +70,12 @@ class GameController extends ChangeNotifier {
   String selectedSkinId = 'default_tube';
   String selectedThemeId = 'default_theme';
 
+  /// Accessibility, read once with the rest of the player's settings: every
+  /// layer can wear a shape as well as a hue, and the controls can sit along
+  /// the left edge for one-handed use.
+  bool showColorblindPatterns = false;
+  bool leftHandedLayout = false;
+
   // Pouring animation states
   int? pouringFromIndex;
   int? pouringToIndex;
@@ -78,6 +85,10 @@ class GameController extends ChangeNotifier {
   bool isPouringLiquid = false;
 
   bool isLevelComplete = false;
+
+  /// The tube whose last layer sorted the board, so the celebration can burst
+  /// where the win landed rather than at some generic point on screen.
+  int? victoryTubeIndex;
   bool isGameOver = false;
   bool hasClaimedDailyReward = false;
   int currentLevel = 1;
@@ -121,20 +132,7 @@ class GameController extends ChangeNotifier {
   int lastLevelDurationSeconds = 0;
 
   final List<List<Tube>> _history = [];
-  final List<Color> _availableColors = [
-    const Color(0xFFFF2A2A), // Vivid Red
-    const Color(0xFF1E88E5), // Vivid Blue
-    const Color(0xFF2AFA2A), // Vivid Green
-    const Color(0xFFFFD500), // Vivid Yellow
-    const Color(0xFFFF7A00), // Vivid Orange
-    const Color(0xFFA200FF), // Vivid Purple
-    const Color(0xFF00E5FF), // Vivid Cyan
-    const Color(0xFFFF0088), // Vivid Pink
-    const Color(0xFF00FF88), // Vivid Teal
-    const Color(0xFF5500FF), // Vivid Indigo
-    const Color(0xFFFF4500), // Vivid Deep Orange
-    const Color(0xFFA6FF00), // Vivid Lime
-  ];
+  final List<Color> _availableColors = List<Color>.from(kLiquidPalette);
 
   GameController({
     GameMode mode = GameMode.classic,
@@ -160,6 +158,8 @@ class GameController extends ChangeNotifier {
     gems = await StorageService.getGems();
     selectedSkinId = await StorageService.getSelectedSkin();
     selectedThemeId = await StorageService.getSelectedTheme();
+    showColorblindPatterns = await StorageService.getColorblindPatterns();
+    leftHandedLayout = await StorageService.getLeftHandedLayout();
     if (activeMode == GameMode.classic) {
       // Keep currentLevel if targetLevel was passed via constructor, else use maxUnlockedLevel
       currentLevel = (currentLevel > 0) ? currentLevel : maxUnlockedLevel;
@@ -185,6 +185,7 @@ class GameController extends ChangeNotifier {
     wrongMoveIndex = null;
     activeHint = null;
     isLevelComplete = false;
+    victoryTubeIndex = null;
     isGameOver = false;
     isStuck = false;
     movesCount = 0;
@@ -267,9 +268,9 @@ class GameController extends ChangeNotifier {
   /// boards blow the node budget without ever answering, so they skip the search
   /// and estimate par from the deal rather than freezing the screen for it.
   void _generateProceduralLevel() {
-    final random = activeMode == GameMode.daily
-        ? Random(_dailySeed())
-        : Random();
+    final random = Random(
+      activeMode == GameMode.daily ? _dailySeed() : _levelSeed(),
+    );
     final config = LevelDesign.forLevel(designLevel);
     final worthProving = config.colorCount <= searchableColorCount;
 
@@ -475,6 +476,11 @@ class GameController extends ChangeNotifier {
     final today = DateTime.now();
     return today.year * 10000 + today.month * 100 + today.day;
   }
+
+  /// A level number always deals the same board. Without that, restarting a
+  /// level the player failed hands them a different - and possibly far easier
+  /// - puzzle, and no two players can compare the same "hard level".
+  int _levelSeed() => designLevel * 31 + activeMode.index * 7919;
 
   @override
   void dispose() {
@@ -808,8 +814,8 @@ class GameController extends ChangeNotifier {
     return !isGameOver || isStuck;
   }
 
-  void _afterMoveBookkeeping() {
-    _checkWinCondition();
+  void _afterMoveBookkeeping({int? winnerIndex}) {
+    _checkWinCondition(winnerIndex: winnerIndex);
     if (isLevelComplete) {
       _timer?.cancel();
       return;
@@ -855,9 +861,11 @@ class GameController extends ChangeNotifier {
     pouringColor = fromTube.topColor;
     selectedTubeIndex = null;
 
-    double tiltDirection = (toIndex > fromIndex) ? 1.5 : -1.5;
+    // Dead level: the bottle rotates around its own neck, so anything past
+    // horizontal lifts the body up and off the top of the board, and anything
+    // short of it lays the body across the tubes below.
+    double tiltDirection = (toIndex > fromIndex) ? pi / 2 : -pi / 2;
     pourTiltAngle = tiltDirection;
-    AudioService.playPourSfx();
     _notifySafely();
 
     await Future.delayed(const Duration(milliseconds: 400));
@@ -875,25 +883,38 @@ class GameController extends ChangeNotifier {
     isPouringLiquid = true;
     _notifySafely();
 
-    Color pColor = fromTube.topColor!;
-    while (fromTube.colors.isNotEmpty &&
-        fromTube.topColor == pColor &&
-        !toTube.isFull) {
-      Color removedColor = fromTube.colors.removeLast();
-      toTube.colors.add(removedColor);
+    // The gurgle runs only while liquid is actually in the air: the clip is
+    // longer than a one-layer pour, so it has to be cut when the stream breaks.
+    AudioService.startPourSfx();
+    try {
+      Color pColor = fromTube.topColor!;
+      while (fromTube.colors.isNotEmpty &&
+          fromTube.topColor == pColor &&
+          !toTube.isFull) {
+        Color removedColor = fromTube.colors.removeLast();
+        toTube.colors.add(removedColor);
 
-      // Update hidden status
-      if (fromTube.colors.length <= fromTube.hiddenCount) {
-        fromTube.hiddenCount = max(0, fromTube.colors.length - 1);
+        // Update hidden status
+        if (fromTube.colors.length <= fromTube.hiddenCount) {
+          fromTube.hiddenCount = max(0, fromTube.colors.length - 1);
+        }
+
+        HapticService.lightImpact();
+        _notifySafely();
+        await Future.delayed(const Duration(milliseconds: 200));
       }
 
-      HapticService.lightImpact();
+      isPouringLiquid = false;
       _notifySafely();
+      // The jet needs a beat to break apart before the bottle leaves, otherwise
+      // the liquid is left hanging in mid air over the target tube.
       await Future.delayed(const Duration(milliseconds: 200));
+    } finally {
+      await AudioService.stopPourSfx();
     }
 
+    if (_isDisposed) return;
     pourTiltAngle = 0.0;
-    isPouringLiquid = false;
     _notifySafely();
     await Future.delayed(const Duration(milliseconds: 400));
 
@@ -901,7 +922,7 @@ class GameController extends ChangeNotifier {
     pouringFromIndex = null;
     pouringToIndex = null;
 
-    _afterMoveBookkeeping();
+    _afterMoveBookkeeping(winnerIndex: toIndex);
     _notifySafely();
   }
 
@@ -917,7 +938,7 @@ class GameController extends ChangeNotifier {
     });
   }
 
-  void _checkWinCondition() {
+  void _checkWinCondition({int? winnerIndex}) {
     bool allSorted = true;
     for (var tube in tubes) {
       if (tube.isEmpty) continue;
@@ -934,9 +955,11 @@ class GameController extends ChangeNotifier {
 
     if (allSorted) {
       isLevelComplete = true;
+      victoryTubeIndex = winnerIndex;
       _levelStopwatch.stop();
       lastLevelDurationSeconds = _levelStopwatch.elapsed.inSeconds;
       AudioService.playWinSfx();
+      HapticService.mediumImpact();
       AnalyticsService.logLevelComplete(
         currentLevel,
         movesCount,

@@ -1,0 +1,212 @@
+{
+  "schema": "modeling.program",
+  "schemaVersion": 1,
+  "kind": "model.create",
+  "intent": "build the water-sort bottle for pre-rendered skins",
+  "units": {
+    "length": "m",
+    "angle": "rad",
+    "time": "s"
+  },
+  "coordinateSystem": {
+    "handedness": "right",
+    "upAxis": "y",
+    "forwardAxis": "z"
+  },
+  "spatialEnvelope": {
+    "min": [
+      -0.0275,
+      0,
+      -0.0275
+    ],
+    "max": [
+      0.0275,
+      0.15,
+      0.0275
+    ],
+    "tolerance": 0.0005
+  },
+  "requires": [
+    "modeling.feature.axis",
+    "modeling.feature.hollow-cylinder",
+    "modeling.feature.revolve",
+    "modeling.scene",
+    "modeling.spatial-envelope"
+  ],
+  "parameters": [],
+  "operations": [
+    {
+      "op": "appearance.define",
+      "opKey": "bottle.glass",
+      "key": "bottle.glass",
+      "baseColor": "#E8F6FF",
+      "metallic": 0,
+      "roughness": 0.08,
+      "emissive": "#000000"
+    },
+    {
+      "op": "feature.define",
+      "opKey": "bottle.body.feature",
+      "key": "bottle.body.feature",
+      "feature": {
+        "type": "profile.revolve",
+        "profile": [
+          [
+            0.0125,
+            0
+          ],
+          [
+            0.017083333333333336,
+            0.00041666666666666664
+          ],
+          [
+            0.020833333333333336,
+            0.0016666666666666666
+          ],
+          [
+            0.02375,
+            0.00375
+          ],
+          [
+            0.025833333333333337,
+            0.006666666666666666
+          ],
+          [
+            0.027083333333333334,
+            0.010416666666666668
+          ],
+          [
+            0.0275,
+            0.015
+          ],
+          [
+            0.0275,
+            0.1025
+          ],
+          [
+            0.0272421875,
+            0.106609375
+          ],
+          [
+            0.02646875,
+            0.1104375
+          ],
+          [
+            0.0251796875,
+            0.113984375
+          ],
+          [
+            0.023375,
+            0.11725
+          ],
+          [
+            0.0210546875,
+            0.120234375
+          ],
+          [
+            0.01821875,
+            0.1229375
+          ],
+          [
+            0.0148671875,
+            0.125359375
+          ],
+          [
+            0.011,
+            0.1275
+          ],
+          [
+            0.011,
+            0.145
+          ]
+        ],
+        "radialSegments": 48,
+        "axis": "y"
+      }
+    },
+    {
+      "op": "component.define",
+      "opKey": "bottle.body.component",
+      "key": "bottle.body.component",
+      "feature": "bottle.body.feature",
+      "appearance": "bottle.glass"
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "bottle.body",
+      "key": "bottle.body",
+      "name": "BottleBody",
+      "component": "bottle.body.component",
+      "transform": {
+        "translation": [
+          0,
+          0,
+          0
+        ],
+        "rotationRad": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "op": "feature.define",
+      "opKey": "bottle.rim.feature",
+      "key": "bottle.rim.feature",
+      "feature": {
+        "type": "primitive.hollow-cylinder",
+        "outerRadius": 0.0135,
+        "innerRadius": 0.01,
+        "height": 0.005,
+        "radialSegments": 32,
+        "axis": "y"
+      }
+    },
+    {
+      "op": "component.define",
+      "opKey": "bottle.rim.component",
+      "key": "bottle.rim.component",
+      "feature": "bottle.rim.feature",
+      "appearance": "bottle.glass"
+    },
+    {
+      "op": "occurrence.define",
+      "opKey": "bottle.rim",
+      "key": "bottle.rim",
+      "name": "BottleRim",
+      "parent": "bottle.body",
+      "component": "bottle.rim.component",
+      "transform": {
+        "translation": [
+          0,
+          0.1475,
+          0
+        ],
+        "rotationRad": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ]
+      }
+    }
+  ],
+  "budget": {
+    "maxBytes": 2097152,
+    "maxNodes": 4,
+    "maxVertices": 6000,
+    "maxTriangles": 6000,
+    "maxOperations": 8,
+    "maxGeneratedInstances": 2
+  }
+}

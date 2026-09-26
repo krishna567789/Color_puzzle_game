@@ -9,6 +9,8 @@ class StorageService {
   static const String _keyVibration = 'vibration_enabled';
   static const String _keyMusic = 'music_enabled';
   static const String _keySfx = 'sfx_enabled';
+  static const String _keyColorblindPatterns = 'colorblind_patterns';
+  static const String _keyLeftHanded = 'left_handed_layout';
   static const String _keyDailyRewardDate = 'daily_reward_date';
   static const String _keyOwnedItems = 'owned_items';
   static const String _keySelectedSkin = 'selected_skin';
@@ -129,6 +131,28 @@ class StorageService {
   static Future<bool> getSfx() async {
     final box = await _getBox();
     return box.get(_keySfx, defaultValue: true) as bool;
+  }
+
+  /// Whether every liquid layer wears a distinguishing mark as well as a hue.
+  static Future<void> setColorblindPatterns(bool enabled) async {
+    final box = await _getBox();
+    await box.put(_keyColorblindPatterns, enabled);
+  }
+
+  static Future<bool> getColorblindPatterns() async {
+    final box = await _getBox();
+    return box.get(_keyColorblindPatterns, defaultValue: false) as bool;
+  }
+
+  /// Whether the controls sit along the left edge, for one-handed left use.
+  static Future<void> setLeftHandedLayout(bool enabled) async {
+    final box = await _getBox();
+    await box.put(_keyLeftHanded, enabled);
+  }
+
+  static Future<bool> getLeftHandedLayout() async {
+    final box = await _getBox();
+    return box.get(_keyLeftHanded, defaultValue: false) as bool;
   }
 
   static Future<bool> hasClaimedDailyReward(String challengeId) async {
@@ -380,8 +404,9 @@ class StorageService {
     );
     if (delivered.contains(purchaseId)) return false;
     delivered.add(purchaseId);
-    if (delivered.length > 200)
+    if (delivered.length > 200) {
       delivered.removeRange(0, delivered.length - 200);
+    }
     await box.put(_keyDeliveredPurchases, delivered);
     return true;
   }

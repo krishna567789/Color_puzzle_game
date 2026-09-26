@@ -7,6 +7,19 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'helpers/test_storage.dart';
 
+/// Waits out a pour. It is a real async sequence with its own beats, so a fixed
+/// sleep here would drift out of step with it the moment the animation changes.
+Future<void> _settle(GameController controller) async {
+  for (var i = 0;
+      i < 60 &&
+          (controller.pouringFromIndex != null ||
+              controller.isPouringLiquid ||
+              controller.pourTiltAngle != 0);
+      i++) {
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -20,6 +33,26 @@ void main() {
 
   final red = const Color(0xFFFF2A2A);
   final blue = const Color(0xFF1E88E5);
+
+  test('a level deals the same board every time it is opened', () {
+    // Restarting a level you failed has to hand back the same puzzle, or the
+    // difficulty curve and any "beat this level" sharing between players mean
+    // nothing.
+    String deal(GameController controller) => controller.tubes
+        .map((tube) => tube.colors.map((c) => c.toARGB32()).join())
+        .join('|');
+
+    final first = GameController(loadProgress: false, targetLevel: 7);
+    final again = GameController(loadProgress: false, targetLevel: 7);
+    final other = GameController(loadProgress: false, targetLevel: 8);
+
+    expect(deal(again), deal(first));
+    expect(deal(other), isNot(deal(first)));
+
+    first.dispose();
+    again.dispose();
+    other.dispose();
+  });
 
   test('a pour is valid only for an empty or matching-color tube', () {
     final controller = GameController(loadProgress: false);
@@ -48,7 +81,7 @@ void main() {
 
     controller.selectTube(0);
     controller.selectTube(1);
-    await Future<void>.delayed(const Duration(milliseconds: 1200));
+    await _settle(controller);
 
     expect(controller.movesCount, 1);
     expect(controller.tubes[0].isEmpty, isTrue);

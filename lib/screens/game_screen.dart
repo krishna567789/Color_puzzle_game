@@ -6,6 +6,7 @@ import '../core/storage_service.dart';
 import '../core/ad_manager.dart';
 import '../widgets/tube_widget.dart';
 import '../core/app_colors.dart';
+import '../game/pour_geometry.dart';
 import '../widgets/common/hand_indicator.dart';
 import '../widgets/common/game_button.dart';
 import '../widgets/common/bouncing_button.dart';
@@ -23,7 +24,7 @@ class GameScreen extends StatefulWidget {
   State<GameScreen> createState() => _GameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen> {
+class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   late final GameController _controller;
   late List<GlobalKey> _tubeKeys;
   bool _isEndDialogVisible = false;
@@ -32,6 +33,10 @@ class _GameScreenState extends State<GameScreen> {
   int _tutorialStep = 0;
   int _currentLevelForKeys = 0;
   late ConfettiController _confettiController;
+
+  /// The board's victory jolt: the last tube locking into place should rattle
+  /// the whole shelf before the results screen takes over.
+  late final AnimationController _victoryShake;
 
   @override
   void initState() {
@@ -45,6 +50,10 @@ class _GameScreenState extends State<GameScreen> {
     _tubeKeys = List.generate(20, (_) => GlobalKey());
     _confettiController = ConfettiController(
       duration: const Duration(seconds: 3),
+    );
+    _victoryShake = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
     );
     _checkTutorial();
   }
@@ -96,8 +105,10 @@ class _GameScreenState extends State<GameScreen> {
       // numbers, and it is better to be a frame late than to promise wrong ones.
       if (!_controller.winRewarded) return;
       _isEndDialogVisible = true;
+      _victoryShake.forward(from: 0.0);
       _confettiController.play();
-      Future.delayed(const Duration(milliseconds: 300), () {
+      // The jolt and the sparkles need a beat before the results take over.
+      Future.delayed(const Duration(milliseconds: 700), () {
         if (mounted) _showWinDialog();
       });
     } else if (_controller.isGameOver) {
@@ -184,9 +195,8 @@ class _GameScreenState extends State<GameScreen> {
                       letterSpacing: 2.0,
                       shadows: [
                         Shadow(
-                          color:
-                              (canRecover ? Colors.orange : Colors.red)
-                                  .withValues(alpha: 0.5),
+                          color: (canRecover ? Colors.orange : Colors.red)
+                              .withValues(alpha: 0.5),
                           blurRadius: 10,
                         ),
                       ],
@@ -250,7 +260,9 @@ class _GameScreenState extends State<GameScreen> {
                             AdManager.showRewardedAd(
                               () {
                                 if (!rescue(adFunded: true)) {
-                                  _showSnack('This rescue is no longer available.');
+                                  _showSnack(
+                                    'This rescue is no longer available.',
+                                  );
                                   return;
                                 }
                                 Navigator.pop(context);
@@ -396,6 +408,7 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void dispose() {
     _confettiController.dispose();
+    _victoryShake.dispose();
     _controller.removeListener(_onGameStateChanged);
     _controller.dispose();
     super.dispose();
@@ -515,14 +528,62 @@ class _GameScreenState extends State<GameScreen> {
 
   // Remove the old _buildAnimatedFinger as it's replaced by HandIndicator
 
+  /// The confetti wears the level's own liquids, not the package's rainbow.
+  List<Color> _celebrationColors() {
+    final colors = _controller.tubes
+        .expand((tube) => tube.colors)
+        .whereType<Color>()
+        .toSet()
+        .toList();
+    return colors.isEmpty ? const [Colors.amber, Colors.cyanAccent] : colors;
+  }
+
+  /// A side-to-side rattle that dies away over its own length.
+  Offset _victoryJolt() {
+    final t = _victoryShake.value;
+    if (t <= 0.0 || t >= 1.0) return Offset.zero;
+    final decay = (1.0 - t) * (1.0 - t);
+    return Offset(sin(t * pi * 7) * 7 * decay, 0);
+  }
+
+  // The board is a grid of 55 x 160 bottles with these gaps, in unscaled units.
+  static const double _tubeGap = 24;
+  static const double _rowGap = 40;
+
+  /// How many bottles fit in a row, and the scale that makes the whole grid fit
+  /// the screen between the top bar and the power-up strip.
+  ///
+  /// A `Wrap` only knows its row count once the scale is known, and the scale
+  /// depends on the row count, so the grid shape is decided here and the `Wrap`
+  /// is then given exactly enough width to lay out that shape.
+  ({int columns, double scale}) _boardLayout(int tubeCount, Size screen) {
+    // The widest row the screen can carry, then the bottle count spread evenly
+    // over the rows that need - 9 bottles are a 3 x 3 board, not a 4 / 4 / 1.
+    final target = tubeCount >= 12 ? 5 : 4;
+    // The controller fills its tubes a frame after the first build, and a
+    // zero-row grid divides by zero on the way to the scale.
+    final rows = max(1, (tubeCount / target).ceil());
+    final columns = max(1, min(tubeCount, (tubeCount / rows).ceil()));
+    // 100 for the top bar, and 40 + 56 + the badge overhang for the tools.
+    final usableHeight = screen.height - 100 - 112 - 16;
+    final widthScale =
+        (screen.width - 32) / (columns * 55 + (columns - 1) * _tubeGap);
+    final heightScale = usableHeight / (rows * 160 + (rows - 1) * _rowGap);
+    final scale = min(
+      widthScale,
+      heightScale,
+    ).clamp(0.5, screen.width > 600 ? 1.3 : 1.1);
+    return (columns: columns, scale: scale);
+  }
+
   @override
   Widget build(BuildContext context) {
-    double screenWidth = MediaQuery.sizeOf(context).width;
-    double maxScale = screenWidth > 600 ? 1.3 : 1.1; 
-    int estimatedColumns = _controller.tubes.length >= 12 ? 5 : 4;
-    double expectedWidth = (estimatedColumns * 55) + ((estimatedColumns - 1) * 24);
-    double availableWidth = screenWidth - 32; // 16 padding on each side
-    double scale = (availableWidth / expectedWidth).clamp(0.5, maxScale);
+    final screenSize = MediaQuery.sizeOf(context);
+    final layout = _boardLayout(_controller.tubes.length, screenSize);
+    final double scale = layout.scale;
+    // A tipped-over bottle is a whole tube-length long, so the pour has to know
+    // where the screen ends to keep it from hanging off the side.
+    final pourBounds = Rect.fromLTWH(0, 0, screenSize.width, screenSize.height);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -541,165 +602,204 @@ class _GameScreenState extends State<GameScreen> {
           ),
 
           // Game Content
-          Center(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.only(
-                  left: 16.0,
-                  right: 16.0,
-                  top: 100.0, // Space for top bar
-                  bottom: 32.0,
-                ),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 500),
-                  transitionBuilder:
-                      (Widget child, Animation<double> animation) {
-                        return FadeTransition(
-                          opacity: animation,
-                          child: SlideTransition(
-                            position: Tween<Offset>(
-                              begin: const Offset(1, 0),
-                              end: Offset.zero,
-                            ).animate(animation),
-                            child: child,
-                          ),
-                        );
-                      },
-                  child: Stack(
-                    key: ValueKey(_controller.currentLevel),
-                    clipBehavior: Clip.none,
-                    children: [
-                      // Magical Glowing Shelf (Background)
-                      Positioned(
-                        bottom: -30,
-                        left: 0,
-                        right: 0,
-                        height: 50,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.05),
-                            borderRadius: BorderRadius.circular(100),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.cyanAccent.withValues(alpha: 0.2),
-                                blurRadius: 40,
-                                spreadRadius: 10,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      Wrap(
-                        spacing: 24 * scale,
-                        runSpacing: 40 * scale,
-                        alignment: WrapAlignment.center,
-                        children: List.generate(_controller.tubes.length, (
-                          index,
-                        ) {
-                          bool isPouringSource =
-                              _controller.pouringFromIndex == index;
-
-                          Offset moveOffset = Offset.zero;
-
-                          if (isPouringSource &&
-                              _controller.pouringToIndex != null) {
-                            if (_tubeKeys[index].currentContext != null &&
-                                _tubeKeys[_controller.pouringToIndex!]
-                                        .currentContext !=
-                                    null) {
-                              RenderBox sourceBox =
-                                  _tubeKeys[index].currentContext!
-                                          .findRenderObject()
-                                      as RenderBox;
-                              RenderBox targetBox =
-                                  _tubeKeys[_controller.pouringToIndex!]
-                                          .currentContext!
-                                          .findRenderObject()
-                                      as RenderBox;
-
-                              Offset sourcePos = sourceBox.localToGlobal(
-                                Offset.zero,
-                              );
-                              Offset targetPos = targetBox.localToGlobal(
-                                Offset.zero,
-                              );
-
-                              double tiltDir = _controller.pourTiltAngle > 0
-                                  ? -20
-                                  : 20;
-                              moveOffset = Offset(
-                                targetPos.dx - sourcePos.dx + tiltDir,
-                                targetPos.dy - sourcePos.dy - (160 * scale) + 10,
-                              );
-                            }
-                          }
-
-                          return Container(
-                            key: _tubeKeys[index],
-                            child: TubeWidget(
-                              tube: _controller.tubes[index],
-                              isSelected:
-                                  _controller.selectedTubeIndex == index,
-                              isShaking: _controller.wrongMoveIndex == index,
-                              tiltAngle: isPouringSource
-                                  ? _controller.pourTiltAngle
-                                  : 0.0,
-                              offset: moveOffset,
-                              scale: scale,
-                              onTap: () {
-                                if (_showTutorial) {
-                                  bool isCorrect = false;
-                                  if (_tutorialStep == 0) {
-                                    // Correct if user taps any non-empty tube
-                                    isCorrect = _controller.tubes[index].isNotEmpty;
-                                  } else {
-                                    // Correct if user taps any valid target tube
-                                    if (_controller.selectedTubeIndex != null) {
-                                      isCorrect = _controller.canPour(_controller.selectedTubeIndex!, index);
-                                    }
-                                  }
-
-                                  if (!isCorrect) {
-                                    _controller.triggerWrongMove(index);
-                                    return;
-                                  }
-
-                                  setState(() {
-                                    _tutorialStep++;
-                                    if (_tutorialStep >= 2) {
-                                      _showTutorial = false;
-                                      StorageService.setTutorialCompleted(true);
-                                    }
-                                  });
-                                }
-                                _controller.selectTube(index);
-                              },
-                              skinId: _controller.selectedSkinId,
-                              isHinted:
-                                  _controller.activeHint != null &&
-                                  (_controller.activeHint!.fromIndex == index ||
-                                      _controller.activeHint!.toIndex == index),
+          AnimatedBuilder(
+            animation: _victoryShake,
+            builder: (context, child) =>
+                Transform.translate(offset: _victoryJolt(), child: child),
+            child: Center(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.only(
+                    left: 16.0,
+                    right: 16.0,
+                    top: 100.0, // Space for the top bar
+                    // On a short screen the board still has to scroll clear of
+                    // the power-up strip, which is 96 tall plus its badge.
+                    bottom: 120.0,
+                  ),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 500),
+                    transitionBuilder:
+                        (Widget child, Animation<double> animation) {
+                          return FadeTransition(
+                            opacity: animation,
+                            child: SlideTransition(
+                              position: Tween<Offset>(
+                                begin: const Offset(1, 0),
+                                end: Offset.zero,
+                              ).animate(animation),
+                              child: child,
                             ),
                           );
-                        }),
-                      ),
-
-                      // Liquid Pouring Stream Overlay
-                      Positioned.fill(
-                        child: PouringStreamEffect(
-                          controller: _controller,
-                          tubeKeys: _tubeKeys,
+                        },
+                    child: Stack(
+                      key: ValueKey(_controller.currentLevel),
+                      clipBehavior: Clip.none,
+                      children: [
+                        // Magical Glowing Shelf (Background)
+                        Positioned(
+                          bottom: -30,
+                          left: 0,
+                          right: 0,
+                          height: 50,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(100),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.cyanAccent.withValues(
+                                    alpha: 0.2,
+                                  ),
+                                  blurRadius: 40,
+                                  spreadRadius: 10,
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
+                        SizedBox(
+                          // Exactly one row of `columns` bottles wide, so the wrap
+                          // breaks rows where the layout math says it should.
+                          width:
+                              layout.columns * 55 * scale +
+                              (layout.columns - 1) * _tubeGap * scale,
+                          child: Wrap(
+                            spacing: _tubeGap * scale,
+                            runSpacing: _rowGap * scale,
+                            alignment: WrapAlignment.center,
+                            children: List.generate(_controller.tubes.length, (
+                              index,
+                            ) {
+                              bool isPouringSource =
+                                  _controller.pouringFromIndex == index;
+
+                              Offset moveOffset = Offset.zero;
+                              double tilt = 0.0;
+
+                              if (isPouringSource &&
+                                  _controller.pouringToIndex != null) {
+                                final sourceContext =
+                                    _tubeKeys[index].currentContext;
+                                final targetContext =
+                                    _tubeKeys[_controller.pouringToIndex!]
+                                        .currentContext;
+                                if (sourceContext != null &&
+                                    targetContext != null) {
+                                  final sourceBox =
+                                      sourceContext.findRenderObject()
+                                          as RenderBox;
+                                  final targetBox =
+                                      targetContext.findRenderObject()
+                                          as RenderBox;
+
+                                  final targetTube = _controller
+                                      .tubes[_controller.pouringToIndex!];
+                                  final geometry = PourGeometry.forTubes(
+                                    sourceTopLeft: sourceBox.localToGlobal(
+                                      Offset.zero,
+                                    ),
+                                    sourceSize: sourceBox.size,
+                                    targetTopLeft: targetBox.localToGlobal(
+                                      Offset.zero,
+                                    ),
+                                    targetSize: targetBox.size,
+                                    tilt: _controller.pourTiltAngle,
+                                    bounds: pourBounds,
+                                    targetLayers: targetTube.colors.length,
+                                    targetCapacity: targetTube.capacity,
+                                  );
+                                  // The lean and the hover come from one place: the
+                                  // tube has to tip the same way the stream expects.
+                                  tilt = geometry.tilt;
+                                  moveOffset = geometry.hoverOffset;
+                                }
+                              }
+
+                              return Container(
+                                key: _tubeKeys[index],
+                                child: TubeWidget(
+                                  tube: _controller.tubes[index],
+                                  isSelected:
+                                      _controller.selectedTubeIndex == index,
+                                  isShaking:
+                                      _controller.wrongMoveIndex == index,
+                                  tiltAngle: tilt,
+                                  offset: moveOffset,
+                                  scale: scale,
+                                  onTap: () {
+                                    if (_showTutorial) {
+                                      bool isCorrect = false;
+                                      if (_tutorialStep == 0) {
+                                        // Correct if user taps any non-empty tube
+                                        isCorrect =
+                                            _controller.tubes[index].isNotEmpty;
+                                      } else {
+                                        // Correct if user taps any valid target tube
+                                        if (_controller.selectedTubeIndex !=
+                                            null) {
+                                          isCorrect = _controller.canPour(
+                                            _controller.selectedTubeIndex!,
+                                            index,
+                                          );
+                                        }
+                                      }
+
+                                      if (!isCorrect) {
+                                        _controller.triggerWrongMove(index);
+                                        return;
+                                      }
+
+                                      setState(() {
+                                        _tutorialStep++;
+                                        if (_tutorialStep >= 2) {
+                                          _showTutorial = false;
+                                          StorageService.setTutorialCompleted(
+                                            true,
+                                          );
+                                        }
+                                      });
+                                    }
+                                    _controller.selectTube(index);
+                                  },
+                                  skinId: _controller.selectedSkinId,
+                                  showPatterns:
+                                      _controller.showColorblindPatterns,
+                                  celebrate: _controller.isLevelComplete,
+                                  isHinted:
+                                      _controller.activeHint != null &&
+                                      (_controller.activeHint!.fromIndex ==
+                                              index ||
+                                          _controller.activeHint!.toIndex ==
+                                              index),
+                                ),
+                              );
+                            }),
+                          ),
+                        ),
+
+                        // Liquid Pouring Stream Overlay
+                        Positioned.fill(
+                          child: PouringStreamEffect(
+                            controller: _controller,
+                            tubeKeys: _tubeKeys,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
 
-          // Bottom Tools
-          Align(alignment: Alignment.bottomCenter, child: _buildBottomTools()),
+          // Bottom Tools. Left-handed mode puts them under the left thumb.
+          Align(
+            alignment: _controller.leftHandedLayout
+                ? Alignment.bottomLeft
+                : Alignment.bottomCenter,
+            child: _buildBottomTools(),
+          ),
 
           if (_showTutorial) _buildTutorialOverlay(),
 
@@ -708,6 +808,7 @@ class _GameScreenState extends State<GameScreen> {
             alignment: Alignment.topCenter,
             child: ConfettiWidget(
               confettiController: _confettiController,
+              colors: _celebrationColors(),
               blastDirection: pi / 2, // downwards
               maxBlastForce: 5,
               minBlastForce: 2,
@@ -894,9 +995,18 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _buildBottomTools() {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 40.0),
+      padding: EdgeInsets.only(
+        bottom: 40.0,
+        // Only the mirrored mode hugs an edge; centring is `Align`'s job, and a
+        // matching right inset here would knock the row off centre by half of it.
+        left: _controller.leftHandedLayout ? 20.0 : 0.0,
+      ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+        // The strip itself, not the padding box around it: the 20dp mirror inset
+        // has to show up in whatever a test measures.
+        key: const Key('bottomTools'),
+        // Shrunk to its buttons so `Align` has something to place.
+        mainAxisSize: MainAxisSize.min,
         children: [
           _buildActionBtn(
             power: PowerUp.undo,

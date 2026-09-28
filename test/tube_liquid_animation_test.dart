@@ -226,4 +226,59 @@ void main() {
     );
     expect(full, lessThanOrEqualTo(40));
   });
+
+  /// The ripple is a two second sine two pixels tall, so redrawing the whole
+  /// layer stack under it on every frame the engine draws buys nothing and
+  /// costs a dozen tubes per board.
+  testWidgets('an idle ripple repaints a third as often as the screen draws', (
+    tester,
+  ) async {
+    final tube = Tube(initialColors: [red, blue]);
+    await tester.pumpWidget(host(tube));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final wave = painter(tester).wave;
+    var repaints = 0;
+    void count() => repaints++;
+    wave.addListener(count);
+    addTearDown(() => wave.removeListener(count));
+
+    const frames = 30;
+    for (var i = 0; i < frames; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+
+    expect(
+      repaints,
+      inInclusiveRange(frames ~/ 4, frames ~/ 2),
+      reason: 'throttled, but not frozen',
+    );
+    expect(wave.value, greaterThan(0), reason: 'the surface keeps moving');
+  });
+
+  testWidgets('a tube with no loose surface stops repainting entirely', (
+    tester,
+  ) async {
+    final tube = Tube(initialColors: [red, blue, green]);
+    await tester.pumpWidget(host(tube));
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    final wave = painter(tester).wave;
+    expect(wave.value, greaterThan(0), reason: 'an open top ripples');
+
+    tube.colors.add(red);
+    await tester.pumpWidget(host(tube));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    var repaints = 0;
+    void count() => repaints++;
+    wave.addListener(count);
+    addTearDown(() => wave.removeListener(count));
+
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(repaints, 0, reason: 'a packed column paints a flat top');
+  });
 }

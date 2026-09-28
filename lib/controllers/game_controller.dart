@@ -102,6 +102,18 @@ class GameController extends ChangeNotifier {
   /// or an estimate when the search ran out of budget.
   int parMoves = 0;
 
+  /// How many bottles this level needs finished - one per colour - so the HUD
+  /// can count down a goal that does not move when a spare bottle is emptied.
+  int tubesToSort = 0;
+
+  /// Bottles that are full and holding a single colour.
+  int get sortedTubes => tubes.where((tube) => tube.isComplete).length;
+
+  /// Why the last tap did not pour, shown beside the shake. A bottle that
+  /// refuses a move should say so rather than only wobble.
+  String? moveFeedback;
+  int _feedbackToken = 0;
+
   /// The win's grading and payout, filled in once [_awardWin] has written them
   /// to storage. The end-of-level screen shows these rather than inventing its
   /// own numbers, so a promise and a grant cannot disagree.
@@ -297,6 +309,9 @@ class GameController extends ChangeNotifier {
     // leave the player without a level.
     tubes = board ?? _dealBoard(config, random);
     parMoves = par ?? LevelDesign.estimatedPar(config);
+    // One bottle per colour is what "sorted" means here, so the goal the HUD
+    // shows cannot move when the player empties a spare bottle.
+    tubesToSort = config.colorCount;
     assert(_dealsWholeSegments(config), 'Malformed deal at level $designLevel');
     _hideMysterySegments(config, random);
   }
@@ -607,7 +622,7 @@ class GameController extends ChangeNotifier {
 
     if (selectedTubeIndex == null) {
       if (tubes[index].isEmpty) {
-        triggerWrongMove(index);
+        triggerWrongMove(index, reason: 'Nothing to pick up here');
         return;
       }
       selectedTubeIndex = index;
@@ -622,6 +637,30 @@ class GameController extends ChangeNotifier {
         _startPouring(selectedTubeIndex!, index);
       }
     }
+  }
+
+  /// Whether the bottle the player has held up would pour into [index]. The
+  /// board marks the ones that answer yes, so choosing where to tap next is a
+  /// decision rather than a guess that costs a shake.
+  bool acceptsFromSelected(int index) {
+    final from = selectedTubeIndex;
+    return from != null && canPour(from, index);
+  }
+
+  /// The one line explaining a tap that looked legal and was not.
+  String blockReason(int fromIndex, int toIndex) {
+    if (fromIndex == toIndex ||
+        fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= tubes.length ||
+        toIndex >= tubes.length) {
+      return 'Pick a second bottle';
+    }
+    final from = tubes[fromIndex];
+    final to = tubes[toIndex];
+    if (from.isEmpty) return 'This bottle is empty';
+    if (to.isFull) return 'That bottle is full';
+    return 'The colours do not match';
   }
 
   bool canPour(int fromIndex, int toIndex) {
@@ -839,12 +878,12 @@ class GameController extends ChangeNotifier {
 
   Future<void> _startPouring(int fromIndex, int toIndex) async {
     if (isGameOver || (movesLimit != null && movesCount >= movesLimit!)) {
-      triggerWrongMove(fromIndex);
+      triggerWrongMove(fromIndex, reason: 'No moves left');
       return;
     }
 
     if (!canPour(fromIndex, toIndex)) {
-      triggerWrongMove(toIndex);
+      triggerWrongMove(toIndex, reason: blockReason(fromIndex, toIndex));
       selectedTubeIndex = null;
       _notifySafely();
       return;
@@ -852,6 +891,9 @@ class GameController extends ChangeNotifier {
 
     Tube fromTube = tubes[fromIndex];
     Tube toTube = tubes[toIndex];
+    // A move that worked ends the conversation about the one that did not.
+    moveFeedback = null;
+    _feedbackToken++;
 
     _history.add(tubes.map((t) => t.copyWith()).toList());
     movesCount++;
@@ -926,14 +968,22 @@ class GameController extends ChangeNotifier {
     _notifySafely();
   }
 
-  void triggerWrongMove(int index) {
+  void triggerWrongMove(int index, {String? reason}) {
     wrongMoveIndex = index;
+    moveFeedback = reason;
     HapticService.vibrate();
     AudioService.playErrorSfx();
     _notifySafely();
     Future.delayed(const Duration(milliseconds: 500), () {
       if (_isDisposed) return;
       wrongMoveIndex = null;
+      _notifySafely();
+    });
+    // The line stays up long enough to read, which a shake is not.
+    final token = ++_feedbackToken;
+    Future.delayed(const Duration(milliseconds: 1900), () {
+      if (_isDisposed || token != _feedbackToken) return;
+      moveFeedback = null;
       _notifySafely();
     });
   }

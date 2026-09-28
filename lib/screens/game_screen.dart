@@ -1,9 +1,11 @@
 import 'dart:math';
 
+import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import '../controllers/game_controller.dart';
 import '../core/storage_service.dart';
 import '../core/ad_manager.dart';
+import '../effects/effects_game.dart';
 import '../widgets/tube_widget.dart';
 import '../core/app_colors.dart';
 import '../game/pour_geometry.dart';
@@ -13,7 +15,6 @@ import '../widgets/common/bouncing_button.dart';
 import '../core/audio_service.dart';
 import '../widgets/common/level_complete_dialog.dart';
 import '../widgets/common/pouring_stream_effect.dart';
-import 'package:confetti/confetti.dart';
 
 class GameScreen extends StatefulWidget {
   final GameMode mode;
@@ -32,7 +33,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   bool _showTutorial = false;
   int _tutorialStep = 0;
   int _currentLevelForKeys = 0;
-  late ConfettiController _confettiController;
+
+  /// The Flame particle layer that sits over the board. It owns its own
+  /// canvas, so a celebration never repaints a bottle.
+  final EffectsGame _effects = EffectsGame();
+  final GlobalKey _effectsKey = GlobalKey();
 
   /// The board's victory jolt: the last tube locking into place should rattle
   /// the whole shelf before the results screen takes over.
@@ -48,9 +53,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _controller.addListener(_onGameStateChanged);
     _currentLevelForKeys = _controller.currentLevel;
     _tubeKeys = List.generate(20, (_) => GlobalKey());
-    _confettiController = ConfettiController(
-      duration: const Duration(seconds: 3),
-    );
     _victoryShake = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -106,7 +108,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       if (!_controller.winRewarded) return;
       _isEndDialogVisible = true;
       _victoryShake.forward(from: 0.0);
-      _confettiController.play();
+      _effects.celebrate(
+        at: _effectOrigin(_controller.victoryTubeIndex),
+        colors: _celebrationColors(),
+      );
       // The jolt and the sparkles need a beat before the results take over.
       Future.delayed(const Duration(milliseconds: 700), () {
         if (mounted) _showWinDialog();
@@ -407,10 +412,12 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
-    _confettiController.dispose();
     _victoryShake.dispose();
     _controller.removeListener(_onGameStateChanged);
     _controller.dispose();
+    // The screen made this game, so it is also the one that tears it down:
+    // a GameWidget deliberately leaves its game alive.
+    _effects.dispose();
     super.dispose();
   }
 
@@ -528,7 +535,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   // Remove the old _buildAnimatedFinger as it's replaced by HandIndicator
 
-  /// The confetti wears the level's own liquids, not the package's rainbow.
+  /// The celebration wears the level's own liquids, not a stock rainbow.
   List<Color> _celebrationColors() {
     final colors = _controller.tubes
         .expand((tube) => tube.colors)
@@ -536,6 +543,23 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         .toSet()
         .toList();
     return colors.isEmpty ? const [Colors.amber, Colors.cyanAccent] : colors;
+  }
+
+  /// Where the win fireworks start, in the effects layer's own coordinates:
+  /// just above the liquid of the tube that sorted the last layer.
+  Offset _effectOrigin(int? tubeIndex) {
+    final overlay =
+        _effectsKey.currentContext?.findRenderObject() as RenderBox?;
+    if (overlay == null) return Offset.zero;
+    final context = (tubeIndex == null || tubeIndex >= _tubeKeys.length)
+        ? null
+        : _tubeKeys[tubeIndex].currentContext;
+    final tube = context?.findRenderObject() as RenderBox?;
+    if (tube == null) return overlay.size.center(Offset.zero);
+    final centre = tube.localToGlobal(
+      Offset(tube.size.width / 2, tube.size.height * 0.35),
+    );
+    return overlay.globalToLocal(centre);
   }
 
   /// A side-to-side rattle that dies away over its own length.
@@ -766,6 +790,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                                   showPatterns:
                                       _controller.showColorblindPatterns,
                                   celebrate: _controller.isLevelComplete,
+                                  canReceive: _controller
+                                      .acceptsFromSelected(index),
                                   isHinted:
                                       _controller.activeHint != null &&
                                       (_controller.activeHint!.fromIndex ==
@@ -803,18 +829,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
           if (_showTutorial) _buildTutorialOverlay(),
 
-          // Confetti Overlay
-          Align(
-            alignment: Alignment.topCenter,
-            child: ConfettiWidget(
-              confettiController: _confettiController,
-              colors: _celebrationColors(),
-              blastDirection: pi / 2, // downwards
-              maxBlastForce: 5,
-              minBlastForce: 2,
-              emissionFrequency: 0.05,
-              numberOfParticles: 30,
-              gravity: 0.1,
+          // Effects Layer. Its own canvas and its own clock: the burst below
+          // the top bar runs at display rate while the board stays untouched.
+          Positioned.fill(
+            child: IgnorePointer(
+              child: GameWidget(key: _effectsKey, game: _effects),
             ),
           ),
         ],
@@ -947,6 +966,25 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                     ),
                     const SizedBox(width: 12),
                   ],
+                  // How much of the level is left. Before this the only answer
+                  // was "keep pouring and hope".
+                  if (_controller.tubesToSort > 0) ...[
+                    const Icon(
+                      Icons.check_circle,
+                      color: Color(0xFF7DFFC8),
+                      size: 12,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${_controller.sortedTubes} / ${_controller.tubesToSort}',
+                      style: const TextStyle(
+                        color: Color(0xFF7DFFC8),
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
                   const Icon(
                     Icons.touch_app,
                     color: Colors.cyanAccent,
@@ -963,7 +1001,44 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                  // What the solver proved the board needs, so a slow run can be
+                  // told apart from a stuck one. A move limit is the harder
+                  // constraint, so it wins the space when both exist.
+                  if (_controller.movesLimit == null &&
+                      _controller.parMoves > 0) ...[
+                    const SizedBox(width: 12),
+                    const Icon(Icons.flag, color: Colors.white54, size: 12),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${_controller.parMoves}',
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ],
+              ),
+              // Why the last tap was refused, left in place long enough to read
+              // so a shake is never the whole message.
+              SizedBox(
+                height: 18,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  child: _controller.moveFeedback == null
+                      ? const SizedBox.shrink()
+                      : Text(
+                          key: ValueKey(_controller.moveFeedback),
+                          _controller.moveFeedback!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Color(0xFFFFC7C7),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                ),
               ),
             ],
           ),

@@ -1,5 +1,7 @@
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import '../game/liquid_patterns.dart';
 import '../models/tube_model.dart';
 
@@ -19,6 +21,11 @@ const Map<String, String> kBottleGlass = {
 /// The three-quarter render the shop sells each skin with.
 String bottleHeroPath(String skinId) => 'assets/skins/hero_$skinId.png';
 
+/// The ring on a bottle that would take the pour from the one being held up.
+/// Deliberately not one of the twelve liquid colours, so it cannot be read as
+/// contents.
+const Color kBottleEligibleGlow = Color(0xFF6BF2C8);
+
 class TubeWidget extends StatefulWidget {
   final Tube tube;
   final bool isSelected;
@@ -29,6 +36,10 @@ class TubeWidget extends StatefulWidget {
   final String skinId;
   final bool isHinted;
   final double scale;
+
+  /// This bottle would accept a pour from the one the player is holding up, so
+  /// it wears a quieter ring: which bottle to tap next should not be a guess.
+  final bool canReceive;
 
   /// Every layer wears its colourblind mark as well as its colour.
   final bool showPatterns;
@@ -48,6 +59,7 @@ class TubeWidget extends StatefulWidget {
     this.skinId = 'default_tube',
     this.isHinted = false,
     this.scale = 1.0,
+    this.canReceive = false,
     this.celebrate = false,
     this.showPatterns = false,
   });
@@ -59,7 +71,7 @@ class TubeWidget extends StatefulWidget {
 class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
   late AnimationController _shakeController;
   late AnimationController _capController;
-  late AnimationController _waveController;
+  late _SurfaceWave _wave;
   late AnimationController _glowController;
 
   /// The lean and the hover, eased by hand. `AnimatedContainer` restarts its
@@ -78,6 +90,11 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
   /// The layer that has already left the tube, draining away above the stack.
   Color? _draining;
   late final AnimationController _fillController;
+
+  /// The stack the model wants while the paint is still walking back to it, one
+  /// layer per beat. Only an undo gets here: it hands a whole run of layers
+  /// back at once, and those should leave the way they arrived.
+  List<Color>? _revertTo;
 
   late Animation<double> _shakeAnimation;
   late Animation<double> _capDropAnimation;
@@ -104,7 +121,7 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
       parent: _poseController,
       curve: Curves.easeOutCubic,
     );
-    _poseFrom = _poseTo = _TubePose(widget.tiltAngle, widget.offset);
+    _poseFrom = _poseTo = _TubePose(widget.tiltAngle, widget.offset, _lift());
     _poseController.value = 1.0;
 
     // One layer moves per pour segment, so the level crosses in the same beat.
@@ -113,20 +130,20 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
       vsync: this,
     );
     _fillController.addStatusListener((status) {
-      if (status == AnimationStatus.completed && _draining != null && mounted) {
-        setState(() => _draining = null);
-      }
+      if (status != AnimationStatus.completed || !mounted) return;
+      if (_draining != null) setState(() => _draining = null);
+      _stepRevert();
     });
     _shown = List.of(widget.tube.colors);
     _fillController.value = 1.0;
 
     // Only the loose surface and the drifting bubbles move, so a tube that is
     // empty or already packed stops ticking instead of burning a frame budget.
-    _waveController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    );
-    if (_surfaceIsLoose(widget.tube)) _waveController.repeat();
+    // A loose one redraws a third as often as the display refreshes: the ripple
+    // is a two second sine, and the liquid stack underneath it is identical on
+    // the skipped frames, so nothing visible is traded for that saving.
+    _wave = _SurfaceWave(vsync: this);
+    if (_surfaceIsLoose(widget.tube)) _wave.start();
 
     _glowController = AnimationController(
       vsync: this,
@@ -164,15 +181,26 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
   bool _surfaceIsLoose(Tube tube) =>
       tube.colors.isNotEmpty && tube.colors.length < tube.capacity;
 
+  /// How high a picked bottle is held. Part of the eased pose rather than a
+  /// direct offset, so choosing one lifts it instead of jumping it.
+  double _lift() => widget.isSelected ? -30.0 * widget.scale : 0.0;
+
   /// Lines the painted stack up with the model, animating a single layer at a
-  /// time. Anything bigger is a new board, an undo or a shuffle, and those are
-  /// supposed to change at once.
+  /// time. Anything bigger is a new board, a shuffle or an undo.
   ///
   /// The model mutates its own list in place, so this keeps a copy: comparing
   /// identities would say "nothing changed" on every frame of a pour.
-  void _syncLiquid() {
+  void _syncLiquid({required bool sameTube}) {
     final target = widget.tube.colors;
     final previous = _shown;
+
+    if (_revertTo != null) {
+      // A second undo before the first has finished walking back: keep heading
+      // for wherever the board is now.
+      _revertTo = List.of(target);
+      return;
+    }
+
     final delta = target.length - previous.length;
 
     if (delta == 0) {
@@ -186,6 +214,11 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
     }
 
     if (delta.abs() > 1) {
+      if (!sameTube && _looksLikeAnUndo(previous, target, delta)) {
+        _revertTo = List.of(target);
+        _stepRevert();
+        return;
+      }
       _shown = List.of(target);
       _draining = null;
       _fillController.value = 1.0;
@@ -203,27 +236,65 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
     _fillController.forward(from: 0.0);
   }
 
+  /// True when a bigger change is one bottle taking back, or giving back, the
+  /// layers it was holding a moment ago - which is all an undo does. A re-deal
+  /// rearranges the stack underneath, so it fails this test and lands at once.
+  bool _looksLikeAnUndo(List<Color> painted, List<Color> target, int delta) {
+    if (painted.isEmpty || delta.abs() >= widget.tube.capacity) return false;
+    final shorter = delta > 0 ? painted : target;
+    final longer = delta > 0 ? target : painted;
+    for (var i = 0; i < shorter.length; i++) {
+      if (shorter[i] != longer[i]) return false;
+    }
+    return true;
+  }
+
+  /// Eases one layer of an undo and lets [_fillController]'s listener call this
+  /// again until the painted stack matches the model.
+  void _stepRevert() {
+    final target = _revertTo;
+    if (target == null) return;
+    if (_shown.length < target.length) {
+      _shown = List.of(target.take(_shown.length + 1));
+      _draining = null;
+    } else if (_shown.length > target.length) {
+      _draining = _shown.last;
+      _shown = List.of(_shown.sublist(0, _shown.length - 1));
+    } else {
+      _revertTo = null;
+      return;
+    }
+    _fillController.forward(from: 0.0);
+  }
+
   @override
   void didUpdateWidget(covariant TubeWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    final target = _TubePose(widget.tiltAngle, widget.offset);
+    final target = _TubePose(widget.tiltAngle, widget.offset, _lift());
     if (target != _poseTo) {
+      final from = _poseTo;
       _poseFrom = _TubePose.lerp(_poseFrom, _poseTo, _poseCurve.value);
       _poseTo = target;
+      // Held-up and set-down are a response to a tap, so they land fast; the
+      // lean is part of a pour and can afford the longer beat.
+      _poseController.duration =
+          from.tilt == target.tilt && from.offset == target.offset
+          ? const Duration(milliseconds: 170)
+          : const Duration(milliseconds: 320);
       _poseController.forward(from: 0.0);
     }
 
-    _syncLiquid();
+    _syncLiquid(sameTube: identical(oldWidget.tube, widget.tube));
 
     if (widget.isShaking && !oldWidget.isShaking) {
       _shakeController.forward(from: 0.0);
     }
 
     if (_surfaceIsLoose(widget.tube)) {
-      if (!_waveController.isAnimating) _waveController.repeat();
-    } else if (_waveController.isAnimating) {
-      _waveController.stop();
+      _wave.start();
+    } else {
+      _wave.stop();
     }
 
     bool isSolved = _isSolved(widget.tube);
@@ -245,7 +316,7 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
   void dispose() {
     _shakeController.dispose();
     _capController.dispose();
-    _waveController.dispose();
+    _wave.dispose();
     _glowController.dispose();
     _poseController.dispose();
     _fillController.dispose();
@@ -267,6 +338,7 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
             isSelected: widget.isSelected,
             skinId: widget.skinId,
             isHinted: widget.isHinted,
+            isEligible: widget.canReceive && !widget.isSelected,
           ),
         ),
         IgnorePointer(
@@ -285,11 +357,14 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
         filterQuality: FilterQuality.medium,
         gaplessPlayback: true,
       ),
-      if (widget.isSelected || widget.isHinted)
+      if (widget.isSelected || widget.isHinted || widget.canReceive)
         IgnorePointer(
           child: CustomPaint(
             size: const Size(55, 150),
-            painter: BottleFocusPainter(hinted: widget.isHinted),
+            painter: BottleFocusPainter(
+              hinted: widget.isHinted,
+              eligible: widget.canReceive && !widget.isSelected,
+            ),
           ),
         ),
     ];
@@ -311,10 +386,12 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
           double scale = widget.scale;
           double xOffset =
               (widget.isShaking ? _shakeAnimation.value : 0) * scale;
-          double yOffset = (widget.isSelected ? -30.0 : 0) * scale;
 
           bool isPouring = widget.tiltAngle != 0.0;
           final pourPose = _TubePose.lerp(_poseFrom, _poseTo, _poseCurve.value);
+          // The lift rides on the same eased pose as the lean, so picking a
+          // bottle up and putting it down are both movements.
+          double yOffset = pourPose.lift;
 
           return Stack(
             clipBehavior: Clip.none,
@@ -371,9 +448,9 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
                               ),
                             ),
 
-                          // Liquid Inside. The wave listens to its own
-                          // controller, so a ripple repaints this one layer
-                          // instead of rebuilding every tube each frame.
+                          // Liquid Inside. The wave listens to its own clock, so
+                          // a ripple repaints this one layer instead of
+                          // rebuilding every tube each frame.
                           Positioned(
                             bottom: 4,
                             child: ClipPath(
@@ -384,7 +461,7 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
                                   painter: LiquidSegmentPainter(
                                     colors: _shown,
                                     hiddenCount: widget.tube.hiddenCount,
-                                    wave: _waveController,
+                                    wave: _wave,
                                     drainingColor: _draining,
                                     showPatterns: widget.showPatterns,
                                     fillFraction: _draining == null
@@ -442,36 +519,91 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
   }
 }
 
-/// Where one tube is in its pour: how far it has tipped and where it floats.
-class _TubePose {
-  const _TubePose(this.tilt, this.offset);
+/// The surface ripple clock, shared by one tube's liquid painter.
+///
+/// An [AnimationController] notifies on every frame the engine draws, which
+/// makes the painter re-stroke the whole layer stack below the surface 60
+/// times a second to move a two pixel sine. This ticks at the refresh rate but
+/// only advances [value] - and so only asks for a repaint - every
+/// [frameStride]th frame.
+class _SurfaceWave extends ValueNotifier<double> {
+  _SurfaceWave({required TickerProvider vsync}) : _vsync = vsync, super(0.0);
 
-  static const _TubePose idle = _TubePose(0.0, Offset.zero);
+  /// Cycles per second. Matching the old two second repeat period keeps the
+  /// water moving at the speed it always has.
+  static const double _cyclesPerSecond = 0.5;
+
+  /// How many frames pass between repaints, so 20 repaints a second at 60 Hz.
+  static const int frameStride = 3;
+
+  final TickerProvider _vsync;
+
+  Ticker? _ticker;
+  int _frames = 0;
+
+  void start() {
+    final ticker = _ticker ??= _vsync.createTicker(_onFrame);
+    if (!ticker.isActive) ticker.start();
+  }
+
+  void stop() => _ticker?.stop();
+
+  void _onFrame(Duration elapsed) {
+    if (++_frames % frameStride != 0) return;
+    final seconds = elapsed.inMicroseconds / Duration.microsecondsPerSecond;
+    value = (seconds * _cyclesPerSecond) % 1.0;
+  }
+
+  @override
+  void dispose() {
+    _ticker?.dispose();
+    _ticker = null;
+    super.dispose();
+  }
+}
+
+/// Where one tube is in its pour: how far it has tipped, where it floats, and
+/// how high it is held above the shelf while the player decides.
+class _TubePose {
+  const _TubePose(this.tilt, this.offset, this.lift);
+
+  static const _TubePose idle = _TubePose(0.0, Offset.zero, 0.0);
 
   final double tilt;
   final Offset offset;
 
+  /// Negative is up, in the tube's own scaled pixels.
+  final double lift;
+
   static _TubePose lerp(_TubePose a, _TubePose b, double t) => _TubePose(
     a.tilt + (b.tilt - a.tilt) * t,
     Offset.lerp(a.offset, b.offset, t)!,
+    a.lift + (b.lift - a.lift) * t,
   );
 
   @override
   bool operator ==(Object other) =>
-      other is _TubePose && other.tilt == tilt && other.offset == offset;
+      other is _TubePose &&
+      other.tilt == tilt &&
+      other.offset == offset &&
+      other.lift == lift;
 
   @override
-  int get hashCode => Object.hash(tilt, offset);
+  int get hashCode => Object.hash(tilt, offset, lift);
 }
 
 class BottlePainter extends CustomPainter {
   final bool isSelected;
   final String skinId;
   final bool isHinted;
+
+  /// A bottle that would accept a pour from the picked one.
+  final bool isEligible;
   BottlePainter({
     required this.isSelected,
     this.skinId = 'default_tube',
     this.isHinted = false,
+    this.isEligible = false,
   });
 
   @override
@@ -509,10 +641,27 @@ class BottlePainter extends CustomPainter {
         (isSelected || isHinted) ? 12 : 6,
         true,
       );
+    } else if (isEligible) {
+      canvas.drawShadow(
+        path,
+        kBottleEligibleGlow.withValues(alpha: 0.35),
+        6,
+        true,
+      );
     }
 
     canvas.drawPath(path, glassPaint);
     canvas.drawPath(path, borderPaint);
+
+    if (isEligible && !isSelected && !isHinted) {
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = kBottleEligibleGlow.withValues(alpha: 0.8)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.8,
+      );
+    }
 
     // Add specific details based on skin
     if (skinId == 'crystal_bottle') {
@@ -572,25 +721,42 @@ class BottlePainter extends CustomPainter {
   bool shouldRepaint(covariant BottlePainter oldDelegate) =>
       oldDelegate.isSelected != isSelected ||
       oldDelegate.skinId != skinId ||
-      oldDelegate.isHinted != isHinted;
+      oldDelegate.isHinted != isHinted ||
+      oldDelegate.isEligible != isEligible;
 }
 
 /// The picked-tube ring, for skins whose glass is a pre-rendered sprite.
 class BottleFocusPainter extends CustomPainter {
   final bool hinted;
-  const BottleFocusPainter({this.hinted = false});
+
+  /// A bottle that would accept the pour: marked, but quietly, because there
+  /// can be several of them and the picked one still has to read as the loudest
+  /// thing on the board.
+  final bool eligible;
+
+  const BottleFocusPainter({this.hinted = false, this.eligible = false});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final color = hinted ? Colors.amberAccent : Colors.white;
+    final quiet = eligible && !hinted;
+    final color = hinted
+        ? Colors.amberAccent
+        : eligible
+        ? kBottleEligibleGlow
+        : Colors.white;
     final path = _getBottlePath(size);
-    canvas.drawShadow(path, color.withValues(alpha: 0.6), 12, true);
+    canvas.drawShadow(
+      path,
+      color.withValues(alpha: quiet ? 0.35 : 0.6),
+      quiet ? 6 : 12,
+      true,
+    );
     canvas.drawPath(
       path,
       Paint()
-        ..color = color
+        ..color = color.withValues(alpha: quiet ? 0.8 : 1.0)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5
+        ..strokeWidth = quiet ? 1.8 : 2.5
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round,
     );
@@ -598,7 +764,7 @@ class BottleFocusPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant BottleFocusPainter oldDelegate) =>
-      oldDelegate.hinted != hinted;
+      oldDelegate.hinted != hinted || oldDelegate.eligible != eligible;
 }
 
 class BottleClipper extends CustomClipper<Path> {
@@ -732,7 +898,9 @@ class CorkCapPainter extends CustomPainter {
 class LiquidSegmentPainter extends CustomPainter {
   final List<Color> colors;
   final int hiddenCount;
-  final Animation<double> wave;
+
+  /// The ripple phase in cycles: 0.0 to 1.0 is one full wave.
+  final ValueListenable<double> wave;
 
   /// The layer that has already left the tube, painted above [colors] while it
   /// drains away. Null while a layer is arriving instead of leaving.

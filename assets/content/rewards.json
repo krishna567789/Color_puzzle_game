@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "2026.10.01-1",
+  "levels": {
+    "coinBase": 12,
+    "coinPerLevels": 4,
+    "sideModePercent": 150,
+    "xpForThreeStars": 40,
+    "firstThreeStarGems": 1,
+    "twoStarSlack": 4
+  },
+  "player": {
+    "xpBase": 40,
+    "xpStep": 40
+  },
+  "streak": {
+    "cycleDays": 7,
+    "coinsPerDay": 50,
+    "gemsOnLastDay": 5
+  },
+  "spin": {
+    "extraSpinsPerDay": 2,
+    "extraSpinGems": 3
+  },
+  "powerUps": {
+    "costs": {
+      "undo": 50,
+      "hint": 50,
+      "shuffle": 50,
+      "addTube": 100
+    },
+    "extraChanceCost": 50,
+    "maxExtraChances": 3,
+    "inflationLevels": 10,
+    "inflationStep": 5,
+    "inflationCap": 10
+  }
+}

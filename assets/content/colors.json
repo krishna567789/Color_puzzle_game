@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "2026.10.01-1",
+  "colors": [
+    { "id": "red", "name": "Vivid Red", "argb": "FFFF2A2A", "pattern": "dots" },
+    { "id": "blue", "name": "Vivid Blue", "argb": "FF1E88E5", "pattern": "rings" },
+    { "id": "green", "name": "Vivid Green", "argb": "FF2AFA2A", "pattern": "horizontalStripes" },
+    { "id": "yellow", "name": "Vivid Yellow", "argb": "FFFFD500", "pattern": "verticalStripes" },
+    { "id": "orange", "name": "Vivid Orange", "argb": "FFFF7A00", "pattern": "diagonalDown" },
+    { "id": "purple", "name": "Vivid Purple", "argb": "FFA200FF", "pattern": "diagonalUp" },
+    { "id": "cyan", "name": "Vivid Cyan", "argb": "FF00E5FF", "pattern": "crossHatch" },
+    { "id": "pink", "name": "Vivid Pink", "argb": "FFFF0088", "pattern": "grid" },
+    { "id": "teal", "name": "Vivid Teal", "argb": "FF00FF88", "pattern": "zigzag" },
+    { "id": "indigo", "name": "Vivid Indigo", "argb": "FF5500FF", "pattern": "triangles" },
+    { "id": "deepOrange", "name": "Vivid Deep Orange", "argb": "FFFF4500", "pattern": "checker" },
+    { "id": "lime", "name": "Vivid Lime", "argb": "FFA6FF00", "pattern": "plus" }
+  ]
+}

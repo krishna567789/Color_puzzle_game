@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:color_puzzle_game/content/content_repository.dart';
+import 'package:color_puzzle_game/content/content_types.dart';
 import 'package:color_puzzle_game/models/tube_model.dart';
 import 'package:color_puzzle_game/widgets/tube_widget.dart';
 import 'package:flutter/material.dart';
@@ -16,15 +18,17 @@ const pxPerMm = 4.0;
 /// art draws must be what the liquid is clipped to. A sprite a millimetre
 /// narrower than `BottleClipper` lets the bottom layer sit outside the wall, and
 /// every bit of maths in the project would still look perfect.
+///
+/// The list comes from the shop rather than from a line in this file, because a
+/// skin added to the catalogue is a bottle the player can put on the board, and
+/// a hand-written list is exactly what would let it ship unchecked.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const skins = [
-    'default_tube',
-    'neon_tube',
-    'crystal_bottle',
-    'wooden_tube',
-  ];
+  final skins = List<ShopSpec>.unmodifiable(
+    ContentRepository.content.shop.where((item) => item.type == 'tubeSkin'),
+  );
+  final oneRenderedSkin = skins.first.id;
 
   Future<Rgba> decode(String path) async {
     final codec = await ui.instantiateImageCodec(
@@ -40,22 +44,21 @@ void main() {
   }
 
   test('every skin the shop sells has a sprite and a hero render', () {
-    for (final id in skins) {
-      expect(File('assets/skins/$id.png').existsSync(), isTrue, reason: id);
+    // An empty list would make every loop below pass by checking nothing.
+    expect(skins, isNotEmpty, reason: 'content did not load into the test');
+    for (final skin in skins) {
+      expect(File(skin.glassImage).existsSync(), isTrue, reason: skin.id);
       expect(
-        File('assets/skins/hero_$id.png').existsSync(),
+        File(skin.heroImage).existsSync(),
         isTrue,
-        reason: 'the shop card for $id',
+        reason: 'the shop card for ${skin.id}',
       );
     }
   });
 
   test('the sprites are declared assets, not just files on disk', () async {
-    for (final id in skins) {
-      for (final path in [
-        'assets/skins/$id.png',
-        'assets/skins/hero_$id.png',
-      ]) {
+    for (final skin in skins) {
+      for (final path in [skin.glassImage, skin.heroImage]) {
         final data = await rootBundle.load(path);
         expect(
           data.lengthInBytes,
@@ -67,12 +70,12 @@ void main() {
   });
 
   testWidgets('a rendered skin replaces the vector glass', (tester) async {
-    for (final id in skins) {
-      await tester.pumpWidget(host(id));
+    for (final skin in skins) {
+      await tester.pumpWidget(host(skin.id));
       expect(
         painterTypes(tester),
         isNot(contains('BottlePainter')),
-        reason: '$id draws from art, not from the painter',
+        reason: '${skin.id} draws from art, not from the painter',
       );
       expect(
         tester.widgetList<Image>(find.byType(Image)).map((image) => image.image),
@@ -80,10 +83,10 @@ void main() {
           isA<AssetImage>().having(
             (asset) => asset.assetName,
             'assetName',
-            'assets/skins/$id.png',
+            skin.glassImage,
           ),
         ),
-        reason: '$id has a sprite to load',
+        reason: '${skin.id} has a sprite to load',
       );
       expect(tester.takeException(), isNull);
     }
@@ -97,21 +100,23 @@ void main() {
   });
 
   testWidgets('the picked ring survives the switch to art', (tester) async {
-    await tester.pumpWidget(host('neon_tube'));
+    await tester.pumpWidget(host(oneRenderedSkin));
     expect(
       painterTypes(tester),
       isNot(contains('BottleFocusPainter')),
       reason: 'an idle bottle wears no ring',
     );
 
-    await tester.pumpWidget(host('neon_tube', selected: true));
+    await tester.pumpWidget(host(oneRenderedSkin, selected: true));
     expect(
       painterTypes(tester),
       contains('BottleFocusPainter'),
       reason: 'a static sprite cannot light up on its own',
     );
 
-    await tester.pumpWidget(host('neon_tube', selected: true, hinted: true));
+    await tester.pumpWidget(
+      host(oneRenderedSkin, selected: true, hinted: true),
+    );
     expect(
       focusPainter(tester).hinted,
       isTrue,
@@ -121,17 +126,17 @@ void main() {
 
   test('the drawn wall is where the liquid is clipped', () async {
     final clip = BottleClipper().getClip(const Size(55, 150));
-    for (final id in skins) {
-      final sprite = await decode('assets/skins/$id.png');
+    for (final skin in skins) {
+      final sprite = await decode(skin.glassImage);
       expect(
         sprite.width,
         (55 * pxPerMm).round(),
-        reason: '$id is not cropped to the bottle box',
+        reason: '${skin.id} is not cropped to the bottle box',
       );
       expect(
         sprite.height,
         (150 * pxPerMm).round(),
-        reason: '$id is not cropped to the bottle box',
+        reason: '${skin.id} is not cropped to the bottle box',
       );
 
       final covered = sprite.outlineCoverage(clip);
@@ -139,34 +144,35 @@ void main() {
         covered,
         greaterThan(0.9),
         reason:
-            '$id leaves ${((1 - covered) * 100).round()}% of the clip edge '
-            'unpainted, so liquid would sit outside the visible glass',
+            '${skin.id} leaves ${((1 - covered) * 100).round()}% of the clip '
+            'edge unpainted, so liquid would sit outside the visible glass',
       );
 
       final leaks = sprite.pixelsBeyond(clip, mm: 2.0);
       expect(
         leaks,
         0,
-        reason: '$id paints more than 2mm outside the bottle it clips to',
+        reason: '${skin.id} paints more than 2mm outside the bottle it clips '
+            'to',
       );
     }
   });
 
   test('the hero renders sit on nothing', () async {
-    for (final id in skins) {
-      final hero = await decode('assets/skins/hero_$id.png');
+    for (final skin in skins) {
+      final hero = await decode(skin.heroImage);
       // A hero with a background would put a coloured slab over the shop card.
       expect(
         hero.maxCornerAlpha(),
         0,
-        reason: '$id was rendered without a transparent film',
+        reason: '${skin.id} was rendered without a transparent film',
       );
     }
   });
 
   test('the glass stays clear enough to read the liquid through', () async {
-    for (final id in skins) {
-      final sprite = await decode('assets/skins/$id.png');
+    for (final skin in skins) {
+      final sprite = await decode(skin.glassImage);
       // The middle of the body: the layers live in here, and the player has to
       // tell one from the next at a glance.
       final haze = sprite.meanAlphaIn(
@@ -176,7 +182,7 @@ void main() {
       expect(
         haze,
         lessThan(0.12),
-        reason: '$id washes out the liquid it is supposed to show',
+        reason: '${skin.id} washes out the liquid it is supposed to show',
       );
     }
   });

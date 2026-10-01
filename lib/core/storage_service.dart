@@ -24,13 +24,21 @@ class StorageService {
   static const String _keyLastLoginDate = 'last_login_date';
   static const String _keyHasReviewed = 'has_reviewed';
   static const String _keyHasRemovedAds = 'has_removed_ads';
-  static const String _keyDailyChallengeDate = 'daily_challenge_date';
   static const String _keyDeliveredPurchases = 'delivered_purchase_ids';
   static const String _keyLevelStars = 'level_stars';
+  static const String _keyModeProgress = 'mode_progress';
+  static const String _keyModeStars = 'mode_stars';
   static const String _keyDailyCounters = 'daily_counters';
   static const String _keyStreakRewardDate = 'streak_reward_date';
   static const String _keyCloudUploadedAt = 'cloud_uploaded_at';
   static const String _keyPlayerXp = 'player_xp';
+  static const String _keyClaimedChapters = 'claimed_chapters';
+  static const String _keySchemaVersion = 'schema_version';
+
+  /// The shape of the data this build reads. Bump it and add a step in
+  /// [_migrate] whenever a stored key changes meaning, so an old install is
+  /// translated instead of being read with the wrong defaults.
+  static const int _currentSchemaVersion = 1;
 
   static Future<Box<dynamic>>? _boxFuture;
 
@@ -40,18 +48,74 @@ class StorageService {
   }
 
   static Future<Box<dynamic>> _getBox() {
-    return _boxFuture ??= _openBox();
+    return _boxFuture ??= _openBox().catchError((Object error) {
+      // A rejected future left cached fails every read for the life of the
+      // process. Dropping it lets the next screen try again, which is what a
+      // full disk or a slow path_provider handshake needs.
+      _boxFuture = null;
+      throw error;
+    });
   }
 
+  /// Opens the box and stamps it with the schema this build reads.
+  ///
+  /// Deliberately never deletes or replaces the file. Hive turns a damaged tail
+  /// into a shorter box rather than an error - verified against a garbage file
+  /// and a truncated one - so a failed open means the device cannot be read at
+  /// all, and wiping the only copy of the save would be the worse outcome.
   static Future<Box<dynamic>> _openBox() async {
     await Hive.initFlutter();
-    return Hive.openBox<dynamic>(_boxName);
+    final box = await Hive.openBox<dynamic>(_boxName);
+    await _stampSchemaVersion(box);
+    return box;
   }
+
+  static Future<void> _stampSchemaVersion(Box<dynamic> box) async {
+    final stored = box.get(_keySchemaVersion, defaultValue: 0) as int;
+    if (stored < _currentSchemaVersion) {
+      await _migrate(box, stored);
+      await box.put(_keySchemaVersion, _currentSchemaVersion);
+    }
+  }
+
+  /// Brings a box written by an older build up to [_currentSchemaVersion].
+  ///
+  /// Every step reads the version it is named for, and there are none yet: the
+  /// first release that changes what a key means has to add one here.
+  static Future<void> _migrate(Box<dynamic> box, int from) async {}
 
   static Future<void> resetAllSettings() async {
     final box = await _getBox();
     await box.clear();
   }
+
+  /// What a deletion spares, because it is owed to the player rather than
+  /// earned by playing: the ad-free licence, the receipts that stop a purchase
+  /// paying out twice, and the schema stamp this build reads.
+  static const List<String> _keysDeletionSpares = [
+    _keyHasRemovedAds,
+    _keyDeliveredPurchases,
+    _keySchemaVersion,
+  ];
+
+  /// The account-deletion path Google asks for: every level, star, balance,
+  /// owned item, streak and preference this device holds is wiped.
+  ///
+  /// It runs on the wallet chain so a payout already queued cannot land on top
+  /// of the wipe, and it keeps what was paid for - a player who bought "no ads"
+  /// and then reset their progress would otherwise lose a licence they own, and
+  /// dropping the receipts would let the store hand those coins out again.
+  static Future<void> deletePlayerData() => _onWallet(() async {
+    final box = await _getBox();
+    final kept = <String, dynamic>{
+      for (final key in _keysDeletionSpares)
+        if (box.containsKey(key)) key: box.get(key),
+    };
+    await box.clear();
+    for (final entry in kept.entries) {
+      await box.put(entry.key, entry.value);
+    }
+  });
 
   // --- Review Tracking ---
   static Future<bool> getHasReviewed() async {
@@ -74,24 +138,79 @@ class StorageService {
     return box.get(_keyLevel, defaultValue: 1) as int;
   }
 
-  static Future<void> saveCoins(int coins) async {
+  /// Every wallet write goes through this one chain.
+  ///
+  /// A win paying out and a store receipt crediting at the same moment both
+  /// used to read the balance, add to their own copy and write it back, so
+  /// whichever finished last silently discarded the other one's money.
+  static Future<void> _walletTail = Future<void>.value();
+
+  static Future<T> _onWallet<T>(Future<T> Function() write) {
+    final next = _walletTail.then((_) => write());
+    // One failed write must not poison every write queued behind it.
+    _walletTail = next.then((_) {}, onError: (_) {});
+    return next;
+  }
+
+  static const int _defaultCoins = 500;
+  static const int _defaultGems = 10;
+
+  static int _balanceOf(Box<dynamic> box, String key, int fallback) =>
+      (box.get(key, defaultValue: fallback) as num).toInt();
+
+  /// Adds to the balance without going through a copy the caller is holding,
+  /// and returns what the wallet actually ended up at. Never goes below zero.
+  static Future<int> addCoins(int delta) =>
+      _addDelta(_keyCoins, _defaultCoins, delta);
+
+  static Future<int> addGems(int delta) =>
+      _addDelta(_keyGems, _defaultGems, delta);
+
+  static Future<int> _addDelta(String key, int fallback, int delta) =>
+      _onWallet(() async {
+        final box = await _getBox();
+        final next = _balanceOf(box, key, fallback) + delta;
+        final paid = next < 0 ? 0 : next;
+        await box.put(key, paid);
+        return paid;
+      });
+
+  /// Checks the price and deducts it in a single step, so two purchases that
+  /// each looked affordable when read separately cannot both be honoured.
+  static Future<bool> trySpend({int coins = 0, int gems = 0}) {
+    if (coins < 0 || gems < 0) return Future.value(false);
+    return _onWallet(() async {
+      final box = await _getBox();
+      final walletCoins = _balanceOf(box, _keyCoins, _defaultCoins);
+      final walletGems = _balanceOf(box, _keyGems, _defaultGems);
+      if (walletCoins < coins || walletGems < gems) return false;
+      await box.put(_keyCoins, walletCoins - coins);
+      await box.put(_keyGems, walletGems - gems);
+      return true;
+    });
+  }
+
+  /// Sets a balance outright. Only for a restore, where the incoming number is
+  /// the whole truth; anything that adds to what is stored goes through
+  /// [addCoins] or [addGems].
+  static Future<void> saveCoins(int coins) => _onWallet(() async {
     final box = await _getBox();
     await box.put(_keyCoins, coins);
-  }
+  });
 
   static Future<int> getCoins() async {
     final box = await _getBox();
-    return box.get(_keyCoins, defaultValue: 500) as int;
+    return _balanceOf(box, _keyCoins, _defaultCoins);
   }
 
-  static Future<void> saveGems(int gems) async {
+  static Future<void> saveGems(int gems) => _onWallet(() async {
     final box = await _getBox();
     await box.put(_keyGems, gems);
-  }
+  });
 
   static Future<int> getGems() async {
     final box = await _getBox();
-    return box.get(_keyGems, defaultValue: 10) as int;
+    return _balanceOf(box, _keyGems, _defaultGems);
   }
 
   static Future<bool> isFirstTime() async {
@@ -286,6 +405,152 @@ class StorageService {
     }
   }
 
+  // --- Chapters ---
+
+  /// The chapters whose reward has already been paid.
+  static Future<List<String>> getClaimedChapters() async {
+    final box = await _getBox();
+    return List<String>.from(
+      box.get(_keyClaimedChapters, defaultValue: <String>[]) as List,
+    );
+  }
+
+  static Future<void> raiseClaimedChapters(Iterable<String> ids) async {
+    final box = await _getBox();
+    final claimed = List<String>.from(
+      box.get(_keyClaimedChapters, defaultValue: <String>[]) as List,
+    );
+    final added = ids.where((id) => !claimed.contains(id));
+    if (added.isEmpty) return;
+    await box.put(_keyClaimedChapters, [...claimed, ...added]);
+  }
+
+  /// True the first time a chapter pays out, and false every time after, so
+  /// replaying a chapter's closing board cannot buy the same reward again.
+  static Future<bool> claimChapter(String chapterId) async {
+    final box = await _getBox();
+    final claimed = List<String>.from(
+      box.get(_keyClaimedChapters, defaultValue: <String>[]) as List,
+    );
+    if (claimed.contains(chapterId)) return false;
+    await box.put(_keyClaimedChapters, [...claimed, chapterId]);
+    return true;
+  }
+
+  // --- Side modes ---
+
+  /// A side mode's stage, spelled the way every per-mode record is filed.
+  ///
+  /// The mode is part of the key because a stage number is not a level number:
+  /// the per-level stars are keyed by a bare integer, and reading a Time Attack
+  /// record out of that map would show a campaign three-star on a board nobody
+  /// played.
+  static String _modeKey(String modeId, int stage) => '$modeId@$stage';
+
+  static Map<String, int> _readModeMap(Box<dynamic> box, String key) {
+    final stored = box.get(key, defaultValue: <String, dynamic>{}) as Map;
+    return {
+      for (final entry in stored.entries)
+        entry.key.toString(): (entry.value as num).toInt(),
+    };
+  }
+
+  static Future<void> _writeModeMap(
+    Box<dynamic> box,
+    String key,
+    Map<String, int> values,
+  ) => box.put(key, {...values});
+
+  /// The highest stage [modeId] may be entered from. One until its first stage
+  /// is cleared, which is what a mode's own map draws its path from.
+  static Future<int> getModeProgress(String modeId) async {
+    final box = await _getBox();
+    return _readModeMap(box, _keyModeProgress)[modeId] ?? 1;
+  }
+
+  /// Unlocks up to [stage] in [modeId] and never locks anything back. The only
+  /// way a record can travel is forward, which is what lets a cloud merge hand
+  /// the whole map over.
+  static Future<void> raiseModeProgress(String modeId, int stage) async {
+    final box = await _getBox();
+    final progress = _readModeMap(box, _keyModeProgress);
+    if ((progress[modeId] ?? 1) >= stage) return;
+    progress[modeId] = stage;
+    await _writeModeMap(box, _keyModeProgress, progress);
+  }
+
+  /// Every mode's unlock, for a snapshot that has to carry them all.
+  static Future<Map<String, int>> getAllModeProgress() async {
+    final box = await _getBox();
+    return _readModeMap(box, _keyModeProgress);
+  }
+
+  static Future<void> raiseAllModeProgress(Map<String, int> stages) async {
+    final box = await _getBox();
+    final progress = _readModeMap(box, _keyModeProgress);
+    var changed = false;
+    for (final entry in stages.entries) {
+      if (entry.value > (progress[entry.key] ?? 1)) {
+        progress[entry.key] = entry.value;
+        changed = true;
+      }
+    }
+    if (changed) await _writeModeMap(box, _keyModeProgress, progress);
+  }
+
+  /// Best rating ever earned on one stage of one mode.
+  static Future<int> getModeStars(String modeId, int stage) async {
+    final box = await _getBox();
+    return _readModeMap(box, _keyModeStars)[_modeKey(modeId, stage)] ?? 0;
+  }
+
+  static Future<Map<String, int>> getAllModeStars() async {
+    final box = await _getBox();
+    return _readModeMap(box, _keyModeStars);
+  }
+
+  /// One mode's best rating per stage, keyed by the stage number, which is what
+  /// a mode's own map draws under each node.
+  static Future<Map<int, int>> getModeStarsByStage(String modeId) async {
+    final box = await _getBox();
+    final prefix = '$modeId@';
+    return {
+      for (final entry in _readModeMap(box, _keyModeStars).entries)
+        if (entry.key.startsWith(prefix))
+          (int.tryParse(entry.key.substring(prefix.length)) ?? 0): entry.value,
+    };
+  }
+
+  /// Keeps the better of the two ratings. False when this run did not beat what
+  /// the stage already remembers, which is what makes a replay honest rather
+  /// than a farm.
+  static Future<bool> saveModeStars(
+    String modeId,
+    int stage,
+    int stars,
+  ) async {
+    final box = await _getBox();
+    final key = _modeKey(modeId, stage);
+    final records = _readModeMap(box, _keyModeStars);
+    if ((records[key] ?? 0) >= stars) return false;
+    records[key] = stars;
+    await _writeModeMap(box, _keyModeStars, records);
+    return true;
+  }
+
+  static Future<void> raiseAllModeStars(Map<String, int> records) async {
+    final box = await _getBox();
+    final stored = _readModeMap(box, _keyModeStars);
+    var changed = false;
+    for (final entry in records.entries) {
+      if (entry.value > (stored[entry.key] ?? 0)) {
+        stored[entry.key] = entry.value;
+        changed = true;
+      }
+    }
+    if (changed) await _writeModeMap(box, _keyModeStars, stored);
+  }
+
   static String _eventKey(String eventId, String windowKey) =>
       '$eventId@$windowKey';
 
@@ -411,18 +676,6 @@ class StorageService {
     return true;
   }
 
-  static Future<bool> isDailyChallengeCompleted(String dateStr) async {
-    final box = await _getBox();
-    return box.get(_keyDailyChallengeDate) == dateStr;
-  }
-
-  static Future<void> setDailyChallengeCompleted(String dateStr) async {
-    final box = await _getBox();
-    await box.put(_keyDailyChallengeDate, dateStr);
-  }
-
-  /// The one date format used for anything that resets daily: streaks, quests,
-  /// spins and the daily challenge.
   /// When this device last pushed a cloud save, which is what decides whether a
   /// save found in the cloud is newer than the local one.
   static Future<DateTime?> getCloudUploadedAt() async {
@@ -437,6 +690,8 @@ class StorageService {
     await box.put(_keyCloudUploadedAt, at.toUtc().toIso8601String());
   }
 
+  /// The one date format used for anything that resets daily: streaks, quests,
+  /// spins and today's daily prize.
   static String dateKey(DateTime day) =>
       '${day.year}-${day.month.toString().padLeft(2, '0')}-'
       '${day.day.toString().padLeft(2, '0')}';

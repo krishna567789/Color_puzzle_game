@@ -15,6 +15,9 @@ class PouringStreamPainter extends CustomPainter {
     required this.streamWidth,
     required this.bendDirection,
     this.flowPhase = 0,
+    this.splash = 0,
+    this.splashSeed = 0,
+    this.ceiling = 0,
   });
 
   final Offset? startPoint;
@@ -32,6 +35,16 @@ class PouringStreamPainter extends CustomPainter {
 
   /// Which way the bottle tips, so the jet leaves the lip in that direction.
   final double bendDirection;
+
+  /// 0 to 1 through one kick of the surface, fired again for every layer that
+  /// lands. Zero means nothing is arriving.
+  final double splash;
+
+  /// Changes with each splash so the droplets do not fly the same way twice.
+  final int splashSeed;
+
+  /// The y a droplet may not rise above: the neck of the tube being filled.
+  final double ceiling;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -68,8 +81,8 @@ class PouringStreamPainter extends CustomPainter {
     jet.drawRibbon(canvas, body, tail, head);
     jet.drawFlow(canvas, tail, head);
 
-    if (head >= 0.999 && tail <= 0) {
-      jet.drawImpact(canvas, end, color);
+    if (splash > 0 && splash < 1) {
+      jet.drawSplash(canvas, end, color, splash, splashSeed, ceiling);
     }
     if (tail > 0) {
       jet.drawLastDrop(canvas, body, tail, animationProgress - 1);
@@ -84,6 +97,9 @@ class PouringStreamPainter extends CustomPainter {
         oldDelegate.flowPhase != flowPhase ||
         oldDelegate.streamWidth != streamWidth ||
         oldDelegate.bendDirection != bendDirection ||
+        oldDelegate.splash != splash ||
+        oldDelegate.splashSeed != splashSeed ||
+        oldDelegate.ceiling != ceiling ||
         oldDelegate.color != color;
   }
 }
@@ -213,34 +229,102 @@ class _Jet {
     );
   }
 
-  void drawImpact(Canvas canvas, Offset surface, Color color) {
-    final ripple = Paint()
-      ..color = Colors.white.withValues(alpha: 0.3)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
+  /// A layer hitting the surface: the glass flashes, a ring runs outward, the
+  /// liquid rebounds into a short column, and droplets are thrown back up.
+  ///
+  /// Everything about it is derived from [t] so a splash that is interrupted
+  /// mid-flight simply stops where it was, rather than popping.
+  void drawSplash(
+    Canvas canvas,
+    Offset surface,
+    Color color,
+    double t,
+    int seed,
+    double ceiling,
+  ) {
+    final sw = streamWidth;
+
+    // The ring is the part that reads as distance, so it decelerates outward
+    // and thins as it goes instead of sliding at a constant pace.
+    final grow = 1 - (1 - t) * (1 - t) * (1 - t);
+    final ringWidth = sw * (1.6 + 5.2 * grow);
     canvas.drawOval(
       Rect.fromCenter(
         center: surface,
-        width: streamWidth * 4.2,
-        height: streamWidth * 1.5,
+        width: ringWidth,
+        height: ringWidth * 0.3,
       ),
-      ripple,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.42 * (1 - t))
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.4 + 1.4 * (1 - t),
     );
 
-    final spray = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-    final random = math.Random(surface.dy.round());
-    for (int i = 0; i < 4; i++) {
-      final angle = math.pi * (0.15 + 0.7 * random.nextDouble());
-      final distance = streamWidth * (1.3 + random.nextDouble() * 1.5);
-      canvas.drawCircle(
-        Offset(
-          surface.dx + math.cos(angle) * distance,
-          surface.dy - math.sin(angle) * distance,
+    // The wet highlight where the jet punched in.
+    if (t < 0.34) {
+      final k = t / 0.34;
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: surface,
+          width: sw * (1.2 + 2.6 * k),
+          height: sw * (0.7 + 0.9 * k),
         ),
-        streamWidth * (0.15 + random.nextDouble() * 0.16),
-        spray,
+        Paint()..color = Colors.white.withValues(alpha: 0.5 * (1 - k)),
+      );
+    }
+
+    // The rebound column. It cannot be taller than the neck allows, which is
+    // what keeps a nearly-full tube from splashing through its own rim.
+    if (t < 0.5) {
+      final k = t / 0.5;
+      final room = math.max(0.0, surface.dy - ceiling);
+      final height = math.min(sw * 2.0, room) * math.sin(k * math.pi);
+      if (height > 0.5) {
+        final width = sw * 0.62 * (1 - 0.55 * k);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(
+              center: Offset(surface.dx, surface.dy - height / 2),
+              width: width,
+              height: height,
+            ),
+            Radius.circular(width / 2),
+          ),
+          Paint()..color = Color.lerp(color, Colors.white, 0.18)!,
+        );
+      }
+    }
+
+    // Drawn once up front: pulling these numbers inside the loop would hand
+    // every frame a different set, and the droplets would swim.
+    final random = math.Random(seed * 7919 + surface.dx.round());
+    final droplets = [
+      for (var i = 0; i < 9; i++)
+        _Droplet(
+          side: i.isEven ? 1.0 : -1.0,
+          born: random.nextDouble() * 0.16,
+          life: 0.55 + random.nextDouble() * 0.37,
+          apex: 2.6 + random.nextDouble() * 2.2,
+          drift: 1.4 + random.nextDouble() * 2.0,
+          radius: 0.16 + random.nextDouble() * 0.18,
+        ),
+    ];
+
+    final lit = Color.lerp(color, Colors.white, 0.35)!;
+    for (final drop in droplets) {
+      final s = (t - drop.born) / drop.life;
+      if (s <= 0 || s >= 1) continue;
+      final room = math.max(0.0, surface.dy - ceiling) / sw;
+      final apex = math.min(drop.apex, room);
+      final offset = Offset(
+        surface.dx + drop.side * drop.drift * s * sw,
+        surface.dy - apex * 4 * s * (1 - s) * sw,
+      );
+      final paint = Paint()
+        ..color = Color.lerp(color, lit, s)!.withValues(alpha: 1 - s * s);
+      canvas.drawOval(
+        Rect.fromCircle(center: offset, radius: drop.radius * sw),
+        paint,
       );
     }
   }
@@ -253,4 +337,31 @@ class _Jet {
       Paint()..color = paint.color.withValues(alpha: 1 - leaving),
     );
   }
+}
+
+/// One thrown-off bead of liquid. Its whole flight is fixed at the moment the
+/// splash starts, so the frames of a splash agree with each other.
+class _Droplet {
+  const _Droplet({
+    required this.side,
+    required this.born,
+    required this.life,
+    required this.apex,
+    required this.drift,
+    required this.radius,
+  });
+
+  /// Which way of the jet it goes; both sides get some.
+  final double side;
+
+  /// When it leaves the surface, and how long it takes to come back, as
+  /// fractions of the splash.
+  final double born;
+  final double life;
+
+  /// How high it climbs, and how far sideways it travels, in jet widths.
+  final double apex;
+  final double drift;
+
+  final double radius;
 }

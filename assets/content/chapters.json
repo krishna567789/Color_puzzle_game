@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "2026.10.01-1",
+  "levelsPerChapter": 20,
+  "chapters": [
+    {
+      "id": "first_pours",
+      "name": "First Pours",
+      "startsAtLevel": 1,
+      "blurb": "Six plain colours, a wide shelf, nothing hidden.",
+      "image": "assets/images/wizard_room_bg.jpg",
+      "tint": "00000000",
+      "accent": "FF39C7FF",
+      "palette": ["red", "blue", "green", "yellow", "orange", "purple"],
+      "rewardCoins": 150,
+      "rewardGems": 1
+    },
+    {
+      "id": "mixed_signals",
+      "name": "Mixed Signals",
+      "startsAtLevel": 21,
+      "blurb": "Nine colours, and two of them hiding.",
+      "image": "assets/images/wizard_room_bg.jpg",
+      "tint": "26FF7A00",
+      "accent": "FFFF9E3D",
+      "palette": [
+        "red",
+        "blue",
+        "green",
+        "yellow",
+        "orange",
+        "purple",
+        "cyan",
+        "pink",
+        "teal"
+      ],
+      "rewardCoins": 200,
+      "rewardGems": 1
+    },
+    {
+      "id": "narrow_shelf",
+      "name": "Narrow Shelf",
+      "startsAtLevel": 41,
+      "blurb": "Two spare bottles for twelve colours.",
+      "image": "assets/images/wizard_room_bg.jpg",
+      "tint": "262E9D4F",
+      "accent": "FF5BE38A",
+      "rewardCoins": 250,
+      "rewardGems": 2
+    },
+    {
+      "id": "layered_colors",
+      "name": "Layered Colors",
+      "startsAtLevel": 61,
+      "blurb": "Every bottle starts in pieces.",
+      "image": "assets/images/wizard_room_bg.jpg",
+      "tint": "26A200FF",
+      "accent": "FFC17AFF",
+      "rewardCoins": 300,
+      "rewardGems": 2
+    },
+    {
+      "id": "color_storm",
+      "name": "Color Storm",
+      "startsAtLevel": 81,
+      "blurb": "The whole palette, every bottle busy.",
+      "image": "assets/images/wizard_room_bg.jpg",
+      "tint": "26FF0088",
+      "accent": "FFFF4FA8",
+      "rewardCoins": 350,
+      "rewardGems": 2
+    },
+    {
+      "id": "mystery_row",
+      "name": "Mystery Row",
+      "startsAtLevel": 101,
+      "blurb": "Three bottles keep their bottoms to themselves.",
+      "image": "assets/images/wizard_room_bg.jpg",
+      "tint": "265500FF",
+      "accent": "FF8F6BFF",
+      "rewardCoins": 400,
+      "rewardGems": 3
+    },
+    {
+      "id": "deep_tubes",
+      "name": "Deep Tubes",
+      "startsAtLevel": 121,
+      "blurb": "The shelf grows taller than five.",
+      "image": "assets/images/wizard_room_bg.jpg",
+      "tint": "260E5A8C",
+      "accent": "FF4FC3F7",
+      "rewardCoins": 450,
+      "rewardGems": 3
+    },
+    {
+      "id": "tight_space",
+      "name": "Tight Space",
+      "startsAtLevel": 141,
+      "blurb": "Two spare bottles. Use them twice.",
+      "image": "assets/images/wizard_room_bg.jpg",
+      "tint": "26B00020",
+      "accent": "FFFF5A5A",
+      "rewardCoins": 500,
+      "rewardGems": 3
+    },
+    {
+      "id": "the_alchemist",
+      "name": "The Alchemist",
+      "startsAtLevel": 161,
+      "blurb": "Twelve colours, and none of them where you left them.",
+      "image": "assets/images/wizard_room_bg.jpg",
+      "tint": "2600796B",
+      "accent": "FF3DFFE0",
+      "rewardCoins": 600,
+      "rewardGems": 4
+    },
+    {
+      "id": "master_bench",
+      "name": "Master Bench",
+      "startsAtLevel": 181,
+      "blurb": "Everything the shelf knows, at once.",
+      "image": "assets/images/wizard_room_bg.jpg",
+      "tint": "26C9A227",
+      "accent": "FFFFD166",
+      "rewardCoins": 700,
+      "rewardGems": 5
+    }
+  ]
+}

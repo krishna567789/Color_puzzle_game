@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:color_puzzle_game/content/content_repository.dart';
 import 'package:color_puzzle_game/game/liquid_patterns.dart';
 import 'package:color_puzzle_game/models/tube_model.dart';
 import 'package:color_puzzle_game/widgets/tube_widget.dart';
@@ -8,6 +9,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const liquidSize = Size(51, 144);
+
+// The shipped palette, read from the content set rather than a list kept in
+// a test: guarding a copy of the palette would let the real one drift.
+final palette = ContentRepository.content.swatches;
+final marks = ContentRepository.content.patternFor;
 
 /// A layer of liquid is one of four identical slots that differ only by colour,
 /// so for a player who cannot separate those colours the board is unreadable.
@@ -70,27 +76,26 @@ void main() {
   }
 
   test('the palette has one pattern per colour, and no repeats', () {
-    expect(kLiquidPatternOrder, hasLength(kLiquidPalette.length));
-    expect(kLiquidPatternOrder.toSet(), hasLength(kLiquidPatternOrder.length));
+    expect(palette, isNotEmpty, reason: 'the content set did not load');
     expect(
-      kLiquidPalette.map(liquidPatternFor).toSet(),
-      hasLength(kLiquidPalette.length),
+      palette.map(marks).toSet(),
+      hasLength(palette.length),
       reason: 'two colours wearing one mark is the bug this whole file guards',
     );
   });
 
   test('a colour the palette does not know still wears a stable mark', () {
     final stranger = const Color(0xFF7ED957);
-    expect(liquidPatternFor(stranger), liquidPatternFor(stranger));
-    expect(kLiquidPatternOrder, contains(liquidPatternFor(stranger)));
+    expect(marks(stranger), marks(stranger));
+    expect(LiquidPattern.values, contains(marks(stranger)));
   });
 
   testWidgets('the mark is actually painted on the liquid', (tester) async {
-    final plain = await render(tester, kLiquidPalette.first, patterns: false);
-    final marked = await render(tester, kLiquidPalette.first, patterns: true);
+    final plain = await render(tester, palette.first, patterns: false);
+    final marked = await render(tester, palette.first, patterns: true);
 
-    final plainInk = inked(plain, kLiquidPalette.first);
-    final markedInk = inked(marked, kLiquidPalette.first);
+    final plainInk = inked(plain, palette.first);
+    final markedInk = inked(marked, palette.first);
 
     expect(
       markedInk.length,
@@ -105,7 +110,7 @@ void main() {
 
   testWidgets('no two palette colours end up looking alike', (tester) async {
     final marks = <String, Set<int>>{};
-    for (final color in kLiquidPalette) {
+    for (final color in palette) {
       marks['${color.toARGB32()}'] = inked(
         await render(tester, color, patterns: true),
         color,
@@ -113,15 +118,15 @@ void main() {
     }
 
     var worst = 1.0, worstPair = '';
-    for (var a = 0; a < kLiquidPalette.length; a++) {
-      for (var b = a + 1; b < kLiquidPalette.length; b++) {
+    for (var a = 0; a < palette.length; a++) {
+      for (var b = a + 1; b < palette.length; b++) {
         final distance = dissimilarity(
-          marks['${kLiquidPalette[a].toARGB32()}']!,
-          marks['${kLiquidPalette[b].toARGB32()}']!,
+          marks['${palette[a].toARGB32()}']!,
+          marks['${palette[b].toARGB32()}']!,
         );
         if (distance < worst) {
           worst = distance;
-          worstPair = '${kLiquidPalette[a]} vs ${kLiquidPalette[b]}';
+          worstPair = '${palette[a]} vs ${palette[b]}';
         }
       }
     }

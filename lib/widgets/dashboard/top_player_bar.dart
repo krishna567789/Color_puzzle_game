@@ -4,6 +4,7 @@ import '../../core/app_theme.dart';
 import '../../core/numbers.dart';
 import '../../game/rewards.dart';
 import '../../screens/settings_screen.dart';
+import '../../screens/shop_screen.dart';
 
 /// The player's own level, not the level they are playing: both the ring and
 /// the bar read the same [PlayerLevel] fraction, so they cannot disagree.
@@ -143,37 +144,50 @@ class TopPlayerBar extends StatelessWidget {
                   ],
                 ),
               ),
-              // Currency Container
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0B1231),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFF1E2855)),
-                ),
-                child: Column(
-                  children: [
-                    _buildCurrencyRow(
-                      Image.asset(
-                        'assets/icon/coin_3d.png',
-                        width: coinIconSize,
-                        height: coinIconSize,
-                      ),
-                      compactAmount(coins),
+              // Currency Container. The whole pill is the tap target, the way
+              // every store HUD works: the plus icon would be a promise the
+              // screen never kept if tapping it did nothing.
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ShopScreen(),
                     ),
-                    const SizedBox(height: 6),
-                    _buildCurrencyRow(
-                      Image.asset(
-                        'assets/icon/gem_3d.png',
-                        width: coinIconSize,
-                        height: coinIconSize,
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0B1231),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFF1E2855)),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildCurrencyRow(
+                        Image.asset(
+                          'assets/icon/coin_3d.png',
+                          width: coinIconSize,
+                          height: coinIconSize,
+                        ),
+                        compactAmount(coins),
                       ),
-                      compactAmount(gems),
-                    ),
-                  ],
+                      const SizedBox(height: 6),
+                      _buildCurrencyRow(
+                        Image.asset(
+                          'assets/icon/gem_3d.png',
+                          width: coinIconSize,
+                          height: coinIconSize,
+                        ),
+                        compactAmount(gems),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -228,7 +242,7 @@ class TopPlayerBar extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 6),
-        const Icon(Icons.add_circle, color: Colors.white38, size: 16),
+        const Icon(Icons.add_circle, color: Colors.white70, size: 16),
       ],
     );
   }

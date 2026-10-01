@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../content/content_repository.dart';
+import '../content/content_types.dart';
+import '../game/level_dealer.dart';
 import '../game/level_design.dart';
-import '../game/liquid_patterns.dart';
 import '../game/rewards.dart';
 import '../game/water_sort_solver.dart';
 import '../models/tube_model.dart';
 import '../core/ad_manager.dart';
+import '../core/achievement_service.dart';
 import '../core/event_service.dart';
 import '../core/progress_service.dart';
 import '../core/storage_service.dart';
@@ -28,12 +31,28 @@ class HintMove {
 }
 
 class GameController extends ChangeNotifier {
-  static const int undoCost = 50;
-  static const int hintCost = 50;
-  static const int shuffleCost = 50;
-  static const int extraTubeCost = 100;
-  static const int extraChanceCost = 50;
-  static const int maxExtraChances = 3;
+  /// A power-up's shelf price, before this level's inflation is added. A HUD
+  /// can quote these before a board exists.
+  static int get undoCost => _baseCost('undo');
+  static int get hintCost => _baseCost('hint');
+  static int get shuffleCost => _baseCost('shuffle');
+  static int get extraTubeCost => _baseCost('addTube');
+  static int get extraChanceCost =>
+      ContentRepository.content.rewards.extraChanceCost;
+  static int get maxExtraChances =>
+      ContentRepository.content.rewards.maxExtraChances;
+
+  static int _baseCost(String key) =>
+      ContentRepository.content.rewards.costOf(key, 0);
+
+  /// The most bottles a board can ever carry, from `levels/curve.json`. A dealt
+  /// board stops well under it; the room above is what the add-tube power-up
+  /// sells, and past it the grid is more bottles than a phone can show.
+  static int get maxBoardTubes =>
+      ContentRepository.content.curve.maxBoardTubes;
+
+  /// True once the board has as many bottles as the content contract allows.
+  bool get isAtTubeCeiling => tubes.length >= maxBoardTubes;
 
   /// Ceiling for the solvability check at level start. Going higher only buys a
   /// more exact solution length on boards that are already winnable by
@@ -46,17 +65,17 @@ class GameController extends ChangeNotifier {
   /// winnable either way, since they are built by undoing legal pours.
   static const int searchableColorCount = 9;
 
-  /// What a power-up costs right now. The base prices are the tutorial's; a
-  /// board twelve colours deep replaces far more thinking than the first one,
+  /// What a power-up costs on this board. The base prices are the tutorial's;
+  /// a board twelve colours deep replaces far more thinking than the first one,
   /// so the same aid is worth more there.
   int costOf(PowerUp power) {
-    final base = switch (power) {
-      PowerUp.undo => undoCost,
-      PowerUp.hint => hintCost,
-      PowerUp.shuffle => shuffleCost,
-      PowerUp.addTube => extraTubeCost,
+    final key = switch (power) {
+      PowerUp.undo => 'undo',
+      PowerUp.hint => 'hint',
+      PowerUp.shuffle => 'shuffle',
+      PowerUp.addTube => 'addTube',
     };
-    return base + (designLevel ~/ 10).clamp(0, 10) * 5;
+    return ContentRepository.content.rewards.costOf(key, designLevel);
   }
 
   List<Tube> tubes = [];
@@ -90,7 +109,13 @@ class GameController extends ChangeNotifier {
   /// where the win landed rather than at some generic point on screen.
   int? victoryTubeIndex;
   bool isGameOver = false;
+
+  /// Whether today's daily prize was already spent when this board was dealt.
   bool hasClaimedDailyReward = false;
+
+  /// Set by a daily win that found the prize gone. The card says so instead of
+  /// paying out a pair of zeroes, which a player reads as a broken reward.
+  bool dailyPrizeAlreadyClaimed = false;
   int currentLevel = 1;
   int movesCount = 0;
 
@@ -126,6 +151,12 @@ class GameController extends ChangeNotifier {
   bool winRewarded = false;
   bool _awardingWin = false;
 
+  /// Set when the board just cleared was the last one of a chapter, with what
+  /// that chapter pays. The reward itself is already in the wallet and folded
+  /// into [coinsEarned] and [gemsEarned]; this only says why the number is
+  /// bigger than a normal win.
+  ({String name, int coins, int gems})? chapterReward;
+
   // Mode specific logic
   GameMode activeMode = GameMode.classic;
   int? remainingTime; // for all modes (seconds)
@@ -144,7 +175,6 @@ class GameController extends ChangeNotifier {
   int lastLevelDurationSeconds = 0;
 
   final List<List<Tube>> _history = [];
-  final List<Color> _availableColors = List<Color>.from(kLiquidPalette);
 
   GameController({
     GameMode mode = GameMode.classic,
@@ -153,7 +183,12 @@ class GameController extends ChangeNotifier {
   }) {
     activeMode = mode;
     if (targetLevel != null) {
-      currentLevel = targetLevel;
+      // On a mode's ladder a requested stage is a request, not a fact: a save
+      // or a link written against a longer ladder can ask for a stage that no
+      // longer exists, and that plays the last one it has.
+      currentLevel = _requestedStage = _ladderId == null
+          ? targetLevel
+          : _clampStage(targetLevel);
     }
     if (loadProgress) {
       _loadProgress().then((_) {
@@ -162,6 +197,32 @@ class GameController extends ChangeNotifier {
     } else {
       _initLevel();
     }
+  }
+
+  /// The stage the caller asked for, if any. A side mode opens here when the
+  /// player taps a node on its map; otherwise it opens where its own ladder
+  /// says they got to.
+  int? _requestedStage;
+
+  /// Which mode's ladder this run is playing, or null for a mode that has none.
+  /// These are the ids content names in `assets/content/modes.json`.
+  String? get _ladderId => switch (activeMode) {
+    GameMode.challenge => 'challenge',
+    GameMode.timeAttack => 'timeAttack',
+    GameMode.classic => null,
+    GameMode.daily => null,
+  };
+
+  /// How many stages this mode's ladder has, or 0 for a mode that has none.
+  int get stageCount => _ladderId == null
+      ? 0
+      : ContentRepository.content.stageCountOf(_ladderId!);
+
+  /// Keeps a stage request inside the ladder, so a save written against a
+  /// longer ladder cannot ask for a board that does not exist.
+  int _clampStage(int stage) {
+    final last = stageCount;
+    return last == 0 ? 1 : stage.clamp(1, last);
   }
 
   Future<void> _loadProgress() async {
@@ -173,14 +234,23 @@ class GameController extends ChangeNotifier {
     showColorblindPatterns = await StorageService.getColorblindPatterns();
     leftHandedLayout = await StorageService.getLeftHandedLayout();
     if (activeMode == GameMode.classic) {
-      // Keep currentLevel if targetLevel was passed via constructor, else use maxUnlockedLevel
-      currentLevel = (currentLevel > 0) ? currentLevel : maxUnlockedLevel;
+      // A node tapped on the map wins over the saved frontier; opening the
+      // campaign with no request resumes it where it stopped.
+      currentLevel = _requestedStage ?? maxUnlockedLevel;
+    } else if (_ladderId != null) {
+      // A side mode counts stages on its own ladder, and that ladder is what
+      // remembers how far the player got, so reopening Challenge returns to
+      // where they left it instead of to stage 1 - and a tap on a map node goes
+      // to that node.
+      currentLevel = _clampStage(
+        _requestedStage ?? await StorageService.getModeProgress(_ladderId!),
+      );
     } else {
       currentLevel = 1;
     }
     if (activeMode == GameMode.daily) {
       hasClaimedDailyReward = await StorageService.hasClaimedDailyReward(
-        dailyChallengeId,
+        StorageService.todayKey,
       );
     }
     _notifySafely();
@@ -208,6 +278,8 @@ class GameController extends ChangeNotifier {
     coinsEarned = 0;
     gemsEarned = 0;
     winRewarded = false;
+    chapterReward = null;
+    dailyPrizeAlreadyClaimed = false;
     _awardingWin = false;
 
     _history.clear();
@@ -219,7 +291,7 @@ class GameController extends ChangeNotifier {
 
     // The board has to exist first, because the move and time budgets are
     // derived from the length of its reference solution.
-    _generateProceduralLevel();
+    _buildLevel();
     _setupModeConstraints();
 
     if (remainingTime != null) {
@@ -274,217 +346,113 @@ class GameController extends ChangeNotifier {
     if (remainingTime != null && remainingTime! > 0) _startTimer();
   }
 
-  /// A board is built by undoing legal pours, so it is winnable by construction.
-  /// Narrow boards are still searched, which proves that independently and hands
-  /// back the shortest solution the budgets and star ratings key off. Wide
-  /// boards blow the node budget without ever answering, so they skip the search
-  /// and estimate par from the deal rather than freezing the screen for it.
-  void _generateProceduralLevel() {
+  /// Puts a board on screen.
+  ///
+  /// A level the content set authored is dealt out exactly as written, so every
+  /// player meets the same first boards and a designer can read a board off the
+  /// JSON. Past the authored packs the curve takes over and a board is built by
+  /// undoing legal pours, which makes it winnable by construction. Narrow
+  /// boards are searched as well, which proves that independently and hands back
+  /// the shortest solution the budgets and star ratings key off. Wide boards
+  /// blow the node budget without ever answering, so they skip the search and
+  /// estimate par from the deal rather than freezing the screen for it.
+  void _buildLevel() {
+    final content = ContentRepository.content;
+    final authored = activeMode == GameMode.classic
+        ? content.levelFor(designLevel)
+        : null;
+    if (authored != null) {
+      _useAuthoredBoard(authored);
+      return;
+    }
+
+    final spec = LevelDesign.specFor(designLevel);
     final random = Random(
       activeMode == GameMode.daily ? _dailySeed() : _levelSeed(),
     );
-    final config = LevelDesign.forLevel(designLevel);
-    final worthProving = config.colorCount <= searchableColorCount;
+    final worthProving = spec.colorCount <= searchableColorCount;
 
-    List<Tube>? board;
-    int? par;
-
-    for (var attempt = 0; attempt < 3 && board == null; attempt++) {
-      final candidate = _dealBoard(config, random);
-      if (!worthProving) {
-        board = candidate;
-        break;
-      }
+    var dealt = LevelDealer.deal(
+      spec: spec,
+      palette: content.paletteIds,
+      random: random,
+    );
+    var board = _boardOf(dealt, spec.capacity);
+    int? proved;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      dealt = LevelDealer.deal(
+        spec: spec,
+        palette: content.paletteIds,
+        random: random,
+      );
+      board = _boardOf(dealt, spec.capacity);
+      if (!worthProving) break;
       final report = WaterSortSolver.solve(
-        candidate,
+        board,
         nodeBudget: solveNodeBudget,
       );
-      if (report.outcome == SolveOutcome.unsolvable) continue;
-      board = candidate;
-      par = report.pours;
-    }
-
-    // Either the first deal held up, or the search ran out of budget on a
-    // board that is still winnable by construction. Neither is a reason to
-    // leave the player without a level.
-    tubes = board ?? _dealBoard(config, random);
-    parMoves = par ?? LevelDesign.estimatedPar(config);
-    // One bottle per colour is what "sorted" means here, so the goal the HUD
-    // shows cannot move when the player empties a spare bottle.
-    tubesToSort = config.colorCount;
-    assert(_dealsWholeSegments(config), 'Malformed deal at level $designLevel');
-    _hideMysterySegments(config, random);
-  }
-
-  /// Cheap stand-in for the search on wide boards, and only run in debug: a deal
-  /// is sound if every colour sits on the board in one whole segment and no tube
-  /// overflowed. Builds ship without it.
-  bool _dealsWholeSegments(LevelConfig config) {
-    final counts = <int, int>{};
-    for (final tube in tubes) {
-      if (tube.colors.length > tube.capacity) return false;
-      for (final color in tube.colors) {
-        counts[color.toARGB32()] = (counts[color.toARGB32()] ?? 0) + 1;
+      if (report.outcome != SolveOutcome.unsolvable) {
+        proved = report.pours;
+        break;
       }
     }
-    return counts.length == config.colorCount &&
-        counts.values.every((count) => count == config.capacity);
+
+    tubes = board;
+    // Either the first deal held up, or the search ran out of budget on a board
+    // that is still winnable by construction. Neither is a reason to leave the
+    // player without a level.
+    parMoves =
+        proved ?? LevelDesign.estimatedPar(spec.toConfig(designLevel));
+    tubesToSort = spec.colorCount;
+    assert(
+      LevelDealer.dealsWholeSegments(dealt, spec),
+      'Malformed deal at level $designLevel',
+    );
   }
 
-  List<Tube> _dealBoard(LevelConfig config, Random random) {
-    final palette = List<Color>.from(_availableColors)..shuffle(random);
-    final levelColors = palette.take(config.colorCount).toList();
-
-    List<Tube> board = const [];
-    for (var attempt = 0; attempt < 6; attempt++) {
-      board = [
-        ...levelColors.map(
-          (color) => Tube(
-            capacity: config.capacity,
-            initialColors: List<Color>.filled(
-              config.capacity,
-              color,
-              growable: true,
-            ),
-          ),
+  /// A board the content set wrote, with the par its generator proved.
+  void _useAuthoredBoard(LevelSpec spec) {
+    final content = ContentRepository.content;
+    tubes = [
+      for (var i = 0; i < spec.tubes.length; i++)
+        Tube(
+          capacity: spec.capacity,
+          initialColors: [for (final id in spec.tubes[i]) content.colorById(id)],
+          hiddenCount: i < spec.hidden.length ? spec.hidden[i] : 0,
         ),
-        ...List.generate(
-          config.freeTubes,
-          (_) => Tube(capacity: config.capacity),
-        ),
-      ];
-
-      var pouredSegments = 0;
-      for (var move = 0; move < config.mixRounds; move++) {
-        if (_applyReversibleMixMove(board, random)) pouredSegments++;
-      }
-
-      if (pouredSegments >= config.colorCount &&
-          board.any(_hasMixedColors) &&
-          !_isAlreadySolved(board)) {
-        return board;
-      }
-    }
-    return board;
+    ];
+    parMoves = spec.parMoves;
+    tubesToSort = spec.colors.length;
   }
 
-  void _hideMysterySegments(LevelConfig config, Random random) {
-    if (config.mysteryTubes == 0) return;
-
-    // Only tubes that already hold several layers are worth hiding, and the
-    // free workspace tubes must stay readable or the board becomes a guess.
-    final candidates = <int>[];
-    for (var i = 0; i < tubes.length; i++) {
-      if (tubes[i].colors.length >= 3) candidates.add(i);
-    }
-    candidates.shuffle(random);
-
-    for (final index in candidates.take(config.mysteryTubes)) {
-      tubes[index].hiddenCount = tubes[index].colors.length - 1;
-    }
-  }
-
-  /// One step of the reverse scramble. Every move here is the exact undo of a
-  /// legal pour, which is what keeps the resulting board winnable.
-  bool _applyReversibleMixMove(List<Tube> board, Random random) {
-    final sourceIndexes = <int>[];
-    for (var index = 0; index < board.length; index++) {
-      final tube = board[index];
-      if (tube.isEmpty) continue;
-
-      final runLength = _topColorRunLength(tube);
-      if (tube.colors.length == runLength || runLength > 1) {
-        sourceIndexes.add(index);
-      }
-    }
-    if (sourceIndexes.isEmpty) return false;
-
-    sourceIndexes.shuffle(random);
-    for (final sourceIndex in sourceIndexes) {
-      final source = board[sourceIndex];
-      final color = source.topColor!;
-      final runLength = _topColorRunLength(source);
-      final maxTransfer = source.colors.length == runLength
-          ? runLength
-          : runLength - 1;
-
-      final targetIndexes = <int>[];
-      for (var index = 0; index < board.length; index++) {
-        final target = board[index];
-        if (index != sourceIndex &&
-            !target.isFull &&
-            (target.isEmpty || target.topColor != color)) {
-          targetIndexes.add(index);
-        }
-      }
-      if (targetIndexes.isEmpty) continue;
-
-      final target = board[targetIndexes[random.nextInt(targetIndexes.length)]];
-      final amount = min(
-        maxTransfer,
-        min(
-          target.capacity - target.colors.length,
-          1 + random.nextInt(maxTransfer),
-        ),
-      );
-      for (var count = 0; count < amount; count++) {
-        target.colors.add(source.colors.removeLast());
-      }
-      return true;
-    }
-    return false;
-  }
-
-  int _topColorRunLength(Tube tube) {
-    if (tube.isEmpty) return 0;
-    final color = tube.topColor;
-    var length = 0;
-    for (
-      var index = tube.colors.length - 1;
-      index >= 0 && tube.colors[index] == color;
-      index--
-    ) {
-      length++;
-    }
-    return length;
-  }
-
-  bool _hasMixedColors(Tube tube) {
-    return tube.colors.isNotEmpty &&
-        tube.colors.any((color) => color != tube.colors.first);
-  }
-
-  bool _isAlreadySolved(List<Tube> board) {
-    for (var tube in board) {
-      if (tube.isEmpty) continue;
-      if (!tube.isFull) return false;
-      Color first = tube.colors.first;
-      if (tube.colors.any((c) => c != first)) return false;
-    }
-    return true;
-  }
+  List<Tube> _boardOf(DealtBoard dealt, int capacity) => dealt.toTubes(
+    capacity: capacity,
+    resolve: ContentRepository.content.colorById,
+  );
 
   /// Which point on the difficulty curve this board should sit at.
   ///
-  /// Classic tracks saved progress. The side modes restart `currentLevel` at 1
-  /// every session, so without this they would all play the tutorial board and
-  /// never deepen.
+  /// Classic tracks saved progress. A side mode asks its own ladder, so the
+  /// stage a player is on says the same thing on every device and has nothing
+  /// to do with how far the campaign got.
   int get designLevel {
     switch (activeMode) {
       case GameMode.classic:
         return currentLevel;
       case GameMode.challenge:
       case GameMode.timeAttack:
-        return maxUnlockedLevel + (currentLevel - 1) * 3;
+        // The fallback only answers for a build whose content set never loaded,
+        // which is a build bug rather than a state a player can reach; a stage
+        // still has to deal something, and it still has to climb.
+        return ContentRepository.content.stageAnchor(
+              _ladderId!,
+              currentLevel,
+            ) ??
+            currentLevel * 4;
       case GameMode.daily:
         // Same day, same puzzle for everyone — derived from the date seed.
         return 24 + _dailySeed() % 26;
     }
-  }
-
-  String get dailyChallengeId {
-    final today = DateTime.now();
-    return '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
   }
 
   int _dailySeed() {
@@ -508,11 +476,32 @@ class GameController extends ChangeNotifier {
     _initLevel();
   }
 
+  /// Whether pressing Next has a stage to take the player to.
+  ///
+  /// A ladder ends. Offering Next on a mode's last stage would deal the same
+  /// board again and pay nothing for it, which reads as a broken button rather
+  /// than a finished mode, so the win screen drops it instead.
+  bool get hasNextStage {
+    if (activeMode == GameMode.daily) return false;
+    final last = stageCount;
+    return last == 0 || currentLevel < last;
+  }
+
+  /// What the win card counts. A mode's ladder and the daily board are not
+  /// campaign levels, and a card reading "LEVEL 1" under the fourth stage of a
+  /// Challenge run tells the player the wrong thing.
+  String get winRibbon => switch (activeMode) {
+    GameMode.classic => 'LEVEL $currentLevel',
+    GameMode.challenge => 'STAGE $currentLevel',
+    GameMode.timeAttack => 'STAGE $currentLevel',
+    GameMode.daily => 'DAILY PUZZLE',
+  };
+
   /// Moves the player on. Payouts and the unlock happen the moment a board is
   /// finished, in [_awardWin], so walking back to the dashboard instead of
   /// pressing Next can never cost a player what they earned.
   Future<void> nextLevel() async {
-    if (activeMode != GameMode.daily) currentLevel++;
+    if (hasNextStage) currentLevel++;
     _initLevel();
   }
 
@@ -533,9 +522,9 @@ class GameController extends ChangeNotifier {
       var stars = LevelReward.starsFor(moves: movesCount, par: parMoves);
 
       if (activeMode == GameMode.daily) {
-        hasClaimedDailyReward = await StorageService.claimDailyReward(
-          dailyChallengeId,
-        );
+        final today = StorageService.todayKey;
+        hasClaimedDailyReward = await StorageService.claimDailyReward(today);
+        dailyPrizeAlreadyClaimed = !hasClaimedDailyReward;
         if (hasClaimedDailyReward) {
           coinsWon = 100;
           gemsWon = 1;
@@ -544,33 +533,61 @@ class GameController extends ChangeNotifier {
           xpWon = LevelReward.xpFor(stars: stars);
         }
       } else {
+        // Both ladders keep a best rating per step, so a first three-star pays
+        // its gem once on a Challenge stage exactly as it does on a campaign
+        // level, and replaying a stage you already beat pays nothing extra.
+        final ladder = _ladderId;
         final previousBest = classic
             ? await StorageService.getLevelStars(currentLevel)
-            : 0;
+            : await StorageService.getModeStars(ladder!, currentLevel);
         final reward = LevelReward.forWin(
           level: classic ? currentLevel : designLevel,
           moves: movesCount,
           par: parMoves,
           previousBestStars: previousBest,
-          trackBest: classic,
           sideMode: !classic,
         );
         stars = reward.stars;
         coinsWon = reward.coins;
         gemsWon = reward.gems;
         xpWon = reward.xp;
-        if (classic && reward.isNewBest) {
-          await StorageService.saveLevelStars(currentLevel, reward.stars);
+        if (reward.isNewBest) {
+          if (classic) {
+            await StorageService.saveLevelStars(currentLevel, reward.stars);
+          } else {
+            await StorageService.saveModeStars(
+              ladder!,
+              currentLevel,
+              reward.stars,
+            );
+          }
+        }
+        if (ladder != null) {
+          // The ladder opens one stage further, forward only, so a stage can
+          // never be locked again by losing the one after it.
+          await StorageService.raiseModeProgress(ladder, currentLevel + 1);
+        }
+        if (classic) {
+          // A chapter pays its purse on the board that closes it, through the
+          // same first-time gate as everything else here, so replaying that
+          // board cannot collect it twice.
+          final bonus = await _chapterBonusFor(currentLevel);
+          if (bonus != null) {
+            coinsWon += bonus.coins;
+            gemsWon += bonus.gems;
+            chapterReward = bonus;
+          }
         }
       }
 
       starsEarned = stars;
       coinsEarned = coinsWon;
       gemsEarned = gemsWon;
-      coins += coinsWon;
-      gems += gemsWon;
-      await StorageService.saveCoins(coins);
-      if (gemsWon != 0) await StorageService.saveGems(gems);
+      // The balance moves inside storage. This copy is only what this screen
+      // believes, and a quest claimed from another screen may have changed the
+      // real number while this win was being tallied.
+      coins = await StorageService.addCoins(coinsWon);
+      if (gemsWon != 0) gems = await StorageService.addGems(gemsWon);
       await StorageService.addPlayerXp(xpWon);
       await StorageService.incrementTotalLevelsWon();
       if (classic && currentLevel >= maxUnlockedLevel) {
@@ -584,6 +601,7 @@ class GameController extends ChangeNotifier {
       await ProgressService.recordDaily({
         DailyStat.wins: 1,
         DailyStat.stars: stars,
+        if (stars == 3) DailyStat.threeStarWins: 1,
         if (!classic) DailyStat.sideModeWins: 1,
       });
       winRewarded = true;
@@ -597,6 +615,23 @@ class GameController extends ChangeNotifier {
       _awardingWin = false;
       _notifySafely();
     }
+  }
+
+  /// What the chapter [level] belongs to pays for being closed, or null when
+  /// this is not its last board, the content set has no chapter for it, or the
+  /// purse has already been collected on this account.
+  Future<({String name, int coins, int gems})?> _chapterBonusFor(
+    int level,
+  ) async {
+    final content = ContentRepository.content;
+    final chapter = content.chapterFor(level);
+    if (chapter == null || content.lastLevelOf(chapter) != level) return null;
+    if (!await StorageService.claimChapter(chapter.id)) return null;
+    return (
+      name: chapter.name,
+      coins: chapter.rewardCoins,
+      gems: chapter.rewardGems,
+    );
   }
 
   bool undo({bool adFunded = false}) {
@@ -686,14 +721,17 @@ class GameController extends ChangeNotifier {
   bool shuffleTubes({bool adFunded = false}) {
     if (!_canAct) return false;
 
-    final config = LevelDesign.forLevel(designLevel);
+    final config = LevelDesign.specFor(designLevel);
     final mixRounds = max(6, config.colorCount * 2);
     final random = Random();
     final stirred = tubes.map((tube) => tube.copyWith()).toList();
+    final layers = [for (final tube in stirred) tube.colors];
 
     var applied = 0;
     for (var move = 0; move < mixRounds; move++) {
-      if (_applyReversibleMixMove(stirred, random)) applied++;
+      if (LevelDealer.mixMove(layers, random, stirred.first.capacity)) {
+        applied++;
+      }
     }
     if (applied == 0) return false;
     if (!_payForPowerUp(PowerUp.shuffle, adFunded: adFunded)) return false;
@@ -714,6 +752,9 @@ class GameController extends ChangeNotifier {
 
   bool addExtraTube({bool adFunded = false}) {
     if (!_canAct) return false;
+    // Checked before the till, not after: coins or a rewarded ad spent on a
+    // bottle the board cannot take is a purchase the player has to notice.
+    if (isAtTubeCeiling) return false;
     if (!_payForPowerUp(PowerUp.addTube, adFunded: adFunded)) return false;
 
     AnalyticsService.logPowerUpUsed('add_tube', adFunded: adFunded);
@@ -837,12 +878,15 @@ class GameController extends ChangeNotifier {
         return findHintMove() != null;
       case PowerUp.shuffle:
         // Probed on a copy, because a stir both needs and changes the board.
-        return _applyReversibleMixMove(
-          tubes.map((t) => t.copyWith()).toList(),
+        if (tubes.isEmpty) return false;
+        final stirred = tubes.map((tube) => tube.copyWith()).toList();
+        return LevelDealer.mixMove(
+          [for (final tube in stirred) tube.colors],
           Random(),
+          stirred.first.capacity,
         );
       case PowerUp.addTube:
-        return true;
+        return !isAtTubeCeiling;
     }
   }
 
@@ -872,7 +916,9 @@ class GameController extends ChangeNotifier {
   bool _spendCoins(int amount) {
     if (coins < amount) return false;
     coins -= amount;
-    StorageService.saveCoins(coins);
+    // A delta, not the copy above: this screen's belief about the wallet is not
+    // the wallet, and writing it back could erase money paid in elsewhere.
+    StorageService.addCoins(-amount);
     return true;
   }
 
@@ -1024,23 +1070,19 @@ class GameController extends ChangeNotifier {
     // 1. In-App Review
     await ReviewService.requestReviewIfEligible(currentLevel);
 
-    // 2. Play Games achievements. The leaderboard score goes up with
-    // [nextLevel], where the level reached has actually changed.
+    // 2. Play Games achievements. Which ones exist, what unlocks each and the
+    // id the SDK knows it by all come from the content set, so a goal is never
+    // a number in two places. A row with no id yet is simply not mirrored.
     if (!PlayGamesService.isSignedIn) return;
-    if (currentLevel >= 1) {
-      await PlayGamesService.unlockAchievement(
-        PlayGamesService.achievementBeginnerId,
-      );
-    }
-    if (currentLevel >= 10) {
-      await PlayGamesService.unlockAchievement(
-        PlayGamesService.achievementMasterId,
-      );
-    }
-    if (currentLevel >= 100) {
-      await PlayGamesService.unlockAchievement(
-        PlayGamesService.achievementHundredId,
-      );
+    final counters = await AchievementService.readAll();
+    for (final achievement in ContentRepository.content.achievements) {
+      final id = achievement.playGamesId;
+      if (id.isEmpty) continue;
+      if (AchievementService.progressOf(counters, achievement.stat) <
+          achievement.goal) {
+        continue;
+      }
+      await PlayGamesService.unlockAchievement(id);
     }
   }
 

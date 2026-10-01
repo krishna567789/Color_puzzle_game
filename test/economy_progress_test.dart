@@ -1,8 +1,10 @@
 import 'dart:io';
 
 import 'package:color_puzzle_game/controllers/game_controller.dart';
+import 'package:color_puzzle_game/content/content_repository.dart';
 import 'package:color_puzzle_game/core/progress_service.dart';
 import 'package:color_puzzle_game/core/storage_service.dart';
+import 'package:color_puzzle_game/game/quests.dart';
 import 'package:color_puzzle_game/game/rewards.dart';
 import 'package:color_puzzle_game/models/tube_model.dart';
 import 'package:flutter/material.dart';
@@ -56,16 +58,24 @@ void main() {
   }
 
   test('a win pays exactly what the end-of-level screen quotes', () async {
+    // Read the wallet first: a controller built without progress holds no
+    // balance of its own, so the only way to see what a win actually added is
+    // to compare against what was stored before it.
+    final coinsBefore = await StorageService.getCoins();
+    final gemsBefore = await StorageService.getGems();
     final controller = await winLevel();
 
     expect(controller.starsEarned, 3);
     expect(controller.coinsEarned, LevelReward.coinsFor(level: 4, stars: 3));
     // The first three-star on a level is the one that earns the gem.
     expect(controller.gemsEarned, 1);
-    // A controller built without progress starts empty, so the wallet ends up
-    // holding exactly what the win quoted.
-    expect(await StorageService.getCoins(), controller.coinsEarned);
-    expect(await StorageService.getGems(), 1);
+    // The win is credited as a delta, so it lands on top of the stored balance
+    // instead of replacing it with the number this screen last saw.
+    expect(
+      await StorageService.getCoins(),
+      coinsBefore + controller.coinsEarned,
+    );
+    expect(await StorageService.getGems(), gemsBefore + controller.gemsEarned);
     expect(await StorageService.getLevelStars(4), 3);
     expect(await StorageService.getPlayerXp(), LevelReward.xpFor(stars: 3));
     expect(await StorageService.getDailyCounter(DailyStat.wins), 1);
@@ -98,6 +108,37 @@ void main() {
     expect(controller.starsEarned, 2);
     expect(controller.gemsEarned, 0);
     expect(await StorageService.getLevelStars(9), 3);
+  });
+
+  test('a chapter pays its purse on the board that closes it, once', () async {
+    final chapter = ContentRepository.content.chapters.first;
+    final closing = ContentRepository.content.lastLevelOf(chapter);
+    final coinsBefore = await StorageService.getCoins();
+    final gemsBefore = await StorageService.getGems();
+
+    final controller = await winLevel(level: closing);
+    expect(controller.starsEarned, 3);
+    expect(controller.chapterReward?.name, chapter.name);
+    // The purse is inside what the screen quotes, so a promise and a grant
+    // cannot disagree, and it is the level's own payout plus the chapter's.
+    expect(
+      controller.coinsEarned,
+      LevelReward.coinsFor(level: closing, stars: 3) + chapter.rewardCoins,
+    );
+    expect(controller.gemsEarned, 1 + chapter.rewardGems);
+    expect(await StorageService.getCoins(), coinsBefore + controller.coinsEarned);
+    expect(await StorageService.getGems(), gemsBefore + controller.gemsEarned);
+    expect(await StorageService.getClaimedChapters(), contains(chapter.id));
+
+    // A replay pays the board again - it is a real win - and the chapter never.
+    final replay = await winLevel(level: closing, previousStars: 3);
+    expect(replay.chapterReward, isNull);
+    expect(replay.coinsEarned, LevelReward.coinsFor(level: closing, stars: 3));
+    expect(
+      await StorageService.getCoins(),
+      coinsBefore + controller.coinsEarned + replay.coinsEarned,
+      reason: 'the closing board cannot be collected once per attempt',
+    );
   });
 
   test('power-up prices start at the base and grow with the board', () {
@@ -146,26 +187,43 @@ void main() {
   });
 
   test('quests read today counters and claim exactly once', () async {
-    await ProgressService.recordDaily({
-      DailyStat.wins: 5,
-      DailyStat.powerUps: 2,
-    });
+    // A day draws five cards out of the catalogue, so this cannot name a task id
+    // and expect it to be on the slate. It reads the slate the player sees and
+    // tops up every counter but the one the last card is measured against.
+    final slate = QuestCatalog.forDay(StorageService.todayKey);
+    final leftOpen = slate.last;
+    final finished = slate.firstWhere((spec) => spec.stat != leftOpen.stat);
+    final wanted = <String, int>{};
+    for (final spec in slate) {
+      if (spec.stat == leftOpen.stat) continue;
+      if ((wanted[spec.stat] ?? 0) < spec.target) {
+        wanted[spec.stat] = spec.target;
+      }
+    }
+    await ProgressService.recordDaily(wanted);
 
     var quests = await ProgressService.todaysQuests();
-    final finished = quests.firstWhere((q) => q.id == 'win_five');
-    expect(finished.currentProgress, 5);
-    expect(finished.isCompleted, isTrue);
+    expect(quests, hasLength(slate.length));
+    final done = quests.firstWhere((quest) => quest.id == finished.id);
+    // Topped up to the hardest card of that counter, so an easier one on the
+    // same slate is over the line rather than exactly on it.
+    expect(done.currentProgress, greaterThanOrEqualTo(done.targetValue));
+    expect(done.isCompleted, isTrue);
 
-    final partial = quests.firstWhere((q) => q.id == 'use_powerups');
+    final partial = quests.firstWhere((quest) => quest.id == leftOpen.id);
+    expect(partial.isCompleted, isFalse);
     expect(await ProgressService.claimQuest(partial), isFalse);
 
-    expect(await ProgressService.claimQuest(finished), isTrue);
-    expect(await StorageService.getCoins(), 500 + finished.coinReward);
-    expect(await ProgressService.claimQuest(finished), isFalse);
-    expect(await StorageService.getCoins(), 500 + finished.coinReward);
+    expect(await ProgressService.claimQuest(done), isTrue);
+    expect(await StorageService.getCoins(), 500 + done.coinReward);
+    expect(await ProgressService.claimQuest(done), isFalse);
+    expect(await StorageService.getCoins(), 500 + done.coinReward);
 
     quests = await ProgressService.todaysQuests();
-    expect(quests.firstWhere((q) => q.id == 'win_five').isClaimed, isTrue);
+    expect(
+      quests.firstWhere((quest) => quest.id == finished.id).isClaimed,
+      isTrue,
+    );
   });
 
   test('every win pays XP, a replay included', () async {

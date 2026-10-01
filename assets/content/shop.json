@@ -1,0 +1,268 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "2026.10.01-1",
+  "items": [
+    {
+      "id": "default_tube",
+      "name": "Classic Bottle",
+      "description": "Standard lab bottle.",
+      "type": "tubeSkin",
+      "coins": 0,
+      "gems": 0,
+      "iapProductId": "",
+      "free": true
+    },
+    {
+      "id": "neon_tube",
+      "name": "Neon Glow",
+      "description": "Vibrant neon outlines.",
+      "type": "tubeSkin",
+      "coins": 1000,
+      "gems": 0,
+      "iapProductId": "",
+      "free": false
+    },
+    {
+      "id": "ember_tube",
+      "name": "Ember Glass",
+      "description": "Warm orange firelight on the rim.",
+      "type": "tubeSkin",
+      "coins": 1200,
+      "gems": 0,
+      "iapProductId": "",
+      "free": false
+    },
+    {
+      "id": "ocean_flask",
+      "name": "Ocean Flask",
+      "description": "Sea-blue glass with a soft shine.",
+      "type": "tubeSkin",
+      "coins": 1400,
+      "gems": 0,
+      "iapProductId": "",
+      "free": false
+    },
+    {
+      "id": "wooden_tube",
+      "name": "Nature Tube",
+      "description": "Rustic wooden texture.",
+      "type": "tubeSkin",
+      "coins": 1500,
+      "gems": 0,
+      "iapProductId": "",
+      "free": false
+    },
+    {
+      "id": "mint_vial",
+      "name": "Mint Vial",
+      "description": "Cool green tint, thin and bright.",
+      "type": "tubeSkin",
+      "coins": 1600,
+      "gems": 0,
+      "iapProductId": "",
+      "free": false
+    },
+    {
+      "id": "lime_vial",
+      "name": "Lime Vial",
+      "description": "Sharp citrus glass that catches light.",
+      "type": "tubeSkin",
+      "coins": 1800,
+      "gems": 0,
+      "iapProductId": "",
+      "free": false
+    },
+    {
+      "id": "bubblegum_tube",
+      "name": "Bubblegum Tube",
+      "description": "Playful pink, sweet at the edges.",
+      "type": "tubeSkin",
+      "coins": 2000,
+      "gems": 0,
+      "iapProductId": "",
+      "free": false
+    },
+    {
+      "id": "solar_tube",
+      "name": "Solar Tube",
+      "description": "Molten yellow hour, held in glass.",
+      "type": "tubeSkin",
+      "coins": 2200,
+      "gems": 0,
+      "iapProductId": "",
+      "free": false
+    },
+    {
+      "id": "midnight_bottle",
+      "name": "Midnight Bottle",
+      "description": "Deep indigo that keeps its secrets.",
+      "type": "tubeSkin",
+      "coins": 2500,
+      "gems": 0,
+      "iapProductId": "",
+      "free": false
+    },
+    {
+      "id": "crystal_bottle",
+      "name": "Crystal Vase",
+      "description": "Elegant crystal shape.",
+      "type": "tubeSkin",
+      "coins": 0,
+      "gems": 40,
+      "iapProductId": "",
+      "free": false
+    },
+    {
+      "id": "rose_quartz",
+      "name": "Rose Quartz",
+      "description": "Blush stone, polished thin.",
+      "type": "tubeSkin",
+      "coins": 0,
+      "gems": 30,
+      "iapProductId": "",
+      "free": false
+    },
+    {
+      "id": "chrome_tube",
+      "name": "Chrome Tube",
+      "description": "Mirror-metal bands, cold and bright.",
+      "type": "tubeSkin",
+      "coins": 0,
+      "gems": 45,
+      "iapProductId": "",
+      "free": false
+    },
+    {
+      "id": "obsidian_flask",
+      "name": "Obsidian Flask",
+      "description": "Volcanic black glass with a silver foot.",
+      "type": "tubeSkin",
+      "coins": 0,
+      "gems": 50,
+      "iapProductId": "",
+      "free": false
+    },
+    {
+      "id": "ruby_goblet",
+      "name": "Ruby Goblet",
+      "description": "Deep red cut stone, heavy in the hand.",
+      "type": "tubeSkin",
+      "coins": 0,
+      "gems": 60,
+      "iapProductId": "",
+      "free": false
+    },
+    {
+      "id": "gilded_flask",
+      "name": "Gilded Flask",
+      "description": "Gold leaf on dark glass. The shelf's top row.",
+      "type": "tubeSkin",
+      "coins": 0,
+      "gems": 75,
+      "iapProductId": "",
+      "free": false
+    },
+    {
+      "id": "default_theme",
+      "name": "Wizard Room",
+      "description": "Magical dark theme.",
+      "type": "theme",
+      "coins": 0,
+      "gems": 0,
+      "iapProductId": "",
+      "free": true,
+      "image": "assets/images/wizard_room_bg.jpg"
+    },
+    {
+      "id": "forest_theme",
+      "name": "Enchanted Forest",
+      "description": "Lush green magical woods.",
+      "type": "theme",
+      "coins": 2000,
+      "gems": 0,
+      "iapProductId": "",
+      "free": false,
+      "gradient": ["FF2E7D32", "FF1B5E20", "FF051205"]
+    },
+    {
+      "id": "ember_theme",
+      "name": "Forge Room",
+      "description": "Heat and iron, lit from below.",
+      "type": "theme",
+      "coins": 2400,
+      "gems": 0,
+      "iapProductId": "",
+      "free": false,
+      "gradient": ["FF5A1E0A", "FF2A0B05", "FF0B0302"]
+    },
+    {
+      "id": "lagoon_theme",
+      "name": "Flooded Lagoon",
+      "description": "Still water in a dark cave.",
+      "type": "theme",
+      "coins": 2800,
+      "gems": 0,
+      "iapProductId": "",
+      "free": false,
+      "gradient": ["FF0B4F6C", "FF06263A", "FF02121C"]
+    },
+    {
+      "id": "space_theme",
+      "name": "Cosmic Void",
+      "description": "Deep space puzzles.",
+      "type": "theme",
+      "coins": 0,
+      "gems": 60,
+      "iapProductId": "",
+      "free": false,
+      "gradient": ["FF2B1B54", "FF0F0524"]
+    },
+    {
+      "id": "royal_theme",
+      "name": "Gilded Court",
+      "description": "Purple velvet and candle light.",
+      "type": "theme",
+      "coins": 0,
+      "gems": 55,
+      "iapProductId": "",
+      "free": false,
+      "gradient": ["FF4A148C", "FF240B47", "FF0C0318"]
+    },
+    {
+      "id": "remove_ads",
+      "name": "Remove Ads",
+      "description": "No more interruptions.",
+      "type": "iap",
+      "coins": 0,
+      "gems": 0,
+      "iapProductId": "remove_ads_tier_1",
+      "free": false,
+      "grantCoins": 0,
+      "entitlement": "removeAds"
+    },
+    {
+      "id": "coins_pack_large",
+      "name": "1000 Coins",
+      "description": "A large purse of coins.",
+      "type": "iap",
+      "coins": 0,
+      "gems": 0,
+      "iapProductId": "coins_pack_large",
+      "free": false,
+      "grantCoins": 1000,
+      "entitlement": ""
+    },
+    {
+      "id": "coins_pack_small",
+      "name": "500 Coins",
+      "description": "A small pouch of coins.",
+      "type": "iap",
+      "coins": 0,
+      "gems": 0,
+      "iapProductId": "coins_pack_small",
+      "free": false,
+      "grantCoins": 500,
+      "entitlement": ""
+    }
+  ]
+}

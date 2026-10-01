@@ -6,9 +6,10 @@ import '../core/analytics_service.dart';
 import '../core/app_colors.dart';
 import '../core/progress_service.dart';
 import '../core/storage_service.dart';
+import '../content/content_repository.dart';
+import '../content/content_types.dart';
 import '../models/shop_item_model.dart';
 import '../core/audio_service.dart';
-import '../widgets/tube_widget.dart';
 import '../core/iap_service.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 
@@ -54,133 +55,66 @@ class _ShopScreenState extends State<ShopScreen> {
     final ownedIds = await StorageService.getOwnedItems();
     final selectedSkin = await StorageService.getSelectedSkin();
     final selectedTheme = await StorageService.getSelectedTheme();
+    final hasRemovedAds = await StorageService.getHasRemovedAds();
 
+    if (!mounted) return;
     setState(() {
       _coins = coins;
       _gems = gems;
       _selectedSkinId = selectedSkin;
       _selectedThemeId = selectedTheme;
-      _items = [
-        ShopItem(
-          id: 'default_tube',
-          name: 'Classic Bottle',
-          description: 'Standard lab bottle.',
-          price: 0,
-          type: ShopItemType.tubeSkin,
-          isOwned: true,
-        ),
-        ShopItem(
-          id: 'neon_tube',
-          name: 'Neon Glow',
-          description: 'Vibrant neon outlines.',
-          price: 1000,
-          type: ShopItemType.tubeSkin,
-          isOwned: ownedIds.contains('neon_tube'),
-        ),
-        ShopItem(
-          id: 'crystal_bottle',
-          name: 'Crystal Vase',
-          description: 'Elegant crystal shape.',
-          gemPrice: 40,
-          type: ShopItemType.tubeSkin,
-          isOwned: ownedIds.contains('crystal_bottle'),
-        ),
-        ShopItem(
-          id: 'wooden_tube',
-          name: 'Nature Tube',
-          description: 'Rustic wooden texture.',
-          price: 1500,
-          type: ShopItemType.tubeSkin,
-          isOwned: ownedIds.contains('wooden_tube'),
-        ),
-        ShopItem(
-          id: 'default_theme',
-          name: 'Wizard Room',
-          description: 'Magical dark theme.',
-          price: 0,
-          type: ShopItemType.theme,
-          isOwned: true,
-        ),
-        ShopItem(
-          id: 'forest_theme',
-          name: 'Enchanted Forest',
-          description: 'Lush green magical woods.',
-          price: 2000,
-          type: ShopItemType.theme,
-          isOwned: ownedIds.contains('forest_theme'),
-        ),
-        ShopItem(
-          id: 'space_theme',
-          name: 'Cosmic Void',
-          description: 'Deep space puzzles.',
-          gemPrice: 60,
-          type: ShopItemType.theme,
-          isOwned: ownedIds.contains('space_theme'),
-        ),
-      ];
-
-      _loadIapItems();
+      _items = _catalogue(ownedIds, hasRemovedAds);
     });
   }
 
-  Future<void> _loadIapItems() async {
-    bool hasRemovedAds = await StorageService.getHasRemovedAds();
-    List<ShopItem> iapItems = [];
-
-    if (IapService.isAvailable && IapService.products.isNotEmpty) {
-      for (var product in IapService.products) {
-        iapItems.add(
+  /// The catalogue is content. `assets/content/shop.json` says what exists, what
+  /// it costs in the wallet, and which store product sells it. The only money
+  /// this screen can name is a number the store itself reported, because a price
+  /// invented here is a promise the till cannot keep.
+  List<ShopItem> _catalogue(List<String> ownedIds, bool hasRemovedAds) {
+    final products = {
+      for (final product in IapService.products) product.id: product,
+    };
+    return [
+      for (final spec in ContentRepository.content.shop)
+        if (spec.isIap)
+          ..._iapRows(spec, products[spec.iapProductId], hasRemovedAds)
+        else
           ShopItem(
-            id: product.id,
-            name: product.title
-                .split(' (')
-                .first, // Clean up "(App Name)" suffix
-            description: product.description,
-            price: 0,
-            iapPrice: product.price,
-            type: ShopItemType.iap,
-            isOwned: (product.id == IapService.removeAdsId)
-                ? hasRemovedAds
-                : false,
+            id: spec.id,
+            name: spec.name,
+            description: spec.description,
+            price: spec.coins,
+            gemPrice: spec.gems,
+            image: spec.image,
+            gradient: spec.gradientColors,
+            type: ShopItemType.values.byName(spec.type),
+            isOwned: spec.free || ownedIds.contains(spec.id),
           ),
-        );
-      }
-    } else {
-      // Fallback for debug/emulators
-      iapItems.addAll([
-        ShopItem(
-          id: IapService.removeAdsId,
-          name: 'Remove Ads',
-          description: 'No more interruptions!',
-          price: 0,
-          iapPrice: '\$2.99',
-          type: ShopItemType.iap,
-          isOwned: hasRemovedAds,
-        ),
-        ShopItem(
-          id: IapService.buyCoins1000Id,
-          name: '1000 Coins',
-          description: 'A large purse of coins.',
-          price: 0,
-          iapPrice: '\$4.99',
-          type: ShopItemType.iap,
-        ),
-        ShopItem(
-          id: IapService.buyCoins500Id,
-          name: '500 Coins',
-          description: 'A small pouch of coins.',
-          price: 0,
-          iapPrice: '\$1.99',
-          type: ShopItemType.iap,
-        ),
-      ]);
-    }
+    ];
+  }
 
-    if (mounted) {
-      setState(() {
-        _items.addAll(iapItems);
-      });
-    }
+  /// A paid row is only sellable while the store recognises its product. A debug
+  /// build lists it unpriced, so the economy can still be walked through on a
+  /// device that has no store listing behind it.
+  List<ShopItem> _iapRows(
+    ShopSpec spec,
+    ProductDetails? product,
+    bool hasRemovedAds,
+  ) {
+    if (product == null && !kDebugMode) return const [];
+    return [
+      ShopItem(
+        id: spec.id,
+        name: product?.title.split(' (').first ?? spec.name,
+        description: product?.description ?? spec.description,
+        iapProductId: spec.iapProductId,
+        iapPrice: product?.price,
+        entitlement: spec.entitlement,
+        type: ShopItemType.iap,
+        isOwned: spec.entitlement == ShopSpec.kRemoveAds && hasRemovedAds,
+      ),
+    ];
   }
 
   Future<void> _buyItem(ShopItem item) async {
@@ -188,20 +122,26 @@ class _ShopScreenState extends State<ShopScreen> {
       if (item.isOwned) return;
       ProductDetails? product;
       for (final p in IapService.products) {
-        if (p.id == item.id) product = p;
+        if (p.id == item.iapProductId) product = p;
       }
       if (IapService.isAvailable && product != null) {
         await IapService.buyProduct(product);
       } else if (kDebugMode) {
         // Local sandbox only: lets the economy be tested without a Play
-        // Console listing. Never reachable in a release build.
-        if (item.id == IapService.removeAdsId) {
+        // Console listing. It hands out exactly what the catalogue promises, so
+        // a row that pays nothing is broken here too, not just on a device.
+        final spec = IapService.listing(item.iapProductId);
+        if (spec == null) {
+          AudioService.playErrorSfx();
+          _showSnack('No catalogue row behind ${item.name}');
+          return;
+        }
+        if (spec.entitlement == ShopSpec.kRemoveAds) {
           await StorageService.setHasRemovedAds(true);
           AdManager.updateHasRemovedAds(true);
-        } else if (item.id == IapService.buyCoins1000Id) {
-          await ProgressService.grant(coins: 1000);
-        } else if (item.id == IapService.buyCoins500Id) {
-          await ProgressService.grant(coins: 500);
+        }
+        if (spec.grantCoins > 0) {
+          await ProgressService.grant(coins: spec.grantCoins);
         }
         await _loadData();
       } else {
@@ -461,36 +401,44 @@ class _ShopScreenState extends State<ShopScreen> {
                     child: Builder(
                       builder: (context) {
                         if (item.type == ShopItemType.theme) {
-                          IconData icon = Icons.wallpaper;
-                          Color color = Colors.purpleAccent;
-                          if (item.name.contains('Forest')) {
-                            icon = Icons.forest;
-                            color = Colors.green;
-                          } else if (item.name.contains('Space') ||
-                              item.name.contains('Cosmic')) {
-                            icon = Icons.rocket_launch;
-                            color = Colors.blueAccent;
-                          }
-
+                          // The room's own colours, out of the same document the
+                          // game paints with. A name-matched icon could only
+                          // guess what a theme looked like, and a card that
+                          // guesses is a card that lies.
+                          final glow = item.gradient.isEmpty
+                              ? AppColors.primaryButton
+                              : item.gradient.first;
                           return Container(
+                            width: 96,
+                            height: 96,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
+                              gradient: item.image.isNotEmpty
+                                  ? null
+                                  : LinearGradient(
+                                      colors: item.gradient,
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                    ),
+                              image: item.image.isEmpty
+                                  ? null
+                                  : DecorationImage(
+                                      image: AssetImage(item.image),
+                                      fit: BoxFit.cover,
+                                    ),
+                              border: Border.all(
+                                color: Colors.white.withValues(
+                                  alpha: isSelected ? 0.9 : 0.25,
+                                ),
+                                width: 2,
+                              ),
                               boxShadow: [
                                 if (isSelected)
                                   BoxShadow(
-                                    color: color.withValues(alpha: 0.5),
+                                    color: glow.withValues(alpha: 0.5),
                                     blurRadius: 30,
                                     spreadRadius: -5,
                                   ),
-                              ],
-                            ),
-                            child: Icon(
-                              icon,
-                              size: 70,
-                              color: isSelected ? color : Colors.white54,
-                              shadows: [
-                                if (isSelected)
-                                  Shadow(color: color, blurRadius: 15),
                               ],
                             ),
                           );
@@ -498,7 +446,7 @@ class _ShopScreenState extends State<ShopScreen> {
                         if (item.type == ShopItemType.iap) {
                           String imagePath = 'assets/icon/premium_coins.png';
                           Color color = Colors.orangeAccent;
-                          if (item.id == IapService.removeAdsId) {
+                          if (item.entitlement == ShopSpec.kRemoveAds) {
                             imagePath = 'assets/icon/premium_no_ads.png';
                             color = Colors.purpleAccent;
                           } else if (item.name.contains('Coins')) {
@@ -588,8 +536,10 @@ class _ShopScreenState extends State<ShopScreen> {
                         if (item.type != ShopItemType.iap)
                           const SizedBox(width: 6),
                         Text(
+                          // No store price, no number. Inventing one here would
+                          // be a promise the till cannot keep.
                           item.type == ShopItemType.iap
-                              ? (item.iapPrice ?? '\$0.00')
+                              ? (item.iapPrice ?? '\u2014')
                               : item.cost.toString(),
                           style: TextStyle(
                             color: item.costsGems

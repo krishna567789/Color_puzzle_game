@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "2026.10.01-1",
+  "startingColors": 3,
+  "levelsPerColor": 6,
+  "maxColorCount": 12,
+  "wideFreeTubes": 3,
+  "tightFreeTubes": 2,
+  "wideColorThreshold": 6,
+  "deepFromLevel": 121,
+  "baseCapacity": 4,
+  "deepCapacity": 5,
+  "mysteryFromLevel": 10,
+  "levelsPerMysteryTube": 12,
+  "maxMysteryTubes": 3,
+  "mixPerCapacityStep": 2,
+  "mixPerTenLevels": 1,
+  "maxTubeCount": 14,
+  "maxBoardTubes": 20
+}

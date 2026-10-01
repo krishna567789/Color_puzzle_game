@@ -1,0 +1,371 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "2026.10.01-1",
+  "packId": "pack_001",
+  "levels": [
+    {
+      "id": "l001_pack_001",
+      "level": 1,
+      "chapter": "first_pours",
+      "capacity": 4,
+      "colors": ["blue", "green", "red"],
+      "tubes": [
+        ["green", "green"],
+        [],
+        ["blue"],
+        ["blue", "blue", "red"],
+        ["green", "green"],
+        ["red", "red", "red", "blue"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0],
+      "parMoves": 4
+    },
+    {
+      "id": "l002_pack_001",
+      "level": 2,
+      "chapter": "first_pours",
+      "capacity": 4,
+      "colors": ["purple", "blue", "red"],
+      "tubes": [
+        ["purple"],
+        ["blue", "blue", "blue"],
+        ["purple", "purple", "purple", "red"],
+        ["red"],
+        ["blue"],
+        ["red", "red"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0],
+      "parMoves": 4
+    },
+    {
+      "id": "l003_pack_001",
+      "level": 3,
+      "chapter": "first_pours",
+      "capacity": 4,
+      "colors": ["purple", "blue", "red"],
+      "tubes": [
+        ["red", "red", "red"],
+        ["purple"],
+        ["red", "purple"],
+        [],
+        ["blue", "purple"],
+        ["blue", "blue", "blue", "purple"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0],
+      "parMoves": 5
+    },
+    {
+      "id": "l004_pack_001",
+      "level": 4,
+      "chapter": "first_pours",
+      "capacity": 4,
+      "colors": ["purple", "blue", "red"],
+      "tubes": [
+        ["purple", "purple", "blue", "purple"],
+        ["red"],
+        ["red", "purple", "blue"],
+        [],
+        [],
+        ["red", "red", "blue", "blue"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0],
+      "parMoves": 7
+    },
+    {
+      "id": "l005_pack_001",
+      "level": 5,
+      "chapter": "first_pours",
+      "capacity": 4,
+      "colors": ["purple", "green", "yellow"],
+      "tubes": [
+        ["yellow", "yellow", "yellow"],
+        ["green", "green"],
+        ["yellow", "green"],
+        ["purple"],
+        ["purple", "purple"],
+        ["purple", "green"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0],
+      "parMoves": 5
+    },
+    {
+      "id": "l006_pack_001",
+      "level": 6,
+      "chapter": "first_pours",
+      "capacity": 4,
+      "colors": ["red", "purple", "green"],
+      "tubes": [
+        [],
+        ["purple", "purple", "red"],
+        ["green", "green"],
+        ["purple", "red"],
+        ["purple", "red"],
+        ["green", "green", "red"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0],
+      "parMoves": 7
+    },
+    {
+      "id": "l007_pack_001",
+      "level": 7,
+      "chapter": "first_pours",
+      "capacity": 4,
+      "colors": ["yellow", "purple", "blue", "orange"],
+      "tubes": [
+        ["orange", "orange"],
+        ["purple"],
+        ["blue", "blue", "blue", "yellow"],
+        [],
+        ["yellow", "yellow", "yellow", "blue"],
+        ["purple", "purple", "purple"],
+        ["orange", "orange"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0, 0],
+      "parMoves": 5
+    },
+    {
+      "id": "l008_pack_001",
+      "level": 8,
+      "chapter": "first_pours",
+      "capacity": 4,
+      "colors": ["purple", "red", "orange", "blue"],
+      "tubes": [
+        ["purple"],
+        ["blue", "orange", "orange", "orange"],
+        ["blue", "purple", "purple"],
+        ["blue", "blue", "red"],
+        ["purple"],
+        [],
+        ["red", "red", "red", "orange"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0, 0],
+      "parMoves": 7
+    },
+    {
+      "id": "l009_pack_001",
+      "level": 9,
+      "chapter": "first_pours",
+      "capacity": 4,
+      "colors": ["orange", "red", "blue", "purple"],
+      "tubes": [
+        ["purple", "purple", "purple"],
+        ["red", "red", "red", "orange"],
+        [],
+        ["purple", "blue"],
+        ["blue", "blue", "blue"],
+        ["red", "orange"],
+        ["orange", "orange"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0, 0],
+      "parMoves": 5
+    },
+    {
+      "id": "l010_pack_001",
+      "level": 10,
+      "chapter": "first_pours",
+      "capacity": 4,
+      "colors": ["yellow", "blue", "purple", "red"],
+      "tubes": [
+        ["yellow", "yellow", "yellow", "blue"],
+        ["blue", "blue", "blue", "yellow"],
+        ["purple"],
+        ["red", "red"],
+        ["red", "red"],
+        [],
+        ["purple", "purple", "purple"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0, 0],
+      "parMoves": 5
+    },
+    {
+      "id": "l011_pack_001",
+      "level": 11,
+      "chapter": "first_pours",
+      "capacity": 4,
+      "colors": ["red", "blue", "green", "purple"],
+      "tubes": [
+        ["blue", "purple"],
+        ["blue", "blue"],
+        ["green", "red"],
+        ["blue"],
+        ["red", "purple", "red"],
+        ["purple", "green", "green", "green"],
+        ["purple", "red"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0, 0],
+      "parMoves": 9
+    },
+    {
+      "id": "l012_pack_001",
+      "level": 12,
+      "chapter": "first_pours",
+      "capacity": 4,
+      "colors": ["yellow", "orange", "blue", "green"],
+      "tubes": [
+        ["yellow", "yellow", "yellow", "blue"],
+        [],
+        ["orange", "orange"],
+        ["green", "green", "green", "yellow"],
+        ["green", "blue", "orange", "orange"],
+        ["blue"],
+        ["blue"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0, 0],
+      "parMoves": 6
+    },
+    {
+      "id": "l013_pack_001",
+      "level": 13,
+      "chapter": "first_pours",
+      "capacity": 4,
+      "colors": ["purple", "red", "blue", "orange", "green"],
+      "tubes": [
+        ["purple", "orange", "blue", "blue"],
+        ["purple", "purple", "purple", "orange"],
+        ["blue", "green", "green"],
+        ["red", "orange", "green"],
+        [],
+        ["red", "red", "red", "orange"],
+        ["green", "blue"],
+        []
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0, 0, 0],
+      "parMoves": 11
+    },
+    {
+      "id": "l014_pack_001",
+      "level": 14,
+      "chapter": "first_pours",
+      "capacity": 4,
+      "colors": ["blue", "green", "yellow", "purple", "orange"],
+      "tubes": [
+        ["blue", "yellow", "blue"],
+        ["green"],
+        ["yellow", "blue", "orange"],
+        ["purple", "orange", "green", "green"],
+        ["orange", "orange"],
+        ["purple", "purple", "purple", "green"],
+        [],
+        ["yellow", "blue", "yellow"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0, 0, 0],
+      "parMoves": 11
+    },
+    {
+      "id": "l015_pack_001",
+      "level": 15,
+      "chapter": "first_pours",
+      "capacity": 4,
+      "colors": ["blue", "red", "purple", "yellow", "orange"],
+      "tubes": [
+        ["purple", "purple"],
+        [],
+        [],
+        ["yellow", "blue", "red"],
+        ["orange", "orange", "orange", "red"],
+        ["blue", "red", "blue", "purple"],
+        ["red", "blue", "purple"],
+        ["yellow", "yellow", "yellow", "orange"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0, 0, 0],
+      "parMoves": 10
+    },
+    {
+      "id": "l016_pack_001",
+      "level": 16,
+      "chapter": "first_pours",
+      "capacity": 4,
+      "colors": ["yellow", "red", "green", "purple", "blue"],
+      "tubes": [
+        ["green", "yellow", "blue"],
+        ["red", "yellow"],
+        ["green", "green", "yellow"],
+        ["purple", "purple", "purple"],
+        ["purple"],
+        ["red", "blue"],
+        ["yellow", "red", "blue", "blue"],
+        ["green", "red"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0, 0, 0],
+      "parMoves": 12
+    },
+    {
+      "id": "l017_pack_001",
+      "level": 17,
+      "chapter": "first_pours",
+      "capacity": 4,
+      "colors": ["yellow", "orange", "red", "green", "blue"],
+      "tubes": [
+        ["yellow", "yellow", "yellow"],
+        [],
+        ["red", "red", "red"],
+        ["green", "orange"],
+        ["red"],
+        ["blue", "blue", "blue"],
+        ["green", "orange", "orange", "blue"],
+        ["green", "orange", "green", "yellow"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0, 0, 0],
+      "parMoves": 9
+    },
+    {
+      "id": "l018_pack_001",
+      "level": 18,
+      "chapter": "first_pours",
+      "capacity": 4,
+      "colors": ["orange", "blue", "yellow", "purple", "green"],
+      "tubes": [
+        ["orange", "purple"],
+        ["blue", "blue"],
+        ["purple", "purple"],
+        ["blue"],
+        ["green", "green", "green", "orange"],
+        ["green", "purple"],
+        ["yellow", "yellow", "orange", "blue"],
+        ["yellow", "yellow", "orange"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0, 0, 0],
+      "parMoves": 9
+    },
+    {
+      "id": "l019_pack_001",
+      "level": 19,
+      "chapter": "first_pours",
+      "capacity": 4,
+      "colors": ["blue", "red", "yellow", "green", "orange", "purple"],
+      "tubes": [
+        ["blue", "blue", "blue", "yellow"],
+        ["red", "red", "red", "blue"],
+        [],
+        ["purple"],
+        ["orange", "orange", "green", "green"],
+        [],
+        ["red", "orange", "purple", "purple"],
+        ["yellow", "yellow", "yellow", "green"],
+        ["orange", "green", "purple"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "parMoves": 10
+    },
+    {
+      "id": "l020_pack_001",
+      "level": 20,
+      "chapter": "first_pours",
+      "capacity": 4,
+      "colors": ["blue", "purple", "orange", "yellow", "red", "green"],
+      "tubes": [
+        ["blue", "red", "purple"],
+        ["purple"],
+        ["orange", "orange", "orange"],
+        ["yellow", "blue"],
+        ["red", "blue"],
+        ["green", "green"],
+        ["red", "green", "blue", "orange"],
+        ["green", "purple", "purple"],
+        ["yellow", "yellow", "yellow", "red"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "parMoves": 12
+    }
+  ]
+}

@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "2026.10.01-1",
+  "daily": [
+    {
+      "id": "win_one",
+      "title": "First Pour",
+      "description": "Win 1 level today",
+      "stat": "wins",
+      "target": 1,
+      "coins": 40,
+      "gems": 0
+    },
+    {
+      "id": "win_five",
+      "title": "Colour Student",
+      "description": "Win 5 levels today",
+      "stat": "wins",
+      "target": 5,
+      "coins": 150,
+      "gems": 0
+    },
+    {
+      "id": "win_ten",
+      "title": "Long Session",
+      "description": "Win 10 levels today",
+      "stat": "wins",
+      "target": 10,
+      "coins": 280,
+      "gems": 0
+    },
+    {
+      "id": "earn_stars",
+      "title": "Neat Pours",
+      "description": "Collect 8 stars today",
+      "stat": "stars",
+      "target": 8,
+      "coins": 100,
+      "gems": 1
+    },
+    {
+      "id": "stars_twenty",
+      "title": "Star Collector",
+      "description": "Collect 20 stars today",
+      "stat": "stars",
+      "target": 20,
+      "coins": 220,
+      "gems": 0
+    },
+    {
+      "id": "stars_forty",
+      "title": "Constellation",
+      "description": "Collect 40 stars in one day",
+      "stat": "stars",
+      "target": 40,
+      "coins": 360,
+      "gems": 2
+    },
+    {
+      "id": "perfect_three",
+      "title": "Neat Work",
+      "description": "Finish 3 boards at three stars today",
+      "stat": "threeStarWins",
+      "target": 3,
+      "coins": 180,
+      "gems": 0
+    },
+    {
+      "id": "perfect_eight",
+      "title": "Flawless Session",
+      "description": "Finish 8 boards at three stars today",
+      "stat": "threeStarWins",
+      "target": 8,
+      "coins": 400,
+      "gems": 2
+    },
+    {
+      "id": "use_powerups",
+      "title": "Tool Time",
+      "description": "Use 3 power-ups",
+      "stat": "powerUps",
+      "target": 3,
+      "coins": 80,
+      "gems": 0
+    },
+    {
+      "id": "powerups_twelve",
+      "title": "Heavy Machinery",
+      "description": "Use 12 power-ups in one day",
+      "stat": "powerUps",
+      "target": 12,
+      "coins": 200,
+      "gems": 0
+    },
+    {
+      "id": "play_side_mode",
+      "title": "Off The Map",
+      "description": "Finish a challenge, time attack or daily",
+      "stat": "sideModeWins",
+      "target": 1,
+      "coins": 120,
+      "gems": 0
+    },
+    {
+      "id": "side_mode_three",
+      "title": "Circuit Breaker",
+      "description": "Finish 3 side mode boards today",
+      "stat": "sideModeWins",
+      "target": 3,
+      "coins": 300,
+      "gems": 1
+    },
+    {
+      "id": "extra_spin_one",
+      "title": "One More Turn",
+      "description": "Buy an extra spin on the wheel",
+      "stat": "extraSpins",
+      "target": 1,
+      "coins": 90,
+      "gems": 0
+    },
+    {
+      "id": "extra_spin_two",
+      "title": "Double Risk",
+      "description": "Buy both extra spins today",
+      "stat": "extraSpins",
+      "target": 2,
+      "coins": 160,
+      "gems": 1
+    },
+    {
+      "id": "powerups_six",
+      "title": "Gadget Grab",
+      "description": "Use 6 power-ups today",
+      "stat": "powerUps",
+      "target": 6,
+      "coins": 140,
+      "gems": 0
+    }
+  ]
+}

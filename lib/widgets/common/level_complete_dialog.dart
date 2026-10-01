@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../core/ad_manager.dart';
+import '../frame_sequence.dart';
 import 'coin_animation_overlay.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -10,6 +11,27 @@ class LevelCompleteDialog extends StatefulWidget {
   final int level;
   final int coinsEarned;
   final int gemsEarned;
+
+  /// When this win closed a chapter, its name. The purse is already inside
+  /// [coinsEarned] and [gemsEarned]; this only says where the extra came from.
+  final String? chapterName;
+
+  /// False on the last stage of a side mode's ladder, where there is no board
+  /// left to take the player to. A Next that replays the board they just beat
+  /// reads as a broken button, so the card drops it and says why.
+  final bool hasNextStage;
+
+  /// What the ribbon says, from the run that earned it: "LEVEL 42", "STAGE 7",
+  /// "DAILY PUZZLE". A campaign level, a stage of a side mode's ladder and
+  /// today's board are three different kinds of run, and only the controller
+  /// knows which one this win came from. Null counts levels the way this card
+  /// always did.
+  final String? ribbon;
+
+  /// Set instead of a payout line when the run earned stars but no purse -
+  /// today's daily prize was already spent. The card shows this in place of the
+  /// "YOU EARNED" box rather than a pair of zeroes.
+  final String? rewardNote;
   final VoidCallback onNext;
   final VoidCallback onHome;
 
@@ -19,6 +41,10 @@ class LevelCompleteDialog extends StatefulWidget {
     required this.level,
     required this.coinsEarned,
     required this.gemsEarned,
+    this.chapterName,
+    this.hasNextStage = true,
+    this.ribbon,
+    this.rewardNote,
     required this.onNext,
     required this.onHome,
   });
@@ -53,6 +79,12 @@ class _LevelCompleteDialogState extends State<LevelCompleteDialog>
 
   void _onCollect(VoidCallback action) {
     if (_isAnimatingCoin) return;
+    // A run that paid nothing has no coins to fly, and twelve that were not
+    // won is a worse lie than a card that moves on at once.
+    if (widget.coinsEarned <= 0) {
+      action();
+      return;
+    }
     setState(() => _isAnimatingCoin = true);
 
     final startOffset = CoinAnimationUtils.getOffsetFromKey(_coinIconKey,
@@ -64,7 +96,7 @@ class _LevelCompleteDialogState extends State<LevelCompleteDialog>
       context: context,
       startOffset: startOffset,
       endOffset: endOffset,
-      coinCount: 12,
+      coinCount: widget.coinsEarned > 12 ? 12 : widget.coinsEarned,
       onComplete: () {
         if (mounted) {
           setState(() => _isAnimatingCoin = false);
@@ -196,199 +228,273 @@ class _LevelCompleteDialogState extends State<LevelCompleteDialog>
             ),
 
             // 3. The UI Overlay
-            Column(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // === TOP SECTION (Crown & Ribbon) ===
-                Column(
-                  children: [
-                    const SizedBox(height: 15),
-                    // Crown Placeholder
-                    const Icon(
-                      Icons.workspace_premium,
-                      color: Colors.amber,
-                      size: 70,
-                    ),
-
-                    // Ribbon Placeholder
-                    Container(
-                      transform: Matrix4.translationValues(0, -10, 0),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 50,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.red[600],
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.red[900]!, width: 2),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black45,
-                            offset: Offset(0, 4),
-                            blurRadius: 4,
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        'LEVEL ${widget.level}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    const Text(
-                      'COMPLETE!',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 34,
-                        fontWeight: FontWeight.bold,
-                        shadows: [
-                          Shadow(
-                            color: Colors.black87,
-                            offset: Offset(2, 2),
-                            blurRadius: 4,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-
-                // === MIDDLE SECTION (3D Stars using Flutter) ===
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildAnimatedStar(1),
-                    const SizedBox(width: 5),
-                    _buildAnimatedStar(2, isCenter: true),
-                    const SizedBox(width: 5),
-                    _buildAnimatedStar(3),
-                  ],
-                ),
-
-                // === BOTTOM SECTION (Rewards & Buttons) ===
-                Column(
-                  children: [
-                    const Text(
-                      'YOU EARNED',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Rewards Box
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 25,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Image.asset(
-                            'assets/blender/coin.png',
-                            key: _coinIconKey,
-                            width: 28,
-                            height: 28,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '+${widget.coinsEarned}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
+            //
+            // The board is a fixed box, but the content of it is text, and text
+            // is as tall as the font the app actually ships with. A card sized
+            // to today's metrics is one font change away from painting overflow
+            // stripes across its own buttons, so the overlay is laid out at its
+            // natural height and the whole thing scales down together when that
+            // height is more than the board has. Never up: the board keeps its
+            // size, and the sunburst behind it does not move.
+            LayoutBuilder(
+              builder: (context, board) => FittedBox(
+                fit: BoxFit.scaleDown,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: board.maxHeight),
+                  child: SizedBox(
+                    width: board.maxWidth,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // === TOP SECTION (Crown & Ribbon) ===
+                        Column(
+                          children: [
+                            const SizedBox(height: 15),
+                            // The bottle the player just filled, turning on its own. A
+                            // rendered flipbook carries the game's own shading, where
+                            // the trophy glyph this replaces read as generic UI.
+                            const FrameSequence(
+                              directory: 'assets/anim/victory_spin',
+                              frameCount: 16,
+                              width: 46,
+                              height: 104,
                             ),
-                          ),
-                          const SizedBox(width: 25),
-                          const Icon(
-                            Icons.diamond,
-                            color: Colors.purpleAccent,
-                            size: 28,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '+${widget.gemsEarned}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
+
+                            // Ribbon Placeholder
+                            Container(
+                              transform: Matrix4.translationValues(0, -10, 0),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 50,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.red[600],
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.red[900]!, width: 2),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Colors.black45,
+                                    offset: Offset(0, 4),
+                                    blurRadius: 4,
+                                  ),
+                                ],
+                              ),
+                              child: FittedBox(
+                                // The ribbon says what kind of run this was, and
+                                // the wording is not under the card's control:
+                                // 'DAILY PUZZLE' is wider than the banner on a
+                                // narrow phone. Wrapping it to a second line
+                                // would push everything under it down, so the
+                                // words shrink instead.
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  widget.ribbon ?? 'LEVEL ${widget.level}',
+                                  maxLines: 1,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.5,
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
+
+                            const SizedBox(height: 10),
+
+                            const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                'COMPLETE!',
+                                maxLines: 1,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 34,
+                                  fontWeight: FontWeight.bold,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black87,
+                                      offset: Offset(2, 2),
+                                      blurRadius: 4,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        // === MIDDLE SECTION (3D Stars using Flutter) ===
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _buildAnimatedStar(1),
+                            const SizedBox(width: 5),
+                            _buildAnimatedStar(2, isCenter: true),
+                            const SizedBox(width: 5),
+                            _buildAnimatedStar(3),
+                          ],
+                        ),
+
+                        // === BOTTOM SECTION (Rewards & Buttons) ===
+                        Column(
+                          children: [
+                            if (widget.chapterName != null) ...[
+                              Text(
+                                widget.chapterName!.toUpperCase(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Color(0xFFFFD166),
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                            ],
+                            // A daily whose prize is already spent pays nothing, and a
+                            // card reading "+0 +0" looks like a broken reward rather
+                            // than a finished run. The note says which it was.
+                            if (widget.rewardNote != null)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 18),
+                                child: Text(
+                                  widget.rewardNote!,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Color(0xFFFFD166),
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              )
+                            else ...[
+                              const Text(
+                                'YOU EARNED',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+
+                              // Rewards Box
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 25,
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.3),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Image.asset(
+                                      'assets/blender/coin.png',
+                                      key: _coinIconKey,
+                                      width: 28,
+                                      height: 28,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      '+${widget.coinsEarned}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 25),
+                                    const Icon(
+                                      Icons.diamond,
+                                      color: Colors.purpleAccent,
+                                      size: 28,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      '+${widget.gemsEarned}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+
+                            // The chapter line took this gap's room, so the card stays
+                            // the height it was.
+                            SizedBox(height: widget.chapterName == null ? 20 : 4),
+
+                            // NEXT Button. A mode's ladder has an end, and pressing
+                            // Next past it would deal the board the player just beat
+                            // back to them, so the last stage shows Home alone.
+                            if (widget.hasNextStage) ...[
+                              ElevatedButton(
+                                onPressed: () {
+                                  AdManager.showInterstitialAd();
+                                  _onCollect(() => widget.onNext());
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF64D224),
+                                  minimumSize: const Size(220, 55),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30),
+                                  ),
+                                  elevation: 5,
+                                ),
+                                child: const Text(
+                                  'NEXT',
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(height: 10),
+                            ],
+
+                            // HOME Button
+                            ElevatedButton(
+                              onPressed: () {
+                                AdManager.showInterstitialAd();
+                                _onCollect(() => widget.onHome());
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF2490D2),
+                                minimumSize: const Size(220, 55),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                                elevation: 5,
+                              ),
+                              child: const Text(
+                                'HOME',
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(height: 20),
+                          ],
+                        ),
+                      ],
                     ),
-
-                    const SizedBox(height: 20),
-
-                    // NEXT Button
-                    ElevatedButton(
-                      onPressed: () {
-                        AdManager.showInterstitialAd();
-                        _onCollect(() => widget.onNext());
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF64D224),
-                        minimumSize: const Size(220, 55),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        elevation: 5,
-                      ),
-                      child: const Text(
-                        'NEXT',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    // HOME Button
-                    ElevatedButton(
-                      onPressed: () {
-                        AdManager.showInterstitialAd();
-                        _onCollect(() => widget.onHome());
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2490D2),
-                        minimumSize: const Size(220, 55),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        elevation: 5,
-                      ),
-                      child: const Text(
-                        'HOME',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-                  ],
+                  ),
                 ),
-              ],
+              ),
             ),
           ],
         ),

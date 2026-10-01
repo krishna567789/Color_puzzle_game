@@ -3,20 +3,29 @@ import 'dart:ui';
 import 'dart:ui' as ui;
 import 'package:color_puzzle_game/core/audio_service.dart';
 import 'package:flutter/material.dart';
+import '../content/content_repository.dart';
 import '../core/app_colors.dart';
 import '../core/progress_service.dart';
 import '../core/storage_service.dart';
 import '../game/rewards.dart';
 import '../widgets/common/coin_animation_overlay.dart';
+import '../widgets/frame_sequence.dart';
 import 'package:flutter/services.dart';
 
+/// Frames in each pre-rendered reward flipbook. Matches `FRAMES` in
+/// tools/anim/render_spin_rewards.py, which test/flipbook_frames_test.dart
+/// checks both ends of.
+const int _flipbookFrames = 16;
+
+/// One wedge, as the dial draws it and the dialog reports it.
 class Reward {
   final String name;
   final int value;
-  final String imageType; // 'coin', 'gem', or 'try_again'
-  final Color color;
 
-  Reward(this.name, this.value, this.imageType, this.color);
+  /// Which prize icon sits on the wedge: 'coin', 'gem' or 'try_again'.
+  final String imageType;
+
+  Reward(this.name, this.value, this.imageType);
 }
 
 class LuckySpinScreen extends StatefulWidget {
@@ -39,15 +48,24 @@ class _LuckySpinScreenState extends State<LuckySpinScreen>
   int _gems = 0;
   double _currentRotation = 0.0;
 
-  final List<Reward> _rewards = [
-    Reward('50 Coins', 50, 'coin', Colors.amber),
-    Reward('100 Coins', 100, 'coin', Colors.orange),
-    Reward('1 Gem', 1, 'gem', Colors.purpleAccent),
-    Reward('200 Coins', 200, 'coin', Colors.amberAccent),
-    Reward('2 Gems', 2, 'gem', Colors.deepPurpleAccent),
-    Reward('500 Coins', 500, 'coin', Colors.yellowAccent),
-    Reward('Try Again', 0, 'try_again', Colors.grey),
-    Reward('50 Coins', 50, 'coin', Colors.amber),
+  /// The wedges, in the order the dial paints them.
+  ///
+  /// Content, so a prize can be retuned without a build - and so the same
+  /// validator that refuses a shop row which delivers nothing can refuse a dial
+  /// that mints coins. Every wedge is equally likely, because the wheel stops on
+  /// a random angle rather than on a weighted table, which is the assumption
+  /// behind the average payout the contract checks.
+  late final List<Reward> _rewards = [
+    for (final segment in ContentRepository.content.wheel)
+      Reward(
+        segment.label,
+        segment.amount,
+        switch (segment.kind) {
+          'gems' => 'gem',
+          'nothing' => 'try_again',
+          _ => 'coin',
+        },
+      ),
   ];
 
   ui.Image? _coinImg;
@@ -210,18 +228,25 @@ class _LuckySpinScreenState extends State<LuckySpinScreen>
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ClipOval(
-              child: Image.asset(
-                reward.imageType == 'coin'
-                    ? 'assets/icon/spin_coin.png'
-                    : (reward.imageType == 'gem'
-                          ? 'assets/icon/spin_gem.png'
-                          : 'assets/icon/spin_try_again.png'),
+            // A coin turning through its own edge is the one celebration a
+            // rotated PNG cannot fake, so the prizes that pay out are the
+            // pre-rendered flipbooks. Only the dud stays a still.
+            if (reward.imageType == 'try_again')
+              Image.asset(
+                'assets/icon/spin_try_again.png',
                 width: 90,
                 height: 90,
                 fit: BoxFit.cover,
+              )
+            else
+              FrameSequence(
+                directory: reward.imageType == 'coin'
+                    ? 'assets/anim/spin_coin'
+                    : 'assets/anim/spin_gem',
+                frameCount: _flipbookFrames,
+                width: 108,
+                height: 108,
               ),
-            ),
             const SizedBox(height: 16),
             Text(
               reward.value > 0
@@ -241,7 +266,7 @@ class _LuckySpinScreenState extends State<LuckySpinScreen>
             child: ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
-                if (reward.value > 0 && reward.name.contains('Coins')) {
+                if (reward.imageType == 'coin') {
                   CoinAnimationUtils.showCoinAnimation(
                     context: outerContext,
                     startOffset: Offset(
@@ -449,17 +474,15 @@ class _LuckySpinScreenState extends State<LuckySpinScreen>
                                   width: 2,
                                 ),
                               ),
-                              child: Center(
-                                child: Icon(
-                                  Icons.star_rounded,
-                                  color: Colors.white,
-                                  size: gemSize * 0.6,
-                                  shadows: const [
-                                    Shadow(
-                                      color: Colors.black38,
-                                      blurRadius: 4,
-                                    ),
-                                  ],
+                              child: ClipOval(
+                                // The coin that pays out, turning in the hub.
+                                // Its frames are already in the bundle for the
+                                // reward dialog, so the wheel gets a live
+                                // centre for no extra bytes - and the gradient
+                                // underneath stays as the socket it turns in.
+                                child: FrameSequence(
+                                  directory: 'assets/anim/spin_coin',
+                                  frameCount: _flipbookFrames,
                                 ),
                               ),
                             ),
@@ -612,21 +635,34 @@ class WheelPainter extends CustomPainter {
     final Offset center = Offset(radius, radius);
     final double arcAngle = (math.pi * 2) / rewards.length;
 
-    final sliceColors = [
-      Colors.purple.shade800,
-      Colors.deepOrange.shade700,
-      Colors.teal.shade800,
-      Colors.pink.shade800,
-      Colors.blue.shade800,
-      Colors.amber.shade800,
-      Colors.blueGrey.shade800,
-      Colors.red.shade800,
+    // A wedge's colour says what is in it before the number is readable: warm
+    // for coins, purple for gems, grey for the dud. The dial now carries twice
+    // the wedges it used to, so a fixed palette could no longer be one colour
+    // per wedge.
+    const coinWedges = [
+      Colors.amberAccent,
+      Colors.deepOrangeAccent,
+      Colors.yellowAccent,
+      Colors.orangeAccent,
     ];
+    Color wedgeColor(int index) => switch (rewards[index].imageType) {
+      'gem' => Colors.deepPurpleAccent,
+      'try_again' => Colors.blueGrey,
+      _ => coinWedges[index % coinWedges.length],
+    };
+
+    // How much room a wedge actually has, measured where the prize is drawn.
+    // A dial of sixteen wedges is half as wide as the eight this used to carry,
+    // so the art and the number follow the wedge instead of running over the
+    // two either side of it.
+    final spread = math.sin(arcAngle / 2) * 2;
+    final iconSize = math.min(60.0, radius * 0.45 * spread * 1.15);
+    final numberSize = math.min(18.0, radius * 0.78 * spread / 2.6);
 
     for (int i = 0; i < rewards.length; i++) {
       // Draw arc with vibrant color
       final paint = Paint()
-        ..color = sliceColors[i % sliceColors.length]
+        ..color = wedgeColor(i)
         ..style = PaintingStyle.fill;
 
       canvas.drawArc(
@@ -666,8 +702,8 @@ class WheelPainter extends CustomPainter {
         // Draw the image perfectly centered on the slice axis
         final rect = Rect.fromCenter(
           center: Offset(radius * 0.45, 0),
-          width: 60,
-          height: 60,
+          width: iconSize,
+          height: iconSize,
         );
         canvas.save();
         // Use screen blend mode to perfectly drop any faint dark artifacts
@@ -685,11 +721,11 @@ class WheelPainter extends CustomPainter {
         final textPainter = TextPainter(
           text: TextSpan(
             text: '${rewards[i].value}',
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w900,
-              fontSize: 18,
-              shadows: [Shadow(color: Colors.black87, blurRadius: 4)],
+              fontSize: numberSize,
+              shadows: const [Shadow(color: Colors.black87, blurRadius: 4)],
             ),
           ),
           textDirection: TextDirection.ltr,
@@ -698,7 +734,7 @@ class WheelPainter extends CustomPainter {
         textPainter.paint(
           canvas,
           Offset(
-            radius * 0.75 - (textPainter.width / 2),
+            radius * 0.78 - (textPainter.width / 2),
             -textPainter.height / 2, // Centered vertically on the slice axis
           ),
         );

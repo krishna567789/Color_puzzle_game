@@ -39,8 +39,33 @@ class WaterSortSolver {
   static SolveReport solve(
     List<Tube> tubes, {
     int nodeBudget = defaultNodeBudget,
-  }) {
-    final start = _State.from(tubes);
+  }) => _search(
+    // Every gameplay tube shares a capacity, so the first one defines it.
+    _State._(
+      tubes.isEmpty ? 4 : tubes.first.capacity,
+      [
+        for (final tube in tubes)
+          [for (final color in tube.colors) color.toARGB32()],
+      ],
+    ),
+    nodeBudget,
+  );
+
+  /// The same search over a board spelled in any layer type.
+  ///
+  /// The game solves painted colours and `tools/content` solves the colour ids a
+  /// level file carries, and both go through this one method, so a par move
+  /// count can never mean something different from the moves a player makes.
+  static SolveReport solveLayers<T>(
+    List<List<T>> tubes, {
+    required int capacity,
+    int nodeBudget = defaultNodeBudget,
+  }) => _search(
+    _State<T>._(capacity, [for (final tube in tubes) List<T>.of(tube)]),
+    nodeBudget,
+  );
+
+  static SolveReport _search<T>(_State<T> start, int nodeBudget) {
     if (start.isSolved) {
       return SolveReport(
         outcome: SolveOutcome.solved,
@@ -50,13 +75,13 @@ class WaterSortSolver {
     }
 
     final visited = <String>{start.key};
-    var frontier = <_State>[start];
+    var frontier = <_State<T>>[start];
     var depth = 0;
     var explored = 0;
 
     while (frontier.isNotEmpty) {
       depth++;
-      final next = <_State>[];
+      final next = <_State<T>>[];
       for (final state in frontier) {
         for (final move in state.legalMoves()) {
           final moved = state.apply(move);
@@ -98,22 +123,11 @@ class PourMove {
   final int amount;
 }
 
-class _State {
+class _State<T> {
   _State._(this.capacity, this.tubes);
 
-  factory _State.from(List<Tube> source) {
-    return _State._(
-      // Every gameplay tube shares a capacity, so the first one defines it.
-      source.isEmpty ? 4 : source.first.capacity,
-      [
-        for (final tube in source)
-          [for (final color in tube.colors) color.toARGB32()],
-      ],
-    );
-  }
-
   final int capacity;
-  final List<List<int>> tubes;
+  final List<List<T>> tubes;
 
   String get key {
     final parts = <String>[];
@@ -179,9 +193,9 @@ class _State {
     return moves;
   }
 
-  _State apply(PourMove move) {
-    final copied = _State._(capacity, [
-      for (final tube in tubes) List<int>.of(tube),
+  _State<T> apply(PourMove move) {
+    final copied = _State<T>._(capacity, [
+      for (final tube in tubes) List<T>.of(tube),
     ]);
     final color = copied.tubes[move.from].last;
     for (var i = 0; i < move.amount; i++) {

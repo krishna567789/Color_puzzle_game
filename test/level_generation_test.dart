@@ -34,11 +34,16 @@ void main() {
     });
 
     test('never asks for more tubes than the board can show', () {
+      expect(
+        LevelDesign.maxTubeCount,
+        lessThanOrEqualTo(GameController.maxBoardTubes),
+        reason: 'the curve deals boards the grid cannot lay out',
+      );
       for (var level = 1; level <= 300; level++) {
         expect(
           LevelDesign.forLevel(level).tubeCount,
-          lessThanOrEqualTo(14),
-          reason: 'L$level overflows the tube grid',
+          lessThanOrEqualTo(LevelDesign.maxTubeCount),
+          reason: 'L$level is past the cap the content validator allows',
         );
       }
     });
@@ -79,6 +84,47 @@ void main() {
           controller.tubes.any((t) => t.colors.length > 1 && !t.isComplete),
           isTrue,
           reason: 'L$level dealt a board with nothing to do',
+        );
+      }
+    });
+
+    /// How many layers of one colour sit on top of a bottle, which is how many a
+    /// single pour takes.
+    int layersOnTop(List colors) {
+      if (colors.isEmpty) return 0;
+      final top = colors.last;
+      var run = 0;
+      for (var i = colors.length - 1; i >= 0 && colors[i] == top; i--) {
+        run++;
+      }
+      return run;
+    }
+
+    test('every level has a pour that moves more than one layer', () {
+      // A board whose bottles all end in a single layer makes every pour one
+      // tick of animation and one layer of thought, which is the boring grind
+      // the reverse scramble used to always land on.
+      for (var level = 1; level <= 100; level++) {
+        final controller = GameController(
+          loadProgress: false,
+          targetLevel: level,
+        );
+        addTearDown(controller.dispose);
+
+        var best = 0;
+        for (final tube in controller.tubes) {
+          final run = layersOnTop(tube.colors);
+          if (run > best) best = run;
+        }
+        expect(
+          best,
+          greaterThanOrEqualTo(2),
+          reason: 'L$level can only ever pour one layer at a time',
+        );
+        expect(
+          controller.tubes.any((tube) => tube.isComplete),
+          isFalse,
+          reason: 'L$level handed the player a bottle that is already finished',
         );
       }
     });

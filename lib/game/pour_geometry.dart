@@ -57,6 +57,10 @@ class PourGeometry {
   static double _rimCentre(Size box) =>
       _paintedY(box, box.height - _glassHeight + _rimCentreOverGlassTop);
 
+  /// How far below the top of a tube's own box its rim is painted. Anything that
+  /// has to stay inside the neck - a splash, for one - measures from here.
+  static double rimInBox(Size box) => _rimCentre(box);
+
   static double _liquidSurface(Size box, int layers, int capacity) {
     final filled = layers.clamp(0, capacity).toDouble();
     return _paintedY(

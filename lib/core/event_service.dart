@@ -1,3 +1,4 @@
+import '../content/content_types.dart';
 import '../game/events.dart';
 import '../models/event_model.dart';
 import 'analytics_service.dart';
@@ -16,15 +17,15 @@ class EventService {
   static Future<List<GameEvent>> schedule({DateTime? now}) async {
     final at = now ?? DateTime.now();
     final events = <GameEvent>[];
-    for (final template in EventCatalog.all) {
-      final window = template.windowAt(at);
+    for (final event in EventCatalog.all) {
+      final window = event.windowAt(at);
       final state = await StorageService.getEventRun(
-        template.id,
+        event.id,
         _windowKey(window.start),
       );
       events.add(
         _build(
-          template,
+          event,
           window,
           checkedAt: at,
           progress: state.progress,
@@ -41,23 +42,23 @@ class EventService {
 
   /// A closed run's card never shows the counter of the run it replaced.
   static GameEvent _build(
-    EventTemplate template,
+    EventSpec event,
     EventWindow window, {
     required DateTime checkedAt,
     required int progress,
     required bool claimed,
   }) {
     return GameEvent(
-      id: template.id,
-      title: template.title,
-      description: template.description,
-      bannerImage: template.bannerImage,
+      id: event.id,
+      title: event.title,
+      description: event.description,
+      bannerImage: event.bannerImage,
       startDate: window.start,
       endDate: window.end,
-      goal: template.goal,
-      rewardCoins: template.rewardCoins,
-      rewardGems: template.rewardGems,
-      metric: template.metric.storageKey,
+      goal: event.goal,
+      rewardCoins: event.rewardCoins,
+      rewardGems: event.rewardGems,
+      metric: event.metricKind.storageKey,
       isOpen: window.isOpen,
       checkedAt: checkedAt,
       currentProgress: window.isOpen ? progress : 0,
@@ -68,20 +69,20 @@ class EventService {
   /// One finished board feeds every open event that counts it.
   static Future<void> recordWin({required int stars, DateTime? now}) async {
     final at = now ?? DateTime.now();
-    for (final template in EventCatalog.all) {
-      final window = template.windowAt(at);
+    for (final event in EventCatalog.all) {
+      final window = event.windowAt(at);
       if (!window.isOpen) continue;
-      final delta = template.metric.deltaForWin(stars: stars);
+      final delta = event.metricKind.deltaForWin(stars: stars);
       if (delta <= 0) continue;
       final total = await StorageService.bumpEventProgress(
-        template.id,
+        event.id,
         _windowKey(window.start),
         delta,
       );
-      if (total >= template.goal && total - delta < template.goal) {
+      if (total >= event.goal && total - delta < event.goal) {
         AnalyticsService.logEvent(
           'event_goal_reached',
-          parameters: {'event_id': template.id},
+          parameters: {'event_id': event.id},
         );
       }
     }
@@ -91,30 +92,30 @@ class EventService {
   /// from the card that was tapped: a screen left open across a rollover must
   /// not collect the run that just closed with a counter it no longer owns.
   static Future<GameEvent?> claim(String eventId, {DateTime? now}) async {
-    final template = EventCatalog.byId(eventId);
-    if (template == null) return null;
+    final event = EventCatalog.byId(eventId);
+    if (event == null) return null;
     final at = now ?? DateTime.now();
-    final window = template.windowAt(at);
+    final window = event.windowAt(at);
     if (!window.isOpen) return null;
     final key = _windowKey(window.start);
     final state = await StorageService.getEventRun(eventId, key);
-    if (state.progress < template.goal || state.claimed) return null;
+    if (state.progress < event.goal || state.claimed) return null;
     if (!await StorageService.claimEventRun(eventId, key)) return null;
 
     await ProgressService.grant(
-      coins: template.rewardCoins,
-      gems: template.rewardGems,
+      coins: event.rewardCoins,
+      gems: event.rewardGems,
     );
     AnalyticsService.logEvent(
       'event_reward_claimed',
       parameters: {
         'event_id': eventId,
-        'coins': template.rewardCoins,
-        'gems': template.rewardGems,
+        'coins': event.rewardCoins,
+        'gems': event.rewardGems,
       },
     );
     return _build(
-      template,
+      event,
       window,
       checkedAt: at,
       progress: state.progress,

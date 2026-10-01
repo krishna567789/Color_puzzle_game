@@ -1,25 +1,10 @@
+import '../content/content_repository.dart';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import '../game/liquid_patterns.dart';
 import '../models/tube_model.dart';
-
-/// Pre-rendered bottle glass, keyed by the shop's skin ids.
-///
-/// The renders come from tools/bottle/render_skins.py: a front-orthographic
-/// view of `tools/bottle/artifact.glb` at 4 px per millimetre, cropped to the
-/// same 55 x 150 box `_getBottlePath` draws, with the middle left transparent so
-/// the liquid painted underneath still shows through.
-const Map<String, String> kBottleGlass = {
-  'default_tube': 'assets/skins/default_tube.png',
-  'neon_tube': 'assets/skins/neon_tube.png',
-  'crystal_bottle': 'assets/skins/crystal_bottle.png',
-  'wooden_tube': 'assets/skins/wooden_tube.png',
-};
-
-/// The three-quarter render the shop sells each skin with.
-String bottleHeroPath(String skinId) => 'assets/skins/hero_$skinId.png';
 
 /// The ring on a bottle that would take the pour from the one being held up.
 /// Deliberately not one of the twelve liquid colours, so it cannot be read as
@@ -329,7 +314,14 @@ class _TubeWidgetState extends State<TubeWidget> with TickerProviderStateMixin {
   /// rides on the painter fallback; the focus ring is separate either way,
   /// because a static image cannot light up when the player picks it.
   List<Widget> _glassLayers() {
-    final sprite = kBottleGlass[widget.skinId];
+    // Which bottle wears which render is the shop's business: the same document
+    // that sells a skin names its glass, so a row cannot be bought and leave the
+    // board drawing a vector bottle. The renders come from
+    // tools/bottle/render_skins.py - a front-orthographic view of
+    // `tools/bottle/artifact.glb` at 4 px per millimetre, cropped to the same
+    // 55 x 150 box `_getBottlePath` draws, with the middle left transparent so
+    // the liquid painted underneath still shows through.
+    final sprite = ContentRepository.content.glassFor(widget.skinId);
     if (sprite == null) {
       return [
         CustomPaint(
@@ -989,7 +981,7 @@ class LiquidSegmentPainter extends CustomPainter {
         paintLiquidPattern(
           canvas,
           Rect.fromLTWH(0, surfaceY, size.width, height),
-          liquidPatternFor(segmentColor),
+          ContentRepository.content.patternFor(segmentColor),
           segmentColor,
         );
         canvas.restore();

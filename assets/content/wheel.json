@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "2026.10.01-1",
+  "segments": [
+    { "id": "coin_50_a", "kind": "coins", "amount": 50 },
+    { "id": "gem_1_a", "kind": "gems", "amount": 1 },
+    { "id": "coin_100_a", "kind": "coins", "amount": 100 },
+    { "id": "dud_a", "kind": "nothing", "amount": 0 },
+    { "id": "coin_150_a", "kind": "coins", "amount": 150 },
+    { "id": "coin_50_b", "kind": "coins", "amount": 50 },
+    { "id": "gem_2", "kind": "gems", "amount": 2 },
+    { "id": "coin_200_a", "kind": "coins", "amount": 200 },
+    { "id": "dud_b", "kind": "nothing", "amount": 0 },
+    { "id": "coin_100_b", "kind": "coins", "amount": 100 },
+    { "id": "coin_500", "kind": "coins", "amount": 500 },
+    { "id": "gem_1_b", "kind": "gems", "amount": 1 },
+    { "id": "coin_50_c", "kind": "coins", "amount": 50 },
+    { "id": "coin_150_b", "kind": "coins", "amount": 150 },
+    { "id": "coin_200_b", "kind": "coins", "amount": 200 },
+    { "id": "coin_100_c", "kind": "coins", "amount": 100 }
+  ]
+}

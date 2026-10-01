@@ -36,6 +36,10 @@ class _DashboardScreenState extends State<DashboardScreen>
   int _coins = 0;
   int _gems = 0;
 
+  /// Whether today's daily prize has been taken, so the tile can say so before
+  /// a player spends a run on a board that pays nothing.
+  bool _dailyClaimed = false;
+
   late AnimationController _entranceController;
   late AnimationController _bubbleController;
   late AnimationController _floatingController;
@@ -83,17 +87,24 @@ class _DashboardScreenState extends State<DashboardScreen>
     final coins = await StorageService.getCoins();
     final gems = await StorageService.getGems();
     final adsRemoved = await StorageService.getHasRemovedAds();
+    final dailyClaimed = await StorageService.hasClaimedDailyReward(
+      StorageService.todayKey,
+    );
     if (!mounted) return;
     setState(() {
       _playerXp = xp;
       _coins = coins;
       _gems = gems;
+      _dailyClaimed = dailyClaimed;
     });
     if (!adsRemoved) _loadBannerAd();
   }
 
   void _loadBannerAd() {
     if (kIsWeb) return;
+    // An empty unit ID (iOS, until its real IDs land) or a device that has not
+    // consented yet: either way there is nothing to ask Google for.
+    if (!AdManager.canRequestBannerAds) return;
     _bannerAd = BannerAd(
       adUnitId: AdManager.bannerAdUnitId,
       size: AdSize.banner,
@@ -123,10 +134,17 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   void _navigateToGame(GameMode mode) async {
-    if (mode == GameMode.classic) {
+    // Classic walks the campaign's chapters and the two ladder modes walk their
+    // own, so all three open on a map - of the mode they were tapped for. Daily
+    // is a single board, so it has nothing to map and opens straight in.
+    if (mode == GameMode.classic ||
+        mode == GameMode.challenge ||
+        mode == GameMode.timeAttack) {
       await Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => const LevelMapScreen()),
+        MaterialPageRoute(
+          builder: (context) => LevelMapScreen(mode: mode),
+        ),
       );
     } else {
       await Navigator.push(
@@ -170,6 +188,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     required String icon,
     required List<Color> gradient,
     required VoidCallback onTap,
+    Widget? badge,
   }) {
     return BouncingButton(
       onTap: onTap,
@@ -178,25 +197,33 @@ class _DashboardScreenState extends State<DashboardScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Glowing Floating Icon
-            Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: gradient.first.withValues(alpha: 0.8),
-                    blurRadius: 25,
-                    spreadRadius: 2,
+            // Glowing Floating Icon. A badge hangs off the circle instead of
+            // sitting inside it, so a state change cannot resize the tile.
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: gradient.first.withValues(alpha: 0.8),
+                        blurRadius: 25,
+                        spreadRadius: 2,
+                      ),
+                      BoxShadow(
+                        color: Colors.white.withValues(alpha: 0.3),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      ),
+                    ],
                   ),
-                  BoxShadow(
-                    color: Colors.white.withValues(alpha: 0.3),
-                    blurRadius: 10,
-                    spreadRadius: 1,
-                  ),
-                ],
-              ),
-              child: Image.asset(icon, height: 60, fit: BoxFit.contain),
+                  child: Image.asset(icon, height: 60, fit: BoxFit.contain),
+                ),
+                if (badge != null)
+                  Positioned(top: -6, right: -8, child: badge),
+              ],
             ),
             const SizedBox(height: 8),
             // Highlighted Text Label
@@ -447,6 +474,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       title: 'Daily',
                       icon: 'assets/icon/daily chalenge.png',
                       gradient: AppColors.dailyGradient,
+                      badge: _dailyClaimed ? const _ClaimedBadge() : null,
                       onTap: () => _navigateToGame(GameMode.daily),
                     ),
                   ),
@@ -740,4 +768,26 @@ class MagicBubblesPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+/// The mark on a tile whose reward is already taken today. A player who has
+/// played the daily should be able to see it is spent without opening it, and
+/// a board that pays nothing should not look like a bug.
+class _ClaimedBadge extends StatelessWidget {
+  const _ClaimedBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: const BoxDecoration(
+        color: Color(0xFF64D224),
+        shape: BoxShape.circle,
+        border: Border.fromBorderSide(
+          BorderSide(color: Color(0xCC000000), width: 1.5),
+        ),
+      ),
+      child: const Icon(Icons.check, size: 12, color: Colors.white),
+    );
+  }
 }

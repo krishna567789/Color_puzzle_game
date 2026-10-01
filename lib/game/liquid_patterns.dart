@@ -1,28 +1,17 @@
 import 'dart:ui';
 
-/// The twelve liquid colours a board is built from.
-const List<Color> kLiquidPalette = [
-  Color(0xFFFF2A2A), // Vivid Red
-  Color(0xFF1E88E5), // Vivid Blue
-  Color(0xFF2AFA2A), // Vivid Green
-  Color(0xFFFFD500), // Vivid Yellow
-  Color(0xFFFF7A00), // Vivid Orange
-  Color(0xFFA200FF), // Vivid Purple
-  Color(0xFF00E5FF), // Vivid Cyan
-  Color(0xFFFF0088), // Vivid Pink
-  Color(0xFF00FF88), // Vivid Teal
-  Color(0xFF5500FF), // Vivid Indigo
-  Color(0xFFFF4500), // Vivid Deep Orange
-  Color(0xFFA6FF00), // Vivid Lime
-];
-
 /// The mark a layer of liquid wears in colourblind mode.
 ///
 /// Twelve hues are not twelve hues everyone can tell apart, and no amount of
 /// tuning fixes that - deuteranopia collapses red with green and orange with
-/// lime on its own. A shape does not. The order below is chosen so the pairs a
-/// colour-vision test would flag land far apart in the set: red takes dots,
-/// green takes rings, orange takes a diagonal and lime its mirror.
+/// lime on its own. A shape does. The set is ordered so the pairs a
+/// colour-vision test would flag land far apart: red takes dots, green takes
+/// rings, orange takes a diagonal and lime its mirror.
+///
+/// Which colour wears which mark is content. See `assets/content/colors.json`,
+/// where a palette entry pairs an id with a hue and one of these shapes. A
+/// palette can only grow as far as this set reaches, which is why the content
+/// validator refuses two colours wearing the same mark.
 enum LiquidPattern {
   dots,
   rings,
@@ -36,32 +25,6 @@ enum LiquidPattern {
   triangles,
   checker,
   plus,
-}
-
-/// Palette colour -> its pattern. Index-aligned with [kLiquidPalette], so
-/// adding a colour to the palette without a pattern shows up as a test failure
-/// rather than as two colours wearing the same mark.
-const List<LiquidPattern> kLiquidPatternOrder = [
-  LiquidPattern.dots, // red
-  LiquidPattern.rings, // blue
-  LiquidPattern.horizontalStripes, // green
-  LiquidPattern.verticalStripes, // yellow
-  LiquidPattern.diagonalDown, // orange
-  LiquidPattern.diagonalUp, // purple
-  LiquidPattern.crossHatch, // cyan
-  LiquidPattern.grid, // pink
-  LiquidPattern.zigzag, // teal
-  LiquidPattern.triangles, // indigo
-  LiquidPattern.checker, // deep orange
-  LiquidPattern.plus, // lime
-];
-
-/// The mark [color] wears. Colours outside the palette - a preview, a test
-/// fixture - still get a stable one, so the same colour never wears two shapes.
-LiquidPattern liquidPatternFor(Color color) {
-  final index = kLiquidPalette.indexOf(color);
-  if (index >= 0) return kLiquidPatternOrder[index];
-  return kLiquidPatternOrder[color.toARGB32() % kLiquidPatternOrder.length];
 }
 
 /// Ink for a mark over [background]: light on dark liquids, dark on light ones,

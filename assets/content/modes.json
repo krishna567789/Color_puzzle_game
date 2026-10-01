@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "2026.10.01-1",
+  "modes": [
+    {
+      "id": "challenge",
+      "name": "Challenge",
+      "blurb": "Twelve boards, each with six moves of slack over the shortest solution proved for it.",
+      "image": "assets/images/wizard_room_bg.jpg",
+      "tint": "269900FF",
+      "accent": "FFB366FF",
+      "stages": [4, 8, 13, 17, 21, 25, 29, 33, 36, 39, 41, 42]
+    },
+    {
+      "id": "timeAttack",
+      "name": "Time Attack",
+      "blurb": "Twelve boards against the clock, with the clock set from how long the short way takes.",
+      "image": "assets/images/wizard_room_bg.jpg",
+      "tint": "26FF0066",
+      "accent": "FFFF5A7A",
+      "stages": [3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 34, 38]
+    }
+  ]
+}

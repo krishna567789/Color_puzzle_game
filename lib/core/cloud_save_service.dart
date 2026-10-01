@@ -20,6 +20,9 @@ class CloudSave {
     required this.totalLevelsWon,
     required this.playerXp,
     required this.levelStars,
+    required this.claimedChapters,
+    this.modeProgress = const {},
+    this.modeStars = const {},
   });
 
   final DateTime savedAt;
@@ -36,9 +39,28 @@ class CloudSave {
   /// Stars ever earned per level, the record that makes a replay honest.
   final Map<int, int> levelStars;
 
+  /// The chapters whose closing board this player has already been paid for.
+  /// These only ever join, never leave, which is what keeps one reward from
+  /// being collected once per device.
+  final List<String> claimedChapters;
+
+  /// How far each side mode's own ladder has reached, keyed by the id content
+  /// gives it. Optional because a save written before side modes had maps
+  /// carries none, and that is the honest reading of it rather than a rejection.
+  final Map<String, int> modeProgress;
+
+  /// Best rating ever earned on one stage of one side mode, keyed
+  /// `<modeId>@<stage>` - the same key the device files it under, so a
+  /// Challenge stage's stars can never land on a Time Attack one.
+  final Map<String, int> modeStars;
+
   /// 2 added `xp`. A 1 still decodes, with zero XP, so an install that synced
   /// before this build went out does not lose the rest of its save.
-  static const int _version = 2;
+  /// 3 added `chapters`; a 2 decodes with none claimed, which is the honest
+  /// reading of a save written before chapter rewards existed.
+  /// 4 added the side modes' ladders; a 3 decodes with both maps empty, which
+  /// leaves those modes at their first stage rather than losing anything else.
+  static const int _version = 4;
   static const int _oldestReadableVersion = 1;
 
   static Future<CloudSave> capture() async {
@@ -50,6 +72,9 @@ class CloudSave {
       totalLevelsWon: await StorageService.getTotalLevelsWon(),
       playerXp: await StorageService.getPlayerXp(),
       levelStars: await StorageService.getAllLevelStars(),
+      claimedChapters: await StorageService.getClaimedChapters(),
+      modeProgress: await StorageService.getAllModeProgress(),
+      modeStars: await StorageService.getAllModeStars(),
     );
   }
 
@@ -62,6 +87,9 @@ class CloudSave {
     'wins': totalLevelsWon,
     'xp': playerXp,
     'stars': {for (final e in levelStars.entries) e.key.toString(): e.value},
+    'chapters': claimedChapters,
+    'modeProgress': modeProgress,
+    'modeStars': modeStars,
   });
 
   /// Null for anything that is not a save this build understands, including
@@ -92,11 +120,32 @@ class CloudSave {
         totalLevelsWon: (json['wins'] as num? ?? 0).toInt(),
         playerXp: (json['xp'] as num? ?? 0).toInt(),
         levelStars: stars,
+        claimedChapters: _chaptersOf(json['chapters']),
+        modeProgress: _countsOf(json['modeProgress']),
+        modeStars: _countsOf(json['modeStars']),
       );
     } catch (e) {
       debugPrint('Cloud save unreadable: $e');
       return null;
     }
+  }
+
+  /// The claim list from a payload. A save written before chapter rewards holds
+  /// none, which is the honest reading rather than a rejected blob.
+  static List<String> _chaptersOf(Object? raw) => [
+    for (final id in raw is List ? raw : const <dynamic>[])
+      if (id is String) id,
+  ];
+
+  /// A `name -> number` map from a payload - the side modes' ladders are keyed
+  /// by strings, so they need the reading `stars` gets done inline. Anything
+  /// that is not a number is dropped rather than failing the whole save.
+  static Map<String, int> _countsOf(Object? raw) {
+    if (raw is! Map) return const {};
+    return {
+      for (final entry in raw.entries)
+        if (entry.value is num) entry.key.toString(): (entry.value as num).toInt(),
+    };
   }
 }
 
@@ -150,6 +199,37 @@ class CloudSaveService {
         await StorageService.saveLevelStars(entry.key, entry.value);
         changed = true;
       }
+    }
+    // A side mode's ladder is its own record: how far it has unlocked and the
+    // best rating on each of its stages. Both only ever move forward, so a
+    // phone that never opened Challenge can be handed another's whole ladder,
+    // and neither map can take a stage back.
+    final furtherStages = <String, int>{
+      for (final entry in remote.modeProgress.entries)
+        if (entry.value > (local.modeProgress[entry.key] ?? 1))
+          entry.key: entry.value,
+    };
+    if (furtherStages.isNotEmpty) {
+      await StorageService.raiseAllModeProgress(furtherStages);
+      changed = true;
+    }
+    final betterStageStars = <String, int>{
+      for (final entry in remote.modeStars.entries)
+        if (entry.value > (local.modeStars[entry.key] ?? 0))
+          entry.key: entry.value,
+    };
+    if (betterStageStars.isNotEmpty) {
+      await StorageService.raiseAllModeStars(betterStageStars);
+      changed = true;
+    }
+    // A chapter reward claimed anywhere is claimed everywhere. Merging the
+    // other way - letting a device forget a claim - would pay it out again.
+    final claimedElsewhere = remote.claimedChapters.where(
+      (id) => !local.claimedChapters.contains(id),
+    );
+    if (claimedElsewhere.isNotEmpty) {
+      await StorageService.raiseClaimedChapters(claimedElsewhere);
+      changed = true;
     }
 
     // Compared with the last thing this device pushed, not with the local

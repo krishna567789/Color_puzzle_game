@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "2026.10.01-1",
+  "documents": [
+    "assets/content/colors.json",
+    "assets/content/chapters.json",
+    "assets/content/levels/curve.json",
+    "assets/content/levels/pack_001.json",
+    "assets/content/levels/pack_002.json",
+    "assets/content/levels/pack_003.json",
+    "assets/content/levels/pack_004.json",
+    "assets/content/levels/pack_005.json",
+    "assets/content/modes.json",
+    "assets/content/quests.json",
+    "assets/content/events.json",
+    "assets/content/achievements.json",
+    "assets/content/shop.json",
+    "assets/content/wheel.json",
+    "assets/content/rewards.json"
+  ]
+}

@@ -56,15 +56,12 @@ class PlayGamesService {
 
   // --- NEW: Production Level Integrations ---
 
-  // REPLACE THESE WITH REAL IDs FROM PLAY CONSOLE LATER
-  static const String achievementBeginnerId = "CgkIuO_IqdMbEAIQAQ";
-  static const String achievementMasterId = "PLACEHOLDER_ACHIEVEMENT_MASTER";
-  static const String achievementHundredId = "PLACEHOLDER_ACHIEVEMENT_HUNDRED";
+  // Achievement ids are content, in assets/content/achievements.json. This one
+  // is a single sink rather than a goal, so it stays here.
   static const String leaderboardHighScoreId = "CgkIuO_IqdMbEAIQAw";
 
   static Future<void> unlockAchievement(String achievementId) async {
     if (!_isSignedIn) return;
-    if (achievementId.startsWith("PLACEHOLDER")) return;
     try {
       await GamesServices.unlock(
         achievement: Achievement(androidID: achievementId),

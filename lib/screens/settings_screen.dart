@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import '../core/app_colors.dart';
 import '../core/audio_service.dart';
+import '../core/cloud_save_service.dart';
+import '../core/legal_content.dart';
 import '../core/storage_service.dart';
 import '../core/play_games_service.dart';
 import '../core/review_service.dart';
 import '../core/haptic_service.dart';
+import 'dashboard_screen.dart';
+import 'legal_screen.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -55,6 +59,66 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _setLeftHandedLayout(bool value) {
     setState(() => _leftHandedLayout = value);
     StorageService.setLeftHandedLayout(value);
+  }
+
+  void _openDoc(LegalDoc doc) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => LegalScreen(doc: doc)),
+    );
+  }
+
+  /// The deletion the stores require a player to be able to reach on their own.
+  ///
+  /// It ends with a fresh dashboard rather than a pop-back: the screen under
+  /// this one read the wallet once when it opened, so a HUD still showing level
+  /// 40 and 3,000 coins afterwards would look like the button did nothing.
+  Future<void> _confirmDeletion() async {
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        title: const Text(
+          'Delete My Progress?',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'Every level, star, coin, gem, item, streak and setting on this '
+          'device is removed, and this cannot be undone. Anything you bought, '
+          'like removed ads, stays with you.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text(
+              'Keep Playing',
+              style: TextStyle(color: Colors.white54),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text(
+              'Delete Everything',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (go != true || !mounted) return;
+
+    await StorageService.deletePlayerData();
+    // Play Games keeps one save slot and its SDK offers no delete call, so the
+    // way to take the player's numbers back is to overwrite them with the
+    // now-empty progress.
+    if (PlayGamesService.isSignedIn) await CloudSaveService.upload();
+    if (!mounted) return;
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const DashboardScreen()),
+      (route) => false,
+    );
   }
 
   @override
@@ -160,6 +224,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               );
             }),
+            const SizedBox(height: 24),
+            const _SectionLabel('LEGAL'),
+            _buildActionTile(
+              'Privacy Policy',
+              Icons.privacy_tip_outlined,
+              AppColors.primaryButton,
+              () => _openDoc(LegalDocs.privacy),
+            ),
+            const SizedBox(height: 16),
+            _buildActionTile(
+              'Terms of Use',
+              Icons.description_outlined,
+              AppColors.primaryButton,
+              () => _openDoc(LegalDocs.terms),
+            ),
+            const SizedBox(height: 16),
+            _buildActionTile(
+              'Delete My Progress',
+              Icons.delete_forever_outlined,
+              Colors.redAccent,
+              _confirmDeletion,
+            ),
             // A fixed gap, not a Spacer: this list scrolls now, and a flex child
             // in an unbounded column is an error rather than an alignment.
             const SizedBox(height: 32),

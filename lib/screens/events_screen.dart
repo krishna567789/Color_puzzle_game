@@ -148,6 +148,14 @@ class _EventsScreenState extends State<EventsScreen> {
                     fit: BoxFit.cover,
                     color: isActive ? null : Colors.grey.withValues(alpha: 0.6),
                     colorBlendMode: isActive ? null : BlendMode.saturation,
+                    // The path comes from events.json, so a banner nobody packed
+                    // is a content mistake. It costs the card its art; it must
+                    // not cost the player an exception box.
+                    errorBuilder: (context, error, stack) => Container(
+                      height: 150,
+                      width: double.infinity,
+                      color: AppColors.cardBackground,
+                    ),
                   ),
                   // Banner Inner Shadow / Gradient Overlay for readability
                   Container(

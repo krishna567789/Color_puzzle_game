@@ -54,10 +54,16 @@ class _GameButtonState extends State<GameButton> with SingleTickerProviderStateM
         child: Stack(
           children: [
             // Shadow / Bottom Part
+            //
+            // Pinned to both edges rather than given `width`, because a
+            // Positioned child with no horizontal constraint is laid out with an
+            // unbounded width, and a width of infinity there asserts in debug and
+            // collapses to nothing in release.
             Positioned(
               bottom: 0,
+              left: 0,
+              right: 0,
               child: Container(
-                width: widget.width,
                 height: widget.height - 2,
                 decoration: BoxDecoration(
                   color: Color.lerp(widget.color, Colors.black, 0.4),
@@ -69,8 +75,9 @@ class _GameButtonState extends State<GameButton> with SingleTickerProviderStateM
             AnimatedPositioned(
               duration: const Duration(milliseconds: 50),
               top: _push,
+              left: 0,
+              right: 0,
               child: Container(
-                width: widget.width,
                 height: widget.height - 2,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(

@@ -45,7 +45,11 @@ class ProgressService {
   static Future<List<Quest>> todaysQuests() async {
     final counters = await StorageService.getDailyCounters();
     final claimed = (await StorageService.getClaimedQuestsToday()).toSet();
-    return QuestCatalog.forCounters(counters: counters, claimedIds: claimed);
+    return QuestCatalog.forCounters(
+      dayKey: StorageService.todayKey,
+      counters: counters,
+      claimedIds: claimed,
+    );
   }
 
   /// Credits a quest and stamps it claimed. False when it was already claimed
@@ -65,25 +69,17 @@ class ProgressService {
     return true;
   }
 
-  /// Adds to the wallet and writes it back in one step.
+  /// Adds to the wallet. The balance is read and written inside storage, so a
+  /// payout can never land on top of one that arrived a moment earlier.
   static Future<void> grant({int coins = 0, int gems = 0}) async {
-    if (coins != 0) {
-      await StorageService.saveCoins(await StorageService.getCoins() + coins);
-    }
-    if (gems != 0) {
-      await StorageService.saveGems(await StorageService.getGems() + gems);
-    }
+    if (coins != 0) await StorageService.addCoins(coins);
+    if (gems != 0) await StorageService.addGems(gems);
   }
 
   /// Removes from the wallet, refusing the whole purchase when it is short, so
   /// a balance can never go negative and no screen writes one of its own.
-  static Future<bool> spend({int coins = 0, int gems = 0}) async {
-    if (coins < 0 || gems < 0) return false;
-    if (coins != 0 && await StorageService.getCoins() < coins) return false;
-    if (gems != 0 && await StorageService.getGems() < gems) return false;
-    await grant(coins: -coins, gems: -gems);
-    return true;
-  }
+  static Future<bool> spend({int coins = 0, int gems = 0}) =>
+      StorageService.trySpend(coins: coins, gems: gems);
 
   static Future<void> recordDaily(Map<String, int> deltas) =>
       StorageService.bumpDailyCounters(deltas);

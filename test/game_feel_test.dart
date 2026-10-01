@@ -204,8 +204,7 @@ void main() {
   });
 
   testWidgets('a rejected pour puts the reason on screen', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(390, 844));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await useScreenSize(tester, const Size(390, 844));
     await tester.pumpWidget(
       MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -290,8 +289,7 @@ void main() {
   testWidgets('the HUD counts the bottles the level still wants', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(390, 844));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await useScreenSize(tester, const Size(390, 844));
     await tester.pumpWidget(
       MaterialApp(
         debugShowCheckedModeBanner: false,

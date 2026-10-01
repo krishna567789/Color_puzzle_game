@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'analytics_service.dart';
+import '../content/content_repository.dart';
+import '../content/content_types.dart';
 import 'storage_service.dart';
 import 'ad_manager.dart';
 
@@ -9,15 +11,17 @@ class IapService {
   static final InAppPurchase _inAppPurchase = InAppPurchase.instance;
   static late StreamSubscription<List<PurchaseDetails>> _subscription;
 
-  static const String removeAdsId = 'remove_ads_tier_1';
-  static const String buyCoins1000Id = 'coins_pack_large';
-  static const String buyCoins500Id = 'coins_pack_small';
-
   // State
   static bool _isAvailable = false;
   static List<ProductDetails> _products = [];
   static bool get isAvailable => _isAvailable;
   static List<ProductDetails> get products => _products;
+
+  /// The catalogue row behind a store product id, which is where what a purchase
+  /// *delivers* is written. A listing the game cannot describe pays out nothing,
+  /// so the store and the wallet can never disagree about a product's worth.
+  static ShopSpec? listing(String productId) =>
+      ContentRepository.content.shopForProduct(productId);
 
   static Future<void> init() async {
     _isAvailable = await _inAppPurchase.isAvailable();
@@ -40,10 +44,11 @@ class IapService {
   }
 
   static Future<void> _loadProducts() async {
-    const Set<String> productIds = <String>{
-      removeAdsId,
-      buyCoins1000Id,
-      buyCoins500Id,
+    // The products this build sells are content, so a listing is added by
+    // shipping a new `assets/content/shop.json`, never by a remote value.
+    final Set<String> productIds = {
+      for (final item in ContentRepository.content.shop)
+        if (item.isIap && item.iapProductId.isNotEmpty) item.iapProductId,
     };
     final ProductDetailsResponse response = await _inAppPurchase
         .queryProductDetails(productIds);
@@ -61,7 +66,7 @@ class IapService {
 
   static Future<void> buyProduct(ProductDetails product) async {
     final PurchaseParam purchaseParam = PurchaseParam(productDetails: product);
-    if (product.id == removeAdsId) {
+    if (listing(product.id)?.isEntitlement ?? false) {
       // Non-consumable
       await _inAppPurchase.buyNonConsumable(purchaseParam: purchaseParam);
     } else {
@@ -91,9 +96,9 @@ class IapService {
         } else if (purchaseDetails.status == PurchaseStatus.purchased) {
           _deliverProduct(purchaseDetails);
         } else if (purchaseDetails.status == PurchaseStatus.restored) {
-          // Only the non-consumable entitlement may be re-granted on a
-          // restore; crediting consumables again would mint free coins.
-          if (purchaseDetails.productID == removeAdsId) {
+          // Only an entitlement may be re-granted on a restore; crediting a
+          // consumable wallet again would mint free coins.
+          if (listing(purchaseDetails.productID)?.isEntitlement ?? false) {
             _deliverProduct(purchaseDetails);
           }
         }
@@ -109,7 +114,16 @@ class IapService {
     final purchaseId = purchaseDetails.purchaseID ?? productId;
     if (!await StorageService.markPurchaseDelivered(purchaseId)) return;
 
-    if (productId == removeAdsId) {
+    final item = listing(productId);
+    if (item == null) {
+      // The store took money for something this build's catalogue does not
+      // describe. That is a listing mistake, and it has to be visible in a log
+      // rather than paid for quietly by a player who gets nothing.
+      debugPrint('Purchased product $productId has no shop listing');
+      AnalyticsService.logPurchaseFailed('unlisted product $productId');
+      return;
+    }
+    if (item.entitlement == ShopSpec.kRemoveAds) {
       await StorageService.setHasRemovedAds(true);
 
       AdManager.updateHasRemovedAds(true);
@@ -117,16 +131,16 @@ class IapService {
       AnalyticsService.logPurchase(productId: productId, source: 'iap');
 
       debugPrint('Ads removed successfully.');
-    } else if (productId == buyCoins1000Id) {
-      await _addCoins(1000, productId);
-    } else if (productId == buyCoins500Id) {
-      await _addCoins(500, productId);
+    }
+    if (item.grantCoins > 0) {
+      await _addCoins(item.grantCoins, productId);
     }
   }
 
   static Future<void> _addCoins(int amount, String productId) async {
-    final currentCoins = await StorageService.getCoins();
-    await StorageService.saveCoins(currentCoins + amount);
+    // Credited as a delta through the wallet queue: a win paying out at the
+    // same moment used to have this purchase's coins written straight over it.
+    await StorageService.addCoins(amount);
     AnalyticsService.logPurchase(productId: productId, source: 'iap');
     debugPrint('$amount coins added.');
   }

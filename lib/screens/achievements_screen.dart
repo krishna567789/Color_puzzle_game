@@ -1,7 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../core/app_colors.dart';
+import '../core/achievement_service.dart';
 import '../core/progress_service.dart';
+import '../content/content_repository.dart';
 import '../core/storage_service.dart';
 import '../models/achievement_model.dart';
 import '../core/audio_service.dart';
@@ -24,49 +26,27 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
   }
 
   Future<void> _loadData() async {
-    final totalWon = await StorageService.getTotalLevelsWon();
+    // Every counter, read once. A card names the one it measures, so the goal
+    // and the progress bar can never disagree about what they are counting.
+    final counters = await AchievementService.readAll();
 
-    // Define achievement templates
-    List<Achievement> templates = [
-      Achievement(
-        id: 'win_1',
-        title: 'Beginner',
-        description: 'Win your first level',
-        goal: 1,
-        rewardCoins: 100,
-      ),
-      Achievement(
-        id: 'win_10',
-        title: 'Amateur',
-        description: 'Win 10 levels',
-        goal: 10,
-        rewardCoins: 250,
-      ),
-      Achievement(
-        id: 'win_50',
-        title: 'Professional',
-        description: 'Win 50 levels',
-        goal: 50,
-        rewardCoins: 800,
-        rewardGems: 3,
-      ),
-      Achievement(
-        id: 'win_100',
-        title: 'Grandmaster',
-        description: 'Win 100 levels',
-        goal: 100,
-        rewardCoins: 1500,
-        rewardGems: 5,
-      ),
-    ];
-
-    List<Achievement> loaded = [];
-    for (var a in templates) {
-      final data = await StorageService.getAchievementData(a.id);
-      a.isClaimed = data['claimed'] ?? false;
-      // For these specific achievements, progress is totalLevelsWon
-      a.currentProgress = totalWon;
-      loaded.add(a);
+    // The goal, the copy and the payout are content. Only how far a player has
+    // come and whether they have taken the reward belong here.
+    final loaded = <Achievement>[];
+    for (final spec in ContentRepository.content.achievements) {
+      final data = await StorageService.getAchievementData(spec.id);
+      loaded.add(
+        Achievement(
+          id: spec.id,
+          title: spec.title,
+          description: spec.description,
+          goal: spec.goal,
+          rewardCoins: spec.rewardCoins,
+          rewardGems: spec.rewardGems,
+          currentProgress: AchievementService.progressOf(counters, spec.stat),
+          isClaimed: data['claimed'] ?? false,
+        ),
+      );
     }
 
     setState(() {

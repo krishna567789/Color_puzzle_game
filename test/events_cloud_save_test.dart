@@ -195,6 +195,9 @@ void main() {
         totalLevelsWon: 96,
         playerXp: 1240,
         levelStars: {1: 3, 41: 2, 42: 3},
+        claimedChapters: ['first_pours', 'mixed_signals'],
+        modeProgress: {'challenge': 7, 'timeAttack': 12},
+        modeStars: {'challenge@6': 3, 'timeAttack@11': 2},
       );
       final read = CloudSave.decode(save.encode())!;
       expect(read.level, 42);
@@ -203,6 +206,11 @@ void main() {
       expect(read.totalLevelsWon, 96);
       expect(read.playerXp, 1240);
       expect(read.levelStars, {1: 3, 41: 2, 42: 3});
+      expect(read.claimedChapters, ['first_pours', 'mixed_signals']);
+      // A side mode's ladder travels with its player, or a second phone shows
+      // twelve locked stages to someone who has beaten them.
+      expect(read.modeProgress, {'challenge': 7, 'timeAttack': 12});
+      expect(read.modeStars, {'challenge@6': 3, 'timeAttack@11': 2});
       expect(read.savedAt, save.savedAt);
     });
 
@@ -221,7 +229,8 @@ void main() {
 
     test('a version 1 save still restores, without XP', () {
       // Written by the build before player levels existed. Everything it does
-      // carry has to come back; the XP it never had reads as zero.
+      // carry has to come back; the XP it never had reads as zero, and so does
+      // a chapter list it never had.
       final read = CloudSave.decode(
         '{"v":1,"savedAt":"2026-01-01T00:00:00.000Z","level":8,'
         '"coins":300,"gems":2,"wins":11,"stars":{"7":3}}',
@@ -231,6 +240,69 @@ void main() {
       expect(read.totalLevelsWon, 11);
       expect(read.levelStars, {7: 3});
       expect(read.playerXp, 0);
+      expect(
+        read.claimedChapters,
+        isEmpty,
+        reason: 'a save from before chapter rewards has claimed none',
+      );
+    });
+
+    test('a version 3 save still restores, with no ladder on it', () {
+      // Written by the build before the side modes had maps of their own. Every
+      // number it does carry has to come back, and the two maps it never had
+      // read as empty rather than as a save this build cannot serve.
+      final read = CloudSave.decode(
+        '{"v":3,"savedAt":"2026-01-01T00:00:00.000Z","level":9,"coins":10,'
+        '"gems":1,"wins":4,"xp":50,"stars":{"9":2},"chapters":["first_pours"]}',
+      );
+      expect(read, isNotNull);
+      expect(read!.level, 9);
+      expect(read.playerXp, 50);
+      expect(read.levelStars, {9: 2});
+      expect(read.claimedChapters, ['first_pours']);
+      expect(read.modeProgress, isEmpty);
+      expect(read.modeStars, isEmpty);
+    });
+
+    test('a merge hands a ladder over, and cannot take a stage back', () async {
+      // This phone has opened Challenge to stage 3 and beaten stage 2 three
+      // stars ago; Time Attack has reached 5.
+      await StorageService.raiseModeProgress('challenge', 3);
+      expect(await StorageService.saveModeStars('challenge', 2, 3), isTrue);
+      await StorageService.raiseModeProgress('timeAttack', 5);
+      // This device pushed after the copy below was written.
+      await StorageService.setCloudUploadedAt(DateTime(2026, 6, 1));
+
+      await CloudSaveService.merge(
+        CloudSave(
+          savedAt: DateTime(2026, 1, 1),
+          level: 1,
+          coins: 9000,
+          gems: 40,
+          totalLevelsWon: 0,
+          playerXp: 0,
+          levelStars: const {},
+          claimedChapters: const [],
+          modeProgress: {'challenge': 8, 'timeAttack': 2},
+          modeStars: {'challenge@2': 1, 'challenge@7': 3},
+        ),
+      );
+
+      expect(await StorageService.getModeProgress('challenge'), 8);
+      expect(
+        await StorageService.getModeProgress('timeAttack'),
+        5,
+        reason: 'a second phone cannot lock a stage this one already opened',
+      );
+      expect(
+        await StorageService.getModeStars('challenge', 2),
+        3,
+        reason: 'a worse rating from elsewhere does not overwrite a best',
+      );
+      expect(await StorageService.getModeStars('challenge', 7), 3);
+      // Stage numbers are not campaign level numbers, and the keys keep them
+      // apart: nothing a ladder earned can settle a campaign level's rating.
+      expect(await StorageService.getLevelStars(7), 0);
     });
 
     test('a merge can only give progress back', () async {
@@ -239,6 +311,8 @@ void main() {
       await StorageService.saveGems(4);
       await StorageService.saveLevelStars(7, 3);
       await StorageService.addPlayerXp(900);
+      // One chapter purse already collected on this device.
+      expect(await StorageService.claimChapter('first_pours'), isTrue);
       // This device pushed after the copy below was written, so its purse is
       // the newer one and must survive.
       await StorageService.setCloudUploadedAt(DateTime(2026, 6, 1));
@@ -252,6 +326,7 @@ void main() {
           totalLevelsWon: 250,
           playerXp: 400,
           levelStars: {7: 1, 8: 2},
+          claimedChapters: const ['mixed_signals'],
         ),
       );
 
@@ -266,6 +341,17 @@ void main() {
         await StorageService.getPlayerXp(),
         900,
         reason: 'a second phone cannot take earned XP away',
+      );
+      // A claim joins from either direction, which is what stops the same
+      // chapter paying out once per device.
+      expect(
+        await StorageService.getClaimedChapters(),
+        containsAll(['first_pours', 'mixed_signals']),
+      );
+      expect(
+        await StorageService.claimChapter('first_pours'),
+        isFalse,
+        reason: 'the purse this device already collected stays collected',
       );
     });
 
@@ -285,6 +371,7 @@ void main() {
           totalLevelsWon: 0,
           playerXp: 5000,
           levelStars: {},
+          claimedChapters: const [],
         ),
       );
 

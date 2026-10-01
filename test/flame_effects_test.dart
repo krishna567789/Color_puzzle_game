@@ -66,8 +66,7 @@ void main() {
   testWidgets('the effects layer covers the board but not the taps', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(390, 844));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await useScreenSize(tester, const Size(390, 844));
     await tester.pumpWidget(
       MaterialApp(
         debugShowCheckedModeBanner: false,

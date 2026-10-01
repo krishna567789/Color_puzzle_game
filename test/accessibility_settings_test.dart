@@ -37,8 +37,7 @@ void main() {
     Widget screen, {
     Size size = const Size(390, 844),
   }) async {
-    await tester.binding.setSurfaceSize(size);
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await useScreenSize(tester, size);
     await tester.pumpWidget(
       MaterialApp(
         debugShowCheckedModeBanner: false,

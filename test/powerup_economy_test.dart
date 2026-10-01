@@ -85,6 +85,31 @@ void main() {
       controller.dispose();
     });
 
+    test('a bottle the board has no room for is never sold', () {
+      final ceiling = GameController.maxBoardTubes;
+      final controller = controllerWith(
+        [for (var i = 0; i < ceiling - 1; i++) Tube(initialColors: [red])],
+        coins: 100000,
+      );
+
+      expect(controller.addExtraTube(), isTrue);
+      expect(controller.tubes.length, ceiling);
+      // The HUD greys the button off on this same answer.
+      expect(controller.canUsePowerUp(PowerUp.addTube), isFalse);
+
+      final coins = controller.coins;
+      expect(controller.addExtraTube(), isFalse);
+      expect(controller.addExtraTube(adFunded: true), isFalse);
+      expect(controller.tubes.length, ceiling);
+      expect(
+        controller.coins,
+        coins,
+        reason: 'the ceiling has to stop the sale, not only the bottle',
+      );
+
+      controller.dispose();
+    });
+
     test('undo is unavailable until a move has been made', () {
       final controller = controllerWith([Tube(initialColors: [red]), Tube()]);
 

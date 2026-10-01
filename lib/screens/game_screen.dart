@@ -3,11 +3,13 @@ import 'dart:math';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import '../controllers/game_controller.dart';
+import '../content/content_repository.dart';
 import '../core/storage_service.dart';
 import '../core/ad_manager.dart';
 import '../effects/effects_game.dart';
 import '../widgets/tube_widget.dart';
 import '../core/app_colors.dart';
+import '../game/board_layout.dart';
 import '../game/pour_geometry.dart';
 import '../widgets/common/hand_indicator.dart';
 import '../widgets/common/game_button.dart';
@@ -27,7 +29,11 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   late final GameController _controller;
-  late List<GlobalKey> _tubeKeys;
+
+  /// One key per bottle on the board, created as the board asks for them. A
+  /// level can carry more bottles than the last one, and a power-up can add one
+  /// mid-level, so this grows rather than being fixed at some past board's size.
+  final List<GlobalKey> _tubeKeys = [];
   bool _isEndDialogVisible = false;
   int _solvedTubesCount = 0;
   bool _showTutorial = false;
@@ -52,7 +58,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     );
     _controller.addListener(_onGameStateChanged);
     _currentLevelForKeys = _controller.currentLevel;
-    _tubeKeys = List.generate(20, (_) => GlobalKey());
     _victoryShake = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -80,7 +85,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
     // Refresh keys if level changed to avoid "Duplicate GlobalKeys" during AnimatedSwitcher transition
     if (_controller.currentLevel != _currentLevelForKeys) {
-      _tubeKeys = List.generate(20, (_) => GlobalKey());
+      _tubeKeys.clear();
       _currentLevelForKeys = _controller.currentLevel;
     }
 
@@ -127,9 +132,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       case GameMode.classic:
         return 'Level ${_controller.currentLevel}';
       case GameMode.challenge:
-        return 'Challenge';
+        return 'Challenge · Stage ${_controller.currentLevel}';
       case GameMode.timeAttack:
-        return 'Time Attack';
+        return 'Time Attack · Stage ${_controller.currentLevel}';
       case GameMode.daily:
         return 'Daily Challenge';
     }
@@ -394,6 +399,14 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           level: _controller.currentLevel,
           coinsEarned: _controller.coinsEarned,
           gemsEarned: _controller.gemsEarned,
+          chapterName: _controller.chapterReward?.name,
+          ribbon: _controller.winRibbon,
+          rewardNote:
+              _controller.activeMode == GameMode.daily &&
+                  _controller.dailyPrizeAlreadyClaimed
+              ? "Today's prize is already claimed.\nCome back tomorrow."
+              : null,
+          hasNextStage: _controller.hasNextStage,
           onNext: () {
             Navigator.pop(context);
             _controller.nextLevel();
@@ -570,40 +583,20 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     return Offset(sin(t * pi * 7) * 7 * decay, 0);
   }
 
-  // The board is a grid of 55 x 160 bottles with these gaps, in unscaled units.
-  static const double _tubeGap = 24;
-  static const double _rowGap = 40;
-
-  /// How many bottles fit in a row, and the scale that makes the whole grid fit
-  /// the screen between the top bar and the power-up strip.
-  ///
-  /// A `Wrap` only knows its row count once the scale is known, and the scale
-  /// depends on the row count, so the grid shape is decided here and the `Wrap`
-  /// is then given exactly enough width to lay out that shape.
-  ({int columns, double scale}) _boardLayout(int tubeCount, Size screen) {
-    // The widest row the screen can carry, then the bottle count spread evenly
-    // over the rows that need - 9 bottles are a 3 x 3 board, not a 4 / 4 / 1.
-    final target = tubeCount >= 12 ? 5 : 4;
-    // The controller fills its tubes a frame after the first build, and a
-    // zero-row grid divides by zero on the way to the scale.
-    final rows = max(1, (tubeCount / target).ceil());
-    final columns = max(1, min(tubeCount, (tubeCount / rows).ceil()));
-    // 100 for the top bar, and 40 + 56 + the badge overhang for the tools.
-    final usableHeight = screen.height - 100 - 112 - 16;
-    final widthScale =
-        (screen.width - 32) / (columns * 55 + (columns - 1) * _tubeGap);
-    final heightScale = usableHeight / (rows * 160 + (rows - 1) * _rowGap);
-    final scale = min(
-      widthScale,
-      heightScale,
-    ).clamp(0.5, screen.width > 600 ? 1.3 : 1.1);
-    return (columns: columns, scale: scale);
+  /// The key of the bottle at [index], making one if the board has outgrown the
+  /// list. This used to be a fixed twenty-key list, which is what crashed a
+  /// level that asked for a twenty-first bottle.
+  GlobalKey _keyAt(int index) {
+    while (_tubeKeys.length <= index) {
+      _tubeKeys.add(GlobalKey());
+    }
+    return _tubeKeys[index];
   }
 
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.sizeOf(context);
-    final layout = _boardLayout(_controller.tubes.length, screenSize);
+    final layout = resolveBoardLayout(_controller.tubes.length, screenSize);
     final double scale = layout.scale;
     // A tipped-over bottle is a whole tube-length long, so the pour has to know
     // where the screen ends to keep it from hanging off the side.
@@ -685,12 +678,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                         SizedBox(
                           // Exactly one row of `columns` bottles wide, so the wrap
                           // breaks rows where the layout math says it should.
-                          width:
-                              layout.columns * 55 * scale +
-                              (layout.columns - 1) * _tubeGap * scale,
+                          width: layout.rowWidth,
                           child: Wrap(
-                            spacing: _tubeGap * scale,
-                            runSpacing: _rowGap * scale,
+                            spacing: kTubeGap * scale,
+                            runSpacing: kRowGap * scale,
                             alignment: WrapAlignment.center,
                             children: List.generate(_controller.tubes.length, (
                               index,
@@ -704,9 +695,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                               if (isPouringSource &&
                                   _controller.pouringToIndex != null) {
                                 final sourceContext =
-                                    _tubeKeys[index].currentContext;
+                                    _keyAt(index).currentContext;
                                 final targetContext =
-                                    _tubeKeys[_controller.pouringToIndex!]
+                                    _keyAt(_controller.pouringToIndex!)
                                         .currentContext;
                                 if (sourceContext != null &&
                                     targetContext != null) {
@@ -741,7 +732,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                               }
 
                               return Container(
-                                key: _tubeKeys[index],
+                                key: _keyAt(index),
                                 child: TubeWidget(
                                   tube: _controller.tubes[index],
                                   isSelected:
@@ -841,43 +832,38 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     );
   }
 
+  /// The room this player bought.
+  ///
+  /// The look comes out of the same document the shop sells it from, so a card
+  /// cannot advertise a gradient the board does not wear - and a new theme is a
+  /// row in a file, not a branch in a screen that has to ship again.
   Widget _buildBackground() {
-    if (_controller.selectedThemeId == 'forest_theme') {
+    final theme = ContentRepository.content.themeFor(
+      _controller.selectedThemeId,
+    );
+    if (theme == null) {
       return Positioned.fill(
-        child: Container(
-          decoration: const BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment.topCenter,
-              radius: 1.5,
-              colors: [
-                Color(0xFF2E7D32), // Lighter green top
-                Color(0xFF1B5E20), // Dark green
-                Color(0xFF051205), // Very dark bottom
-              ],
-            ),
-          ),
-        ),
-      );
-    } else if (_controller.selectedThemeId == 'space_theme') {
-      return Positioned.fill(
-        child: Container(
-          decoration: const BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment.topCenter,
-              radius: 1.5,
-              colors: [
-                Color(0xFF2B1B54), // Lighter purple top
-                Color(0xFF0F0524), // Dark deep space bottom
-              ],
-            ),
-          ),
+        child: Image.asset(
+          'assets/images/wizard_room_bg.jpg',
+          fit: BoxFit.cover,
         ),
       );
     }
-
-    // Default theme (Wizard Room)
+    if (theme.image.isNotEmpty) {
+      return Positioned.fill(
+        child: Image.asset(theme.image, fit: BoxFit.cover),
+      );
+    }
     return Positioned.fill(
-      child: Image.asset('assets/images/wizard_room_bg.jpg', fit: BoxFit.cover),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.topCenter,
+            radius: 1.5,
+            colors: theme.gradientColors,
+          ),
+        ),
+      ),
     );
   }
 
@@ -1134,7 +1120,13 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     return BouncingButton(
       onTap: () {
         if (!usable) {
-          _showSnack('Not available for the current board.');
+          _showSnack(
+            power == PowerUp.addTube && _controller.isAtTubeCeiling
+                // The button has earned its grey colour, and the player deserves
+                // to know which ceiling it is.
+                ? 'The board cannot hold another bottle.'
+                : 'Not available for the current board.',
+          );
           return;
         }
         if (payWithCoins) {

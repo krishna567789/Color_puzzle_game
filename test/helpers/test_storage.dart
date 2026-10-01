@@ -39,3 +39,18 @@ void stubAdsChannel() {
             const StandardMethodCodec().encodeSuccessEnvelope(null),
       );
 }
+
+/// Paint a widget into [size] *and* let it see [size].
+///
+/// `setSurfaceSize` only moves the render surface; `MediaQuery` still reports
+/// the test window's own 800x600, so a responsive screen lays itself out for one
+/// phone and paints itself into another. Any assertion about what fits on a
+/// small screen is vacuous until the view agrees with the surface.
+Future<void> useScreenSize(WidgetTester tester, Size size) async {
+  tester.view.devicePixelRatio = 3;
+  tester.view.physicalSize = Size(size.width * 3, size.height * 3);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.view.resetPhysicalSize);
+  await tester.binding.setSurfaceSize(size);
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+}

@@ -1,0 +1,421 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "2026.10.01-1",
+  "packId": "pack_002",
+  "levels": [
+    {
+      "id": "l021_pack_002",
+      "level": 21,
+      "chapter": "mixed_signals",
+      "capacity": 4,
+      "colors": ["blue", "red", "pink", "purple", "green", "cyan"],
+      "tubes": [
+        ["blue", "blue", "blue", "pink"],
+        ["red", "pink", "pink", "blue"],
+        ["pink", "cyan"],
+        ["purple", "green"],
+        [],
+        [],
+        ["cyan", "cyan", "green", "green"],
+        ["red", "red", "red", "cyan"],
+        ["green", "purple", "purple", "purple"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "parMoves": 10
+    },
+    {
+      "id": "l022_pack_002",
+      "level": 22,
+      "chapter": "mixed_signals",
+      "capacity": 4,
+      "colors": ["purple", "red", "orange", "pink", "teal", "blue"],
+      "tubes": [
+        ["purple", "purple", "orange"],
+        ["red", "red", "blue"],
+        ["purple", "purple", "orange"],
+        [],
+        ["teal", "teal"],
+        ["pink", "pink", "teal", "teal"],
+        ["red", "orange", "pink"],
+        ["orange", "red"],
+        ["blue", "blue", "blue", "pink"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 3, 0, 0, 0],
+      "parMoves": 10
+    },
+    {
+      "id": "l023_pack_002",
+      "level": 23,
+      "chapter": "mixed_signals",
+      "capacity": 4,
+      "colors": ["red", "yellow", "green", "teal", "orange", "cyan"],
+      "tubes": [
+        ["red", "red", "red", "yellow"],
+        [],
+        ["red", "yellow"],
+        ["teal", "teal", "teal", "green"],
+        ["orange", "orange"],
+        ["cyan", "green", "yellow"],
+        ["orange", "orange"],
+        ["green", "cyan", "cyan", "green"],
+        ["teal", "cyan", "yellow"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 2, 0, 0, 0],
+      "parMoves": 12
+    },
+    {
+      "id": "l024_pack_002",
+      "level": 24,
+      "chapter": "mixed_signals",
+      "capacity": 4,
+      "colors": ["cyan", "yellow", "teal", "purple", "red", "orange"],
+      "tubes": [
+        ["cyan", "cyan", "cyan", "teal"],
+        ["yellow", "yellow", "orange"],
+        ["teal", "teal", "teal", "red"],
+        ["purple", "red", "red", "cyan"],
+        ["red", "yellow", "purple", "purple"],
+        ["yellow", "orange", "orange"],
+        [],
+        [],
+        ["orange", "purple"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 2, 0, 0, 0],
+      "parMoves": 10
+    },
+    {
+      "id": "l025_pack_002",
+      "level": 25,
+      "chapter": "mixed_signals",
+      "capacity": 4,
+      "colors": ["orange", "red", "blue", "yellow", "green", "purple", "pink"],
+      "tubes": [
+        ["orange", "orange", "pink"],
+        ["red", "red", "orange"],
+        ["blue", "purple"],
+        ["yellow", "orange", "green", "green"],
+        ["blue", "blue", "blue", "pink"],
+        ["purple"],
+        ["green", "purple", "purple"],
+        ["red", "red", "pink", "pink"],
+        ["yellow", "yellow", "yellow", "green"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0, 0, 3, 0],
+      "parMoves": 12
+    },
+    {
+      "id": "l026_pack_002",
+      "level": 26,
+      "chapter": "mixed_signals",
+      "capacity": 4,
+      "colors": ["cyan", "orange", "teal", "yellow", "red", "blue", "pink"],
+      "tubes": [
+        ["blue", "blue"],
+        ["orange", "orange", "orange", "teal"],
+        ["teal", "yellow", "cyan", "cyan"],
+        ["yellow", "teal", "yellow", "pink"],
+        ["red", "red", "red", "orange"],
+        ["blue", "blue", "cyan"],
+        ["pink", "teal", "pink"],
+        [],
+        ["red", "pink", "yellow", "cyan"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0, 0, 0, 3],
+      "parMoves": 15
+    },
+    {
+      "id": "l027_pack_002",
+      "level": 27,
+      "chapter": "mixed_signals",
+      "capacity": 4,
+      "colors": ["orange", "cyan", "pink", "teal", "purple", "red", "blue"],
+      "tubes": [
+        ["pink", "pink", "orange"],
+        ["cyan", "cyan", "cyan", "teal"],
+        ["pink", "orange"],
+        ["teal", "teal", "teal", "orange"],
+        ["purple", "purple", "blue", "blue"],
+        ["red", "red", "red", "cyan"],
+        [],
+        ["pink", "red", "orange"],
+        ["blue", "blue", "purple", "purple"]
+      ],
+      "hidden": [0, 0, 0, 0, 3, 0, 0, 0, 0],
+      "parMoves": 12
+    },
+    {
+      "id": "l028_pack_002",
+      "level": 28,
+      "chapter": "mixed_signals",
+      "capacity": 4,
+      "colors": ["pink", "teal", "red", "green", "blue", "purple", "orange"],
+      "tubes": [
+        ["pink", "teal"],
+        ["teal", "teal", "pink", "red"],
+        ["red", "red", "blue", "blue"],
+        ["green", "green", "green", "teal"],
+        ["blue", "red"],
+        ["purple", "pink", "pink", "green"],
+        ["orange", "orange"],
+        ["orange", "orange"],
+        ["purple", "purple", "purple", "blue"]
+      ],
+      "hidden": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+      "parMoves": 12
+    },
+    {
+      "id": "l029_pack_002",
+      "level": 29,
+      "chapter": "mixed_signals",
+      "capacity": 4,
+      "colors": ["teal", "cyan", "green", "purple", "yellow", "blue", "orange"],
+      "tubes": [
+        ["teal", "blue", "green"],
+        ["cyan", "cyan", "green"],
+        ["purple", "purple", "orange", "orange"],
+        ["cyan", "purple"],
+        ["yellow", "yellow", "yellow", "green"],
+        ["blue", "blue", "blue", "cyan"],
+        [],
+        ["purple", "green", "orange", "orange"],
+        ["teal", "teal", "teal", "yellow"]
+      ],
+      "hidden": [0, 2, 0, 0, 0, 0, 0, 0, 0],
+      "parMoves": 13
+    },
+    {
+      "id": "l030_pack_002",
+      "level": 30,
+      "chapter": "mixed_signals",
+      "capacity": 4,
+      "colors": ["cyan", "purple", "blue", "pink", "teal", "yellow", "red"],
+      "tubes": [
+        ["cyan", "cyan", "cyan", "pink"],
+        ["purple", "purple", "purple", "teal"],
+        [],
+        [],
+        ["teal", "teal", "teal", "red"],
+        ["yellow", "pink", "pink", "cyan"],
+        ["red", "red", "blue", "blue"],
+        ["pink", "red", "blue", "blue"],
+        ["yellow", "yellow", "yellow", "purple"]
+      ],
+      "hidden": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+      "parMoves": 10
+    },
+    {
+      "id": "l031_pack_002",
+      "level": 31,
+      "chapter": "mixed_signals",
+      "capacity": 4,
+      "colors": ["purple", "red", "green", "teal", "blue", "yellow", "pink", "orange"],
+      "tubes": [
+        ["red"],
+        ["red", "red", "red"],
+        ["green", "yellow", "green", "green"],
+        ["orange", "orange", "orange", "purple"],
+        ["blue", "blue", "blue", "pink"],
+        ["yellow", "purple"],
+        ["pink", "pink", "pink", "yellow"],
+        ["orange", "yellow"],
+        ["teal", "teal", "teal", "blue"],
+        ["teal", "green", "purple", "purple"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0, 0, 0, 3, 0],
+      "parMoves": 13
+    },
+    {
+      "id": "l032_pack_002",
+      "level": 32,
+      "chapter": "mixed_signals",
+      "capacity": 4,
+      "colors": ["pink", "teal", "green", "yellow", "purple", "blue", "red", "orange"],
+      "tubes": [
+        ["pink", "green", "green", "yellow"],
+        ["yellow", "yellow"],
+        ["yellow", "teal", "teal"],
+        ["red", "red"],
+        ["purple", "purple", "purple", "green"],
+        ["pink", "pink", "pink", "orange"],
+        ["red"],
+        ["orange", "orange", "orange", "teal"],
+        ["blue", "green", "teal", "red"],
+        ["blue", "blue", "blue", "purple"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0, 0, 3, 0, 0],
+      "parMoves": 14
+    },
+    {
+      "id": "l033_pack_002",
+      "level": 33,
+      "chapter": "mixed_signals",
+      "capacity": 4,
+      "colors": ["cyan", "yellow", "purple", "teal", "pink", "red", "green", "orange"],
+      "tubes": [
+        ["cyan", "cyan", "teal", "purple"],
+        ["yellow", "yellow", "yellow", "red"],
+        ["purple", "purple", "purple", "yellow"],
+        ["teal", "teal", "cyan", "teal"],
+        ["pink", "pink"],
+        ["red", "green", "green"],
+        ["orange", "orange", "pink", "pink"],
+        ["orange"],
+        ["red", "green", "orange"],
+        ["cyan", "red", "green"]
+      ],
+      "hidden": [0, 0, 0, 3, 0, 0, 0, 0, 0, 0],
+      "parMoves": 15
+    },
+    {
+      "id": "l034_pack_002",
+      "level": 34,
+      "chapter": "mixed_signals",
+      "capacity": 4,
+      "colors": ["teal", "yellow", "red", "green", "cyan", "purple", "orange", "pink"],
+      "tubes": [
+        ["teal", "yellow", "yellow"],
+        ["teal"],
+        ["red", "green", "pink", "green"],
+        ["green", "cyan", "yellow"],
+        ["purple", "pink", "pink"],
+        ["red", "red", "green", "cyan"],
+        ["orange", "orange", "orange", "pink"],
+        ["teal", "teal"],
+        ["cyan", "red", "cyan", "yellow"],
+        ["purple", "purple", "purple", "orange"]
+      ],
+      "hidden": [2, 0, 0, 0, 0, 0, 0, 0, 0, 3],
+      "parMoves": 18
+    },
+    {
+      "id": "l035_pack_002",
+      "level": 35,
+      "chapter": "mixed_signals",
+      "capacity": 4,
+      "colors": ["yellow", "teal", "green", "cyan", "orange", "red", "blue", "purple"],
+      "tubes": [
+        ["yellow", "yellow", "red"],
+        ["teal", "orange", "purple", "purple"],
+        ["green", "green", "green", "cyan"],
+        ["yellow", "orange", "red"],
+        ["red", "teal"],
+        ["red", "purple", "teal", "teal"],
+        ["blue", "blue", "blue", "orange"],
+        [],
+        ["blue", "cyan", "cyan", "yellow"],
+        ["green", "orange", "cyan", "purple"]
+      ],
+      "hidden": [0, 0, 3, 0, 0, 0, 0, 0, 3, 0],
+      "parMoves": 19
+    },
+    {
+      "id": "l036_pack_002",
+      "level": 36,
+      "chapter": "mixed_signals",
+      "capacity": 4,
+      "colors": ["orange", "yellow", "green", "blue", "teal", "pink", "cyan", "red"],
+      "tubes": [
+        ["orange", "orange"],
+        ["yellow", "yellow", "yellow", "pink"],
+        [],
+        ["green", "red", "green", "green"],
+        ["blue", "teal", "red", "red"],
+        ["pink", "pink", "pink", "blue"],
+        ["cyan", "teal", "blue", "orange"],
+        ["orange", "green"],
+        ["cyan", "cyan", "cyan", "teal"],
+        ["yellow", "blue", "teal", "red"]
+      ],
+      "hidden": [0, 3, 0, 0, 3, 0, 0, 0, 0, 0],
+      "parMoves": 17
+    },
+    {
+      "id": "l037_pack_002",
+      "level": 37,
+      "chapter": "mixed_signals",
+      "capacity": 4,
+      "colors": ["pink", "yellow", "blue", "green", "cyan", "teal", "red", "orange", "purple"],
+      "tubes": [
+        ["pink", "purple", "pink", "blue"],
+        ["yellow", "yellow", "yellow", "green"],
+        ["blue", "blue", "blue", "cyan"],
+        ["green", "pink", "cyan", "red"],
+        ["cyan", "purple", "cyan", "teal"],
+        ["teal", "teal"],
+        ["red", "red"],
+        ["orange", "orange", "orange", "yellow"],
+        ["purple", "purple", "green", "green"],
+        ["orange", "pink", "red", "teal"],
+        []
+      ],
+      "hidden": [3, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0],
+      "parMoves": 18
+    },
+    {
+      "id": "l038_pack_002",
+      "level": 38,
+      "chapter": "mixed_signals",
+      "capacity": 4,
+      "colors": ["teal", "orange", "red", "purple", "pink", "blue", "yellow", "cyan", "green"],
+      "tubes": [
+        ["teal", "orange", "purple", "yellow"],
+        ["teal", "teal", "purple", "blue"],
+        ["yellow", "yellow"],
+        ["cyan", "cyan"],
+        ["pink", "pink", "pink", "cyan"],
+        ["purple", "orange", "orange", "pink"],
+        [],
+        ["cyan", "yellow", "blue", "blue"],
+        ["green", "green", "green", "blue"],
+        ["red", "red", "red", "orange"],
+        ["green", "teal", "purple", "red"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 0, 0, 3, 0, 3, 0],
+      "parMoves": 18
+    },
+    {
+      "id": "l039_pack_002",
+      "level": 39,
+      "chapter": "mixed_signals",
+      "capacity": 4,
+      "colors": ["cyan", "blue", "teal", "yellow", "green", "orange", "pink", "red", "purple"],
+      "tubes": [
+        ["green", "red", "red"],
+        [],
+        ["teal", "teal", "teal", "yellow"],
+        ["yellow", "yellow", "yellow", "teal"],
+        ["pink", "orange", "purple", "blue"],
+        ["orange", "purple"],
+        ["pink", "pink", "pink", "cyan"],
+        ["red", "purple", "red", "blue"],
+        ["purple", "cyan", "blue", "blue"],
+        ["green", "orange", "cyan", "cyan"],
+        ["green", "green", "orange"]
+      ],
+      "hidden": [0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 2],
+      "parMoves": 20
+    },
+    {
+      "id": "l040_pack_002",
+      "level": 40,
+      "chapter": "mixed_signals",
+      "capacity": 4,
+      "colors": ["teal", "blue", "green", "red", "orange", "purple", "cyan", "yellow", "pink"],
+      "tubes": [
+        ["blue", "teal", "teal"],
+        ["blue", "blue"],
+        ["green", "green", "green", "cyan"],
+        ["purple", "orange", "red"],
+        ["blue"],
+        ["purple", "yellow", "purple", "orange"],
+        ["cyan", "cyan", "cyan", "pink"],
+        ["yellow", "purple", "orange", "teal"],
+        ["pink", "pink", "pink", "green"],
+        ["red", "yellow", "orange", "teal"],
+        ["yellow", "red", "red"]
+      ],
+      "hidden": [0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 2],
+      "parMoves": 21
+    }
+  ]
+}

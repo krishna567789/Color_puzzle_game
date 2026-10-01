@@ -35,6 +35,9 @@ EDGE = {
     "neon": [(0.0, 0.03), (0.28, 0.14), (0.58, 0.50), (0.84, 1.0), (1.0, 1.0)],
     "crystal": [(0.0, 0.0), (0.46, 0.08), (0.70, 0.44), (0.88, 1.0), (1.0, 1.0)],
     "wood": [(0.0, 0.0), (0.42, 0.0), (0.60, 0.92), (1.0, 1.0)],
+    # A rim that reaches its full wall before the silhouette, so the bottle reads
+    # as a hard-edged vessel rather than a wet one.
+    "metal": [(0.0, 0.0), (0.34, 0.12), (0.62, 0.66), (0.84, 1.0), (1.0, 1.0)],
 }
 
 BANDS = {
@@ -44,6 +47,19 @@ BANDS = {
     # A wooden foot and collar, but only half-silvered: an opaque one would eat
     # the bottom layer of liquid and the player could not read its colour.
     "wood": [(0.0, 0.5), (0.10, 0.5), (0.14, 0.0), (0.86, 0.0), (0.90, 0.45), (1.0, 0.45)],
+    # Foot, collar and one hoop across the middle of the body. The hoop is thin
+    # and semi-transparent so the layers it crosses stay legible.
+    # A capped flask: a solid foot and collar, and nothing across the body,
+    # because a band over the middle would eat a layer of liquid. Half-silvered
+    # for the same reason the wooden one is.
+    "metal": [
+        (0.0, 0.5),
+        (0.09, 0.5),
+        (0.15, 0.0),
+        (0.83, 0.0),
+        (0.89, 0.5),
+        (1.0, 0.5),
+    ],
 }
 
 # Skin id -> look. The ids are the ones the shop already sells. `edge` scales the
@@ -72,6 +88,78 @@ SKINS = {
         "edge": 1.0,
         "strip": 0.0,
         "kind": "wood",
+    },
+    "ember_tube": {
+        "tint": (1.0, 0.42, 0.16, 1.0),
+        "edge": 1.1,
+        "strip": 0.50,
+        "kind": "glass",
+    },
+    "ocean_flask": {
+        "tint": (0.26, 0.58, 1.0, 1.0),
+        "edge": 1.05,
+        "strip": 0.60,
+        "kind": "glass",
+    },
+    "ruby_goblet": {
+        "tint": (1.0, 0.26, 0.40, 1.0),
+        "edge": 1.2,
+        "strip": 0.85,
+        "kind": "crystal",
+    },
+    "mint_vial": {
+        "tint": (0.42, 1.0, 0.74, 1.0),
+        "edge": 1.05,
+        "strip": 0.55,
+        "kind": "glass",
+    },
+    "solar_tube": {
+        "tint": (1.0, 0.76, 0.16, 1.0),
+        "edge": 1.15,
+        "strip": 0.28,
+        "kind": "neon",
+    },
+    "rose_quartz": {
+        "tint": (1.0, 0.56, 0.80, 1.0),
+        "edge": 1.18,
+        "strip": 0.78,
+        "kind": "crystal",
+    },
+    "obsidian_flask": {
+        "tint": (0.10, 0.10, 0.20, 1.0),
+        "edge": 1.3,
+        "strip": 0.95,
+        "kind": "metal",
+    },
+    "chrome_tube": {
+        "tint": (0.58, 0.70, 0.92, 1.0),
+        "edge": 1.25,
+        "strip": 1.0,
+        "kind": "metal",
+    },
+    "bubblegum_tube": {
+        "tint": (1.0, 0.34, 0.66, 1.0),
+        "edge": 1.14,
+        "strip": 0.32,
+        "kind": "neon",
+    },
+    "lime_vial": {
+        "tint": (0.74, 1.0, 0.26, 1.0),
+        "edge": 1.05,
+        "strip": 0.52,
+        "kind": "glass",
+    },
+    "midnight_bottle": {
+        "tint": (0.32, 0.36, 0.88, 1.0),
+        "edge": 1.08,
+        "strip": 0.58,
+        "kind": "crystal",
+    },
+    "gilded_flask": {
+        "tint": (1.0, 0.72, 0.14, 1.0),
+        "edge": 1.28,
+        "strip": 0.92,
+        "kind": "metal",
     },
 }
 
@@ -372,8 +460,10 @@ def main():
     # ---- hero pass: one filled three-quarter render per skin --------------
     scene = new_scene()
     meshes, top = import_bottle(scene)
-    scene.render.resolution_x = 560
-    scene.render.resolution_y = 1000
+    # The shop card asks Flutter to decode at 348 px tall, so a taller
+    # render is bytes nobody ever looks at, and sixteen of them is a download.
+    scene.render.resolution_x = 224
+    scene.render.resolution_y = 400
     scene.render.use_border = False
 
     # The straight body runs 15..102.5 mm at 27.5 mm radius; below that the base

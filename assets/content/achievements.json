@@ -1,0 +1,306 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "2026.10.01-1",
+  "achievements": [
+    {
+      "id": "win_1",
+      "title": "Beginner",
+      "description": "Win your first level",
+      "stat": "totalWins",
+      "goal": 1,
+      "rewardCoins": 100,
+      "rewardGems": 0,
+      "playGamesId": "CgkIuO_IqdMbEAIQAQ"
+    },
+    {
+      "id": "win_25",
+      "title": "Amateur",
+      "description": "Win 25 levels",
+      "stat": "totalWins",
+      "goal": 25,
+      "rewardCoins": 300,
+      "rewardGems": 0,
+      "playGamesId": ""
+    },
+    {
+      "id": "win_100",
+      "title": "Grandmaster",
+      "description": "Win 100 levels",
+      "stat": "totalWins",
+      "goal": 100,
+      "rewardCoins": 900,
+      "rewardGems": 3,
+      "playGamesId": ""
+    },
+    {
+      "id": "star_10",
+      "title": "Sprinkler",
+      "description": "Earn 10 stars across the campaign",
+      "stat": "totalStars",
+      "goal": 10,
+      "rewardCoins": 120,
+      "rewardGems": 0,
+      "playGamesId": ""
+    },
+    {
+      "id": "star_60",
+      "title": "Collector",
+      "description": "Earn 60 stars across the campaign",
+      "stat": "totalStars",
+      "goal": 60,
+      "rewardCoins": 300,
+      "rewardGems": 1,
+      "playGamesId": ""
+    },
+    {
+      "id": "star_150",
+      "title": "Halfway to the Sky",
+      "description": "Earn 150 stars across the campaign",
+      "stat": "totalStars",
+      "goal": 150,
+      "rewardCoins": 700,
+      "rewardGems": 3,
+      "playGamesId": ""
+    },
+    {
+      "id": "perfect_5",
+      "title": "Tidy Pours",
+      "description": "Finish 5 levels at three stars",
+      "stat": "perfectLevels",
+      "goal": 5,
+      "rewardCoins": 150,
+      "rewardGems": 0,
+      "playGamesId": ""
+    },
+    {
+      "id": "perfect_25",
+      "title": "Short Way Home",
+      "description": "Finish 25 levels at three stars",
+      "stat": "perfectLevels",
+      "goal": 25,
+      "rewardCoins": 400,
+      "rewardGems": 2,
+      "playGamesId": ""
+    },
+    {
+      "id": "perfect_60",
+      "title": "Ruthless",
+      "description": "Finish 60 levels at three stars",
+      "stat": "perfectLevels",
+      "goal": 60,
+      "rewardCoins": 1000,
+      "rewardGems": 5,
+      "playGamesId": ""
+    },
+    {
+      "id": "level_10",
+      "title": "Getting Warm",
+      "description": "Unlock level 10",
+      "stat": "reachedLevel",
+      "goal": 10,
+      "rewardCoins": 120,
+      "rewardGems": 0,
+      "playGamesId": ""
+    },
+    {
+      "id": "level_40",
+      "title": "Deep End",
+      "description": "Unlock level 40",
+      "stat": "reachedLevel",
+      "goal": 40,
+      "rewardCoins": 400,
+      "rewardGems": 2,
+      "playGamesId": ""
+    },
+    {
+      "id": "level_80",
+      "title": "Final Stretch",
+      "description": "Unlock level 80",
+      "stat": "reachedLevel",
+      "goal": 80,
+      "rewardCoins": 900,
+      "rewardGems": 4,
+      "playGamesId": ""
+    },
+    {
+      "id": "player_3",
+      "title": "Apprentice",
+      "description": "Reach player level 3",
+      "stat": "playerLevel",
+      "goal": 3,
+      "rewardCoins": 100,
+      "rewardGems": 0,
+      "playGamesId": ""
+    },
+    {
+      "id": "player_8",
+      "title": "Practised",
+      "description": "Reach player level 8",
+      "stat": "playerLevel",
+      "goal": 8,
+      "rewardCoins": 300,
+      "rewardGems": 1,
+      "playGamesId": ""
+    },
+    {
+      "id": "player_15",
+      "title": "Colour Alchemist",
+      "description": "Reach player level 15",
+      "stat": "playerLevel",
+      "goal": 15,
+      "rewardCoins": 700,
+      "rewardGems": 3,
+      "playGamesId": ""
+    },
+    {
+      "id": "chapter_1",
+      "title": "First Chapter",
+      "description": "Clear a whole chapter",
+      "stat": "chaptersCleared",
+      "goal": 1,
+      "rewardCoins": 100,
+      "rewardGems": 0,
+      "playGamesId": ""
+    },
+    {
+      "id": "chapter_3",
+      "title": "Shelf Reader",
+      "description": "Clear 3 chapters",
+      "stat": "chaptersCleared",
+      "goal": 3,
+      "rewardCoins": 350,
+      "rewardGems": 2,
+      "playGamesId": ""
+    },
+    {
+      "id": "chapter_5",
+      "title": "The Whole Shelf",
+      "description": "Clear every chapter",
+      "stat": "chaptersCleared",
+      "goal": 5,
+      "rewardCoins": 800,
+      "rewardGems": 5,
+      "playGamesId": ""
+    },
+    {
+      "id": "stage_2",
+      "title": "Side Roads",
+      "description": "Clear 2 stages of the side modes",
+      "stat": "stagesCleared",
+      "goal": 2,
+      "rewardCoins": 120,
+      "rewardGems": 0,
+      "playGamesId": ""
+    },
+    {
+      "id": "stage_8",
+      "title": "Map Worker",
+      "description": "Clear 8 stages of the side modes",
+      "stat": "stagesCleared",
+      "goal": 8,
+      "rewardCoins": 300,
+      "rewardGems": 1,
+      "playGamesId": ""
+    },
+    {
+      "id": "stage_16",
+      "title": "Ladder Climber",
+      "description": "Clear 16 stages of the side modes",
+      "stat": "stagesCleared",
+      "goal": 16,
+      "rewardCoins": 700,
+      "rewardGems": 4,
+      "playGamesId": ""
+    },
+    {
+      "id": "mode_star_6",
+      "title": "Bonus Stars",
+      "description": "Earn 6 stars on the side modes",
+      "stat": "sideModeStars",
+      "goal": 6,
+      "rewardCoins": 150,
+      "rewardGems": 0,
+      "playGamesId": ""
+    },
+    {
+      "id": "mode_star_24",
+      "title": "Off The Beaten Pour",
+      "description": "Earn 24 stars on the side modes",
+      "stat": "sideModeStars",
+      "goal": 24,
+      "rewardCoins": 350,
+      "rewardGems": 2,
+      "playGamesId": ""
+    },
+    {
+      "id": "mode_star_48",
+      "title": "Every Ladder, Every Star",
+      "description": "Earn 48 stars on the side modes",
+      "stat": "sideModeStars",
+      "goal": 48,
+      "rewardCoins": 750,
+      "rewardGems": 4,
+      "playGamesId": ""
+    },
+    {
+      "id": "own_3",
+      "title": "Window Shopper",
+      "description": "Own 3 things from the shop",
+      "stat": "itemsOwned",
+      "goal": 3,
+      "rewardCoins": 150,
+      "rewardGems": 0,
+      "playGamesId": ""
+    },
+    {
+      "id": "own_8",
+      "title": "Bottle Cabinet",
+      "description": "Own 8 things from the shop",
+      "stat": "itemsOwned",
+      "goal": 8,
+      "rewardCoins": 350,
+      "rewardGems": 2,
+      "playGamesId": ""
+    },
+    {
+      "id": "own_15",
+      "title": "The Whole Shelf Again",
+      "description": "Own 15 things from the shop",
+      "stat": "itemsOwned",
+      "goal": 15,
+      "rewardCoins": 700,
+      "rewardGems": 4,
+      "playGamesId": ""
+    },
+    {
+      "id": "streak_3",
+      "title": "Habit Forming",
+      "description": "Play 3 days in a row",
+      "stat": "loginStreak",
+      "goal": 3,
+      "rewardCoins": 120,
+      "rewardGems": 0,
+      "playGamesId": ""
+    },
+    {
+      "id": "streak_7",
+      "title": "A Full Week",
+      "description": "Play 7 days in a row",
+      "stat": "loginStreak",
+      "goal": 7,
+      "rewardCoins": 250,
+      "rewardGems": 1,
+      "playGamesId": ""
+    },
+    {
+      "id": "streak_30",
+      "title": "Month Of Pours",
+      "description": "Play 30 days in a row",
+      "stat": "loginStreak",
+      "goal": 30,
+      "rewardCoins": 600,
+      "rewardGems": 3,
+      "playGamesId": ""
+    }
+  ]
+}
